@@ -100,13 +100,23 @@ const AddResidenceForm = ({ onAddResidence, onClose }) => {
   };
 
   const handleImageSelect = (e) => {
-    const files = Array.from(e.target.files);
-    const imageUrls = files.map(file => URL.createObjectURL(file));
+    const files = Array.from(e.target.files || []);
+    const validImageFiles = files.filter(
+      (file) => file && typeof file.type === 'string' && file.type.startsWith('image/')
+    );
+    const imageUrls = validImageFiles
+      .map((file) => URL.createObjectURL(file))
+      .filter((url) => typeof url === 'string' && url.startsWith('blob:'));
+
     setSelectedImages(prev => [...prev, ...imageUrls]);
   };
 
   const removeImage = (indexToRemove) => {
     setSelectedImages(prev => {
+      const imageToRemove = prev[indexToRemove];
+      if (typeof imageToRemove === 'string' && imageToRemove.startsWith('blob:')) {
+        URL.revokeObjectURL(imageToRemove);
+      }
       const newImages = prev.filter((_, index) => index !== indexToRemove);
       return newImages;
     });
@@ -418,19 +428,21 @@ const AddResidenceForm = ({ onAddResidence, onClose }) => {
               <div className="selected-images">
                 <label>Images sélectionnées ({selectedImages.length}) :</label>
                 <div className="images-preview">
-                  {selectedImages.map((imageUrl, index) => (
-                    <div key={index} className="image-preview-item">
-                      <img src={imageUrl} alt={`Aperçu ${index + 1}`} />
-                      <button
-                        type="button"
-                        onClick={() => removeImage(index)}
-                        className="remove-image-btn"
-                        title="Supprimer cette image"
-                      >
-                        <FaTimes />
-                      </button>
-                    </div>
-                  ))}
+                  {selectedImages
+                    .filter((imageUrl) => typeof imageUrl === 'string' && imageUrl.startsWith('blob:'))
+                    .map((imageUrl, index) => (
+                      <div key={index} className="image-preview-item">
+                        <img src={imageUrl} alt={`Aperçu ${index + 1}`} />
+                        <button
+                          type="button"
+                          onClick={() => removeImage(index)}
+                          className="remove-image-btn"
+                          title="Supprimer cette image"
+                        >
+                          <FaTimes />
+                        </button>
+                      </div>
+                    ))}
                 </div>
               </div>
             )}
