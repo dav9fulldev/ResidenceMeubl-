@@ -1,0 +1,17 @@
+# Dépendances
+node_modules/
+client/node_modules/
+backend/node_modules/
+
+# Environnement et secrets
+.env
+backend/.env
+client/.env
+.DS_Store
+
+# Builds
+dist/
+client/dist/
+build/
+client/build/
+

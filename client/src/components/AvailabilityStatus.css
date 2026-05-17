@@ -1,0 +1,138 @@
+.availability-status {
+  background: white;
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e5e7eb;
+}
+
+/* Badge de statut principal */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  border-radius: 50px;
+  border: 2px solid;
+  font-weight: 600;
+  font-size: 16px;
+  margin-bottom: 16px;
+}
+
+.status-badge svg {
+  font-size: 18px;
+}
+
+.status-text {
+  font-weight: 700;
+}
+
+/* Description du statut */
+.status-description {
+  color: #6b7280;
+  font-size: 14px;
+  margin-bottom: 20px;
+  line-height: 1.5;
+}
+
+/* Détails d'occupation */
+.occupancy-details,
+.reservation-details,
+.availability-details {
+  background: #f9fafb;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 20px;
+  border: 1px solid #e5e7eb;
+}
+
+.detail-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  font-size: 14px;
+  color: #374151;
+}
+
+.detail-item:last-child {
+  margin-bottom: 0;
+}
+
+.detail-icon {
+  color: #6b7280;
+  font-size: 16px;
+  min-width: 16px;
+}
+
+.detail-item strong {
+  color: #111827;
+  font-weight: 600;
+}
+
+/* Bouton d'action */
+.availability-action {
+  text-align: center;
+}
+
+.btn-availability {
+  width: 100%;
+  padding: 16px 24px;
+  font-size: 16px;
+  font-weight: 600;
+  border-radius: 12px;
+  transition: all 0.3s ease;
+}
+
+.btn-availability:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-availability:not(:disabled):hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .availability-status {
+    padding: 20px;
+  }
+  
+  .status-badge {
+    padding: 10px 16px;
+    font-size: 14px;
+  }
+  
+  .detail-item {
+    font-size: 13px;
+  }
+}
+
+/* Animations */
+.availability-status {
+  animation: fadeInUp 0.5s ease-out;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* États spéciaux */
+.availability-status.urgent {
+  border-color: #ef4444;
+  box-shadow: 0 4px 20px rgba(239, 68, 68, 0.1);
+}
+
+.availability-status.available-soon {
+  border-color: #f59e0b;
+  box-shadow: 0 4px 20px rgba(245, 158, 11, 0.1);
+}

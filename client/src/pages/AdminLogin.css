@@ -1,0 +1,274 @@
+.admin-login-page {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #1f2937 0%, #374151 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.admin-login-container {
+  background: white;
+  border-radius: 24px;
+  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+  max-width: 1000px;
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+
+/* Header de la page de connexion */
+.admin-login-header {
+  background: linear-gradient(135deg, #d4af37 0%, #f59e0b 100%);
+  color: white;
+  padding: 60px 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.admin-logo h1 {
+  font-size: 64px;
+  margin: 0 0 20px 0;
+}
+
+.admin-logo h2 {
+  font-size: 32px;
+  font-weight: 700;
+  margin: 0 0 12px 0;
+}
+
+.admin-logo p {
+  font-size: 18px;
+  opacity: 0.9;
+  margin: 0;
+}
+
+/* Formulaire de connexion */
+.admin-login-form {
+  padding: 60px 40px;
+  background: white;
+}
+
+.admin-login-form h3 {
+  font-size: 28px;
+  font-weight: 700;
+  color: #1f2937;
+  margin: 0 0 32px 0;
+  text-align: center;
+}
+
+.form-group {
+  margin-bottom: 24px;
+}
+
+.form-group label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+
+.form-group label svg {
+  color: #6b7280;
+  font-size: 16px;
+}
+
+.form-group input {
+  width: 100%;
+  padding: 16px 20px;
+  border: 2px solid #e5e7eb;
+  border-radius: 12px;
+  font-size: 16px;
+  transition: all 0.3s ease;
+  background: #f9fafb;
+}
+
+.form-group input:focus {
+  outline: none;
+  border-color: #d4af37;
+  background: white;
+  box-shadow: 0 0 0 4px rgba(212, 175, 55, 0.1);
+}
+
+/* Conteneur du mot de passe */
+.password-input-container {
+  position: relative;
+}
+
+.password-toggle {
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: #6b7280;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 6px;
+  transition: all 0.3s ease;
+}
+
+.password-toggle:hover {
+  color: #d4af37;
+  background: #f3f4f6;
+}
+
+/* Bouton de connexion */
+.btn-login {
+  width: 100%;
+  padding: 16px 24px;
+  font-size: 16px;
+  font-weight: 600;
+  border-radius: 12px;
+  margin-top: 16px;
+  transition: all 0.3s ease;
+}
+
+.btn-login:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Message d'erreur */
+.error-message {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #dc2626;
+  padding: 16px;
+  border-radius: 12px;
+  margin-bottom: 24px;
+  text-align: center;
+  font-weight: 500;
+}
+
+/* Footer du formulaire */
+.admin-login-footer {
+  text-align: center;
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.admin-login-footer p {
+  color: #6b7280;
+  margin: 0 0 16px 0;
+  font-size: 14px;
+}
+
+.btn-back {
+  padding: 12px 24px;
+  font-size: 14px;
+  border-radius: 8px;
+}
+
+/* Informations */
+.admin-login-info {
+  background: #f8fafc;
+  padding: 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  justify-content: center;
+}
+
+.info-card {
+  background: white;
+  padding: 24px;
+  border-radius: 16px;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.info-card h4 {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0 0 12px 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.info-card p {
+  color: #6b7280;
+  line-height: 1.6;
+  margin: 0;
+  font-size: 14px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .admin-login-container {
+    grid-template-columns: 1fr;
+    max-width: 500px;
+  }
+  
+  .admin-login-header {
+    padding: 40px 20px;
+  }
+  
+  .admin-login-form {
+    padding: 40px 20px;
+  }
+  
+  .admin-login-info {
+    padding: 20px;
+  }
+  
+  .admin-logo h1 {
+    font-size: 48px;
+  }
+  
+  .admin-logo h2 {
+    font-size: 24px;
+  }
+}
+
+@media (max-width: 480px) {
+  .admin-login-page {
+    padding: 10px;
+  }
+  
+  .admin-login-container {
+    border-radius: 16px;
+  }
+  
+  .admin-login-header,
+  .admin-login-form {
+    padding: 30px 20px;
+  }
+}
+
+/* Animations */
+.admin-login-container {
+  animation: slideInUp 0.6s ease-out;
+}
+
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(40px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* États de focus et hover */
+.form-group input:hover {
+  background: white;
+  border-color: #d1d5db;
+}
+
+.btn-login:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(212, 175, 55, 0.3);
+}

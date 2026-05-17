@@ -1,0 +1,223 @@
+{
+  "info": {
+    "name": "Sankofart Résidence API",
+    "description": "Collection Postman pour tester l'API de réservation de Sankofart Résidence",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "🏥 Santé",
+      "item": [
+        {
+          "name": "Vérifier la santé de l'API",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/health",
+              "host": ["{{base_url}}"],
+              "path": ["health"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "🏠 Résidences",
+      "item": [
+        {
+          "name": "Liste des résidences",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/residences",
+              "host": ["{{base_url}}"],
+              "path": ["api", "residences"]
+            }
+          }
+        },
+        {
+          "name": "Détails d'une résidence",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/residences/1",
+              "host": ["{{base_url}}"],
+              "path": ["api", "residences", "1"]
+            }
+          }
+        },
+        {
+          "name": "Rechercher des résidences",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"recherche\": \"Cocody\",\n  \"prixMin\": 30000,\n  \"prixMax\": 50000,\n  \"nombreChambres\": 2,\n  \"typeAppartement\": \"Appartement\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/residences/search",
+              "host": ["{{base_url}}"],
+              "path": ["api", "residences", "search"]
+            }
+          }
+        },
+        {
+          "name": "Types d'appartements",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/residences/types",
+              "host": ["{{base_url}}"],
+              "path": ["api", "residences", "types"]
+            }
+          }
+        },
+        {
+          "name": "Villes disponibles",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/residences/villes",
+              "host": ["{{base_url}}"],
+              "path": ["api", "residences", "villes"]
+            }
+          }
+        },
+        {
+          "name": "Quartiers d'une ville",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/residences/quartiers/Abidjan",
+              "host": ["{{base_url}}"],
+              "path": ["api", "residences", "quartiers", "Abidjan"]
+            }
+          }
+        },
+        {
+          "name": "Vérifier disponibilité",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"residenceId\": 1,\n  \"dateArrivee\": \"2024-02-01\",\n  \"dateDepart\": \"2024-02-05\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/residences/check-disponibilite",
+              "host": ["{{base_url}}"],
+              "path": ["api", "residences", "check-disponibilite"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "📅 Réservations",
+      "item": [
+        {
+          "name": "Créer une réservation",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"residenceId\": 1,\n  \"nom\": \"Dupont\",\n  \"prenom\": \"Jean\",\n  \"email\": \"jean.dupont@email.com\",\n  \"telephone\": \"+225070123456\",\n  \"dateArrivee\": \"2024-02-01\",\n  \"dateDepart\": \"2024-02-05\",\n  \"nombrePersonnes\": 2,\n  \"notes\": \"Arrivée en soirée\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/reservations",
+              "host": ["{{base_url}}"],
+              "path": ["api", "reservations"]
+            }
+          }
+        },
+        {
+          "name": "Obtenir une réservation",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/reservations/RES_1234567890_abc123def",
+              "host": ["{{base_url}}"],
+              "path": ["api", "reservations", "RES_1234567890_abc123def"]
+            }
+          }
+        },
+        {
+          "name": "Liste des réservations (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/reservations",
+              "host": ["{{base_url}}"],
+              "path": ["api", "reservations"]
+            }
+          }
+        },
+        {
+          "name": "Mettre à jour le statut",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"statut\": \"confirmee\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/reservations/RES_1234567890_abc123def/status",
+              "host": ["{{base_url}}"],
+              "path": ["api", "reservations", "RES_1234567890_abc123def", "status"]
+            }
+          }
+        },
+        {
+          "name": "Statistiques des réservations",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/reservations/stats",
+              "host": ["{{base_url}}"],
+              "path": ["api", "reservations", "stats"]
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:5000",
+      "type": "string"
+    }
+  ]
+}
