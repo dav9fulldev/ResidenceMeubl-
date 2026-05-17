@@ -76,7 +76,7 @@ export const ResidencesProvider = ({ children }) => {
   const updateResidenceStatus = (residenceId, newStatus, additionalData = {}) => {
     setResidences(prev => prev.map(residence => {
       if (residence.id === residenceId) {
-        let availability = { ...residence.availability };
+        let availability;
         
         switch (newStatus) {
           case 'disponible':
