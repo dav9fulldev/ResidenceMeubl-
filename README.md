@@ -1,4 +1,4 @@
-# 🏠 Sankofart Résidence - Projet Complet (Monorepo)
+# 🏠 Résidences Meublé - Projet Complet (Monorepo)
 
 ## 📋 ÉTAT DU PROJET : ✅ TERMINÉ & SÉCURISÉ
 Statut : **100% Opérationnel - Prêt pour développement et déploiement**
