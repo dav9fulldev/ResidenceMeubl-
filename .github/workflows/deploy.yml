@@ -9,61 +9,38 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+    - name: Checkout code
+      uses: actions/checkout@v3
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '20'
+    - name: Deploy on VPS
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.VPS_IP }}
+        username: ${{ secrets.VPS_USER }}
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        port: 22
+        command_timeout: 120s
+        timeout: 120s
+        script: |
+          cd /var/www/ResidenceMeubl-
 
-      - name: Install frontend dependencies
-        run: |
+          git fetch origin main
+          git reset --hard origin/main
+
           cd client
           npm install --legacy-peer-deps
-
-      - name: Build frontend
-        run: |
-          cd client
           npm run build
           cp -r public/images dist/images
 
-      - name: Deploy frontend to VPS
-        uses: appleboy/scp-action@v0.1.9
-        with:
-          host: ${{ secrets.VPS_IP }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: 22
-          source: "client/dist/*"
-          target: "/var/www/residences"
-          strip_components: 2
-          overwrite: true
-          debug: true
+          rm -rf /var/www/residences/*
+          cp -r dist/* /var/www/residences/
 
-      - name: Deploy backend to VPS
-        uses: appleboy/scp-action@v0.1.9
-        with:
-          host: ${{ secrets.VPS_IP }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: 22
-          source: "backend/*"
-          target: "/var/www/residences-api"
-          strip_components: 1
-          overwrite: true
-          debug: true
+          cd ../backend
+          npm install --production
 
-      - name: Restart backend
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ secrets.VPS_IP }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: 22
-          script: |
-            cd /var/www/residences-api
-            npm install --production
-            pm2 restart residences-api || pm2 start server.js --name residences-api
-            pm2 save
-            
+          rm -rf /var/www/residences-api/*
+          cp -r . /var/www/residences-api/
+
+          cd /var/www/residences-api
+          pm2 restart residences-api || pm2 start server.js --name residences-api
+          pm2 save
