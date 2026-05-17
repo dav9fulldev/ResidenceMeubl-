@@ -15,7 +15,7 @@ app.use(morgan('combined'));
 
 // ✅ Configuration CORS
 const allowedOrigins = [
-  process.env.FRONTEND_URL || 'https://residence.alerto-crisis.com',
+  process.env.FRONTEND_URL || 'https://sankofart-residence.vercel.app',
   'http://localhost:3000', // Pour le développement
   'http://localhost:5173'  // Pour Vite
 ];
@@ -106,7 +106,7 @@ app.use((error, req, res, next) => {
 });
 
 // ✅ Port dynamique
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5001;
 
 // ✅ Démarrer le serveur
 app.listen(PORT, () => {
