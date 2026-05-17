@@ -1,14 +1,14 @@
 // Images des résidences (vraies images)
-const residence1 = '/images/residence1.jpg';
-const residence2 = '/images/residence2.jpg';
-const residence3 = '/images/residence3.jpg';
-const residence4 = '/images/residence4.jpg';
-const residence5 = '/images/residence5.jpg';
-const residence6 = '/images/residence6.jpg';
-const residence7 = '/images/residence7.jpg';
-const residence8 = '/images/residence8.jpg';
-const residence9 = '/images/residence9.jpg';
-const residence10 = '/images/residence10.jpg';
+const residence1 = '/images/residence1.png';
+const residence2 = '/images/residence2.png';
+const residence3 = '/images/residence3.png';
+const residence4 = '/images/residence4.png';
+const residence5 = '/images/residence5.png';
+const residence6 = '/images/residence6.png';
+const residence7 = '/images/residence7.png';
+const residence8 = '/images/residence8.png';
+const residence9 = '/images/residence9.png';
+const residence10 = '/images/residence10.png';
 
 export const residences = [
   {

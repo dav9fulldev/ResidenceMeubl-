@@ -51,7 +51,7 @@ const AddResidenceForm = ({ onAddResidence, onClose }) => {
     maxGuests: '',
     surface: '',
     amenities: [],
-    images: ['/images/residence1.jpg'], // Image par défaut
+    images: ['/images/residence1.png'], // Image par défaut
     availability: {
       status: 'disponible',
       nextAvailable: null,

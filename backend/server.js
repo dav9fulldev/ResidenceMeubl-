@@ -15,7 +15,7 @@ app.use(morgan('combined'));
 
 // ✅ Configuration CORS
 const allowedOrigins = [
-  process.env.FRONTEND_URL || 'https://sankofartresidence.com',
+  process.env.FRONTEND_URL || 'https://residence.alerto-crisis.com',
   'http://localhost:3000', // Pour le développement
   'http://localhost:5173'  // Pour Vite
 ];

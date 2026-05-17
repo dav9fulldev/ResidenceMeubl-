@@ -32,7 +32,7 @@ const Header = () => {
         <div className="logo">
           <Link to="/" onClick={closeMenu}>
             <img 
-              src="/images/logo_entreprise.jpg" 
+              src="/images/logo_entreprise.png" 
               alt="Sankofart Résidence" 
               className="logo-image"
             />

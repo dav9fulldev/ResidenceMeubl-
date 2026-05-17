@@ -20,9 +20,9 @@ class ResidenceService {
         description: "Magnifique appartement moderne dans un quartier résidentiel calme de Cocody. Idéal pour les voyageurs d'affaires et les familles.",
         equipements: ["Climatisation", "WiFi", "Cuisine équipée", "Balcon", "Parking"],
         photos: [
-          "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=800",
-          "https://images.unsplash.com/photo-1560448204-603b3fc33ddc?w=800",
-          "https://images.unsplash.com/photo-1560448204-5b7a1a0b0b0b?w=800"
+           "/images/residence1.png",
+           "/images/residence2.png",
+           "/images/residence3.png"
         ],
         amenities: ["Piscine", "Gym", "Sécurité 24/7", "Conciergerie"],
         surface: 85,
@@ -42,8 +42,9 @@ class ResidenceService {
         description: "Superbe villa avec jardin privatif dans le quartier animé de Yopougon. Parfait pour les séjours en famille.",
         equipements: ["Climatisation", "WiFi", "Cuisine équipée", "Jardin", "Terrasse", "Parking privé"],
         photos: [
-          "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=800",
-          "https://images.unsplash.com/photo-1560448204-603b3fc33ddc?w=800"
+          "/images/residence4.png",
+          "/images/residence5.png",
+          "/images/residence6.png"
         ],
         amenities: ["Jardin privatif", "Terrasse", "Sécurité", "Ménage"],
         surface: 120,
@@ -63,7 +64,7 @@ class ResidenceService {
         description: "Studio moderne et fonctionnel au cœur du Plateau, à proximité des commerces et des transports.",
         equipements: ["Climatisation", "WiFi", "Cuisine équipée", "Balcon"],
         photos: [
-          "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=800"
+          "/images/residence7.png",
         ],
         amenities: ["Sécurité", "Ascenseur", "Ménage"],
         surface: 45,
@@ -83,8 +84,9 @@ class ResidenceService {
         description: "Grand appartement familial dans le quartier résidentiel de Marcory. Idéal pour les longs séjours.",
         equipements: ["Climatisation", "WiFi", "Cuisine équipée", "Balcon", "Parking", "Cave"],
         photos: [
-          "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=800",
-          "https://images.unsplash.com/photo-1560448204-603b3fc33ddc?w=800"
+          "/images/residence8.png",
+          "/images/residence9.png",
+          "/images/residence10.png"
         ],
         amenities: ["Piscine", "Gym", "Sécurité", "Ménage", "Conciergerie"],
         surface: 110,

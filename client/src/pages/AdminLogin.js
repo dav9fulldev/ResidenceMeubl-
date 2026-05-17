@@ -18,7 +18,7 @@ const AdminLogin = () => {
   // Identifiants administrateur (en production, cela viendrait d'une base de données)
   const ADMIN_CREDENTIALS = {
     username: 'admin',
-    password: 'sankofart2024'
+    password: 'residence2026' // En production, utilisez un mot de passe sécurisé et stockez-le de manière sécurisée
   };
 
   const handleInputChange = (e) => {
