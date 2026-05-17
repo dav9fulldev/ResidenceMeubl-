@@ -1,141 +1,113 @@
-# Sankofart Résidence - Frontend
+# 🏠 Sankofart Résidence - Frontend Application
 
-Site vitrine moderne pour présenter les résidences meublées de Sankofart Résidence, permettant aux visiteurs de consulter les appartements disponibles, de filtrer/rechercher et d'effectuer des réservations en ligne.
+## 📋 ÉTAT DU COMPOSANT : ✅ 100% OPÉRATIONNEL
+Statut : **Terminé - Prêt pour intégration et déploiement**  
+Charte graphique : **Luxe & Prestige (Blanc, Noir, Doré `#d4af37`)**
 
-## 🏠 Fonctionnalités
+---
 
-### Côté utilisateur
-- **Consultation** : Liste des résidences avec photos, description, prix, localisation
-- **Recherche & Filtres** : Par nom, ville, quartier, prix, nombre de chambres
-- **Détails** : Page détaillée d'un appartement (images, équipements, disponibilités)
-- **Réservation stricte** : Formulaire avec validation et pré-remplissage automatique
-- **Favoris** : Sauvegarde locale des résidences préférées
-- **Design responsive** : Mobile, tablette, desktop
+## 🎯 Présentation et Fonctionnalités
 
-### Fonctionnalités techniques
-- Gestion des favoris avec localStorage
-- Formulaire de réservation avec validation stricte
-- Pré-remplissage automatique des informations de résidence
-- Navigation intuitive et recherche avancée
-- Design sobre et professionnel (blanc, doré, noir)
+Cette application React.js constitue l'interface vitrine et le tunnel de réservation complet pour **Sankofart Résidence**. Elle offre une expérience utilisateur fluide et immersive, adaptée à tous les types d'écrans.
 
-## 🚀 Technologies utilisées
+### 👥 Côté Utilisateur & Visiteur
+- **Catalogue Immersif** : Présentation haut de gamme de **10 résidences** avec galeries photos, équipements et localisation.
+- **Vidéo d'ambiance** : Page d'accueil dynamique avec arrière-plan vidéo fluide (`video_script.mp4`).
+- **Recherche & Filtres Avancés** : Recherche textuelle instantanée (nom, ville, quartier) croisée avec des filtres par prix et nombre de chambres.
+- **Espace Favoris** : Sauvegarde locale et persistance des appartements préférés via `localStorage`.
+- **Tunnel de Réservation Strict** : Formulaire intelligent avec pré-remplissage automatique des données de la résidence sélectionnée et module d'upload de pièce d'identité.
 
-- **React.js** 19.1.1
-- **React Router** pour la navigation
-- **React Hook Form** pour la gestion des formulaires
-- **React Icons** pour les icônes
-- **CSS3** avec design responsive
-- **LocalStorage** pour la persistance des favoris
+### 🛠️ Fonctionnalités Techniques & Administration
+- **Système Hybride Intelligent** : L'application peut fonctionner de manière autonome en **Mode LOCAL** (via données statiques de secours) ou en **Mode API** connecté au serveur backend.
+- **Dashboard Admin Intégré** : Espace sécurisé permettant de piloter l'état des logements et de suivre les statistiques d'occupation en temps réel.
 
-## 📁 Structure du projet
+---
 
+## 📁 Structure du Dossier Frontend
+
+```text
+client/
+├── public/
+│   ├── images/               # 10 photos officielles des résidences + logos
+│   ├── video_script.mp4      # Vidéo de fond de la page d'accueil
+│   └── index.html            # Point d'entrée HTML principal
+├── src/
+│   ├── components/           # --- COMPOSANTS RÉUTILISABLES ---
+│   │   ├── Header.js         # Barre de navigation principale
+│   │   ├── Footer.js         # Pied de page (inclut le lien Admin)
+│   │   ├── AdminPanel.js     # Panneau de gestion des données
+│   │   ├── AvailabilityStatus.js # Indicateurs de disponibilité
+│   │   └── ProtectedRoute.js # Sécurisation des accès sensibles
+│   ├── pages/                # --- PAGES PRINCIPALES ---
+│   │   ├── Home.js           # Accueil avec résidences vedettes
+│   │   ├── Residences.js     # Liste complète avec filtres avancés
+│   │   ├── ResidenceDetail.js# Fiche détaillée de l'appartement
+│   │   ├── Reservation.js    # Formulaire de réservation et validation
+│   │   ├── Favorites.js      # Gestionnaire des résidences sauvegardées
+│   │   ├── AdminLogin.js     # Formulaire de connexion de l'administrateur
+│   │   └── AdminDashboard.js # Tableau de bord de suivi d'activité
+│   ├── context/              # --- GESTION DES ÉTATS (Context API) ---
+│   │   ├── FavoritesContext.js   # État global des favoris utilisateurs
+│   │   ├── ResidencesContext.js  # Gestionnaire du Mode LOCAL (Statique)
+│   │   └── ResidencesContextAPI.js # Gestionnaire du Mode BACKEND (API)
+│   ├── config/
+│   │   └── api.js            # Configuration des URLs d'appels Axios
+│   └── data/
+│       └── residences.js     # Fichier source des 10 résidences de secours
+├── package.json              # Dépendances et configurations scripts
+└── webpack.config.js         # Serveur de développement universel pour Mac
 ```
-src/
-├── components/          # Composants réutilisables
-│   ├── Header.js       # Navigation principale
-│   └── Footer.js       # Pied de page
-├── context/            # Contextes React
-│   └── FavoritesContext.js  # Gestion des favoris
-├── data/               # Données statiques
-│   └── residences.js   # Liste des résidences
-├── pages/              # Pages de l'application
-│   ├── Home.js         # Page d'accueil
-│   ├── Residences.js   # Liste des résidences
-│   ├── ResidenceDetail.js  # Détail d'une résidence
-│   ├── Reservation.js  # Formulaire de réservation
-│   └── Favorites.js    # Page des favoris
-└── App.js              # Composant principal
-```
 
-## 🎨 Design
+---
 
-Le design suit les spécifications du document technique :
-- **Couleurs** : Blanc, doré (#d4af37), noir (#1a1a1a)
-- **Style** : Sobre et professionnel, reflétant le luxe et le confort
-- **Responsive** : Adapté à tous les écrans
-- **UX** : Interface intuitive avec navigation rapide
+## 🔧 Installation et Lancement Local (Mac)
 
-## 🔧 Installation et démarrage
-
-1. **Cloner le projet**
+1. Ouvrez votre terminal et placez-vous dans le répertoire du client :
    ```bash
-   git clone [url-du-repo]
-   cd sankofart-residence-frontend
+   cd client
    ```
 
-2. **Installer les dépendances**
+2. Installez proprement l'ensemble des modules en contournant les éventuels conflits d'architecture :
    ```bash
-   npm install
+   npm install --legacy-peer-deps
    ```
 
-3. **Démarrer le serveur de développement**
+3. Démarrez l'application sur votre serveur de développement Webpack :
    ```bash
    npm start
    ```
 
-4. **Ouvrir dans le navigateur**
-   ```
-   http://localhost:3000
-   ```
-
-## 📱 Pages disponibles
-
-- **/** - Page d'accueil avec résidences vedettes
-- **/residences** - Liste complète avec recherche et filtres
-- **/residence/:id** - Détail d'une résidence
-- **/reservation** - Formulaire de réservation
-- **/favorites** - Résidences sauvegardées
-
-## 🎯 Fonctionnalités clés
-
-### Système de réservation
-- Formulaire strict avec validation
-- Pré-remplissage automatique des informations de résidence
-- Validation des dates et champs obligatoires
-- Upload de pièce d'identité
-
-### Gestion des favoris
-- Ajout/retrait de résidences
-- Persistance locale (localStorage)
-- Interface intuitive pour la gestion
-
-### Recherche et filtres
-- Recherche textuelle (nom, ville, quartier)
-- Filtres par prix, nombre de chambres, ville
-- Interface de filtrage avancée
-
-## 🔒 Sécurité
-
-- Validation stricte des formulaires
-- Protection contre les injections
-- Validation des types de fichiers
-- Gestion sécurisée des données
-
-## 📱 Responsive Design
-
-- **Mobile** : Interface optimisée pour petits écrans
-- **Tablette** : Adaptation des grilles et composants
-- **Desktop** : Expérience complète avec toutes les fonctionnalités
-
-## 🚀 Déploiement
-
-Le projet est configuré pour être déployé sur :
-- **Netlify** (recommandé)
-- **Vercel**
-- **Heroku**
-- **VPS** classique
-
-## 📞 Contact
-
-Pour toute question ou support :
-- **Email** : contact@sankofartresidence.com
-- **Téléphone** : +225 27 22 49 28 90
-
-## 📄 Licence
-
-Ce projet est développé pour Sankofart Résidence. Tous droits réservés.
+4. L'application s'ouvrira automatiquement à l'adresse suivante : **`http://localhost:3000`**
 
 ---
 
-**Développé avec ❤️ pour votre confort**
+## 🔐 Accès Espace Administration
+
+Pour accéder à l'interface de gestion durant vos tests, cliquez sur le lien **"🛠️ Administration"** situé tout en bas dans le pied de page (Footer).
+
+- **Nom d'utilisateur** : `admin`
+- **Mot de passe** : `sankofart2024`
+
+### 📊 Grille des codes couleur de disponibilité :
+
+
+| Statut | Description | Couleur de l'indicateur |
+|--------|-------------|-------------------------|
+| 🟢 **Disponible** | Logement libre immédiatement | Vert |
+| 🔴 **Occupé** | Résidence actuellement occupée | Rouge |
+| 🟡 **Réservé** | Réservation planifiée et validée | Jaune |
+| 🔵 **Maintenance** | Logement indisponible (Travaux / Ménage) | Bleu |
+
+---
+
+## 🔒 Sécurité & Robustesse de l'Interface
+- **Validation Stricte** : Formulaires propulsés par `React Hook Form` empêchant l'envoi de requêtes incomplètes ou de dates inversées.
+- **Contrôle des fichiers** : Vérification stricte de l'extension et du poids des pièces d'identité chargées.
+- **Routes Privées** : Protection logicielle empêchant l'accès direct aux URLs admin sans token d'authentification valide.
+
+## 📞 Support technique & Contacts
+- **Email de l'entreprise** : `contact@sankofartresidence.com`
+- **Assistance Téléphonique** : `+225 27 22 49 28 90`
+
+---
+**Développé avec ❤️ pour Sankofart Résidence.**
