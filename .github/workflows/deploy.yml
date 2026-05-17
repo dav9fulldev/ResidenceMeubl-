@@ -13,15 +13,12 @@ jobs:
       uses: actions/checkout@v3
 
     - name: Deploy on VPS
-      uses: appleboy/ssh-action@v1.0.3
-      with:
-        host: ${{ secrets.VPS_IP }}
-        username: ${{ secrets.VPS_USER }}
-        key: ${{ secrets.SSH_PRIVATE_KEY }}
-        port: 22
-        command_timeout: 120s
-        timeout: 120s
-        script: |
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+        chmod 600 ~/.ssh/deploy_key
+
+        ssh -o StrictHostKeyChecking=no -i ~/.ssh/deploy_key ${{ secrets.VPS_USER }}@${{ secrets.VPS_IP }} << 'EOF'
           cd /var/www/ResidenceMeubl-
 
           git fetch origin main
@@ -44,4 +41,4 @@ jobs:
           cd /var/www/residences-api
           pm2 restart residences-api || pm2 start server.js --name residences-api
           pm2 save
-          
+        EOF
