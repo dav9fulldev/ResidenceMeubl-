@@ -44,3 +44,4 @@ jobs:
           cd /var/www/residences-api
           pm2 restart residences-api || pm2 start server.js --name residences-api
           pm2 save
+          
