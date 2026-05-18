@@ -541,4 +541,14 @@
   .feature-card {
     padding: 30px 20px;
   }
+
+  .hero-video::-webkit-media-controls {
+  display: none !important;
+}
+
+.hero-video::-webkit-media-controls-start-playback-button {
+  display: none !important;
+  -webkit-appearance: none;
+}
+
 }

@@ -24,6 +24,8 @@ const Home = () => {
           webkit-playsinline="true"
           preload="auto"
           poster="/images/residence1.png"
+          controls={false}
+          disablePictureInPicture
         >
           <source src={videoScript} type="video/mp4" />
           Votre navigateur ne supporte pas la lecture de vidéos.
