@@ -21,8 +21,9 @@ const Home = () => {
           muted 
           loop 
           playsInline
+          webkit-playsinline="true"
           preload="auto"
-          className="hero-video"
+          poster="/images/residence1.png"
         >
           <source src={videoScript} type="video/mp4" />
           Votre navigateur ne supporte pas la lecture de vidéos.
