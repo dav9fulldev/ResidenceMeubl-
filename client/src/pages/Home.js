@@ -14,42 +14,33 @@ const Home = () => {
     <div className="home">
       {/* Section Héro */}
       <section className="hero">
-        {window.innerWidth < 768 ? (
-          <img
-            src="/images/residence1.png"
-            alt="Résidence de luxe"
-            className="hero-video"
-          />
-        ) : (
-          <video
-            className="hero-video"
-            autoPlay
-            muted
-            loop
-            playsInline
-            preload="auto"
-          >
-            <source src={videoScript} type="video/mp4" />
-          </video>
-        )}
-
+        {/* Vidéo en arrière-plan */}
+        <video 
+          className="hero-video" 
+          autoPlay 
+          muted 
+          loop 
+          playsInline
+          preload="auto"
+          className="hero-video"
+        >
+          <source src={videoScript} type="video/mp4" />
+          Votre navigateur ne supporte pas la lecture de vidéos.
+        </video>
+        
+        {/* Overlay sombre */}
         <div className="hero-overlay"></div>
-
+        
         <div className="hero-content">
           <div className="hero-text">
             <h1>Découvrez le Luxe et le Confort</h1>
-
-            <p>
-              Des résidences meublées d'exception au cœur de la Côte d'Ivoire.
-              Votre séjour parfait commence ici.
-            </p>
-
+            <p>Des résidences meublées d'exception au cœur de la Côte d'Ivoire. 
+               Votre séjour parfait commence ici.</p>
             <div className="hero-buttons">
               <Link to="/residences" className="btn btn-primary">
                 Voir nos résidences
                 <FaArrowRight />
               </Link>
-
               <Link to="/residences" className="btn btn-secondary">
                 Réserver maintenant
               </Link>
@@ -57,7 +48,6 @@ const Home = () => {
           </div>
         </div>
       </section>
-
 
       {/* Section Avantages */}
       <section className="features">
