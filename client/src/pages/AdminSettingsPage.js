@@ -9,12 +9,12 @@ const CHAMPS = [
     aide: 'Part du prix total payée par le client après confirmation.',
   },
   {
-    cle: 'remboursementPourcentage', label: 'Part remboursée en cas d\'annulation', unite: '% de l\'acompte', min: 0, max: 100,
-    aide: '0 = acompte jamais remboursé, 100 = remboursement intégral.',
+    cle: 'remboursableApresPaiementJours', label: 'Remboursement intégral pendant', unite: 'jours après le paiement', min: 0, max: 365,
+    aide: 'Annulation demandée dans ce délai : l\'acompte est remboursé en entier.',
   },
   {
-    cle: 'remboursableApresPaiementJours', label: 'Délai d\'annulation après paiement', unite: 'jours', min: 0, max: 365,
-    aide: 'Le client doit demander l\'annulation dans ce délai après avoir payé l\'acompte.',
+    cle: 'remboursementPourcentage', label: 'Part remboursée après ce délai', unite: '% de l\'acompte', min: 0, max: 100,
+    aide: '0 = plus rien après le délai, 100 = toujours en entier.',
   },
   {
     cle: 'nonRemboursableAvantArriveeJours', label: 'Non remboursable avant l\'arrivée', unite: 'jours', min: 0, max: 365,
@@ -106,14 +106,12 @@ const AdminSettingsPage = () => {
           {exemple && (
             <div className="parametres-exemple">
               <strong>Exemple pour un séjour de 100 000 FCFA</strong>
-              <p>
-                Le client paie un acompte de <b>{fcfa(exemple.acompte)}</b>.
-                {' '}S'il annule au plus tard {valeurs.remboursableApresPaiementJours} jour(s) après le paiement
-                {' '}et au moins {valeurs.nonRemboursableAvantArriveeJours} jour(s) avant l'arrivée,
-                {' '}{Number(valeurs.remboursementPourcentage) > 0
-                  ? <>il reçoit <b>{fcfa(exemple.rembourse)}</b> ({valeurs.remboursementPourcentage} % de l'acompte).</>
-                  : <>il ne reçoit rien (acompte non remboursable).</>}
-              </p>
+              <p>Le client paie un acompte de <b>{fcfa(exemple.acompte)}</b>. S'il annule :</p>
+              <ul>
+                <li>dans les {valeurs.remboursableApresPaiementJours} jour(s) suivant le paiement : il reçoit <b>{fcfa(exemple.acompte)}</b> (100 %) ;</li>
+                <li>plus tard : il reçoit <b>{fcfa(exemple.rembourse)}</b> ({valeurs.remboursementPourcentage} %) ;</li>
+                <li>à moins de {valeurs.nonRemboursableAvantArriveeJours} jour(s) de l'arrivée : il ne reçoit rien.</li>
+              </ul>
               <p className="parametre-aide">Les acomptes déjà payés suivent les paramètres en vigueur au moment de l'annulation.</p>
             </div>
           )}

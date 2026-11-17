@@ -44,17 +44,21 @@ class RefundService {
     const etat = r.acompte.remboursement?.statut;
     if (etat === 'rembourse' || etat === 'en_cours') return r;
 
-    // Politique : évaluée à la date de la demande d'annulation du client
-    if (!ignorerPolitique) {
+    // Politique (paliers 100 % / partiel / rien) évaluée à la date de la demande d'annulation du client.
+    // Relance ou geste commercial (ignorerPolitique) : même part qu'à la première tentative, sinon 100 %.
+    let pourcentage;
+    if (ignorerPolitique) {
+      pourcentage = Number(r.acompte.remboursement?.pourcentage) || 100;
+    } else {
       const politique = acompte.politiqueRemboursement(r, r.demandeAnnulation?.dateDemande || new Date());
       if (politique && !politique.remboursable) {
         return this.majRemboursement(r.id, { statut: 'non_remboursable', depuis: new Date(), raison: politique.raison });
       }
+      pourcentage = politique ? politique.pourcentage : acompte.pourcentageRembourse();
     }
 
     const maintenant = new Date();
-    const pourcentage = acompte.pourcentageRembourse();
-    const montant = pourcentage >= 100 ? Number(r.acompte.montant) : acompte.montantRembourse(r.acompte.montant);
+    const montant = acompte.montantRembourse(r.acompte.montant, pourcentage);
     if (montant <= 0) {
       return this.majRemboursement(r.id, { statut: 'non_remboursable', depuis: maintenant, raison: 'Acompte non remboursable' });
     }

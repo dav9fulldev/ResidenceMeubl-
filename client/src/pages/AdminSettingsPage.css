@@ -61,3 +61,12 @@
   align-items: center;
   gap: 8px;
 }
+
+.parametres-exemple ul {
+  margin: 6px 0 0;
+  padding-left: 20px;
+}
+
+.parametres-exemple li {
+  margin: 4px 0;
+}

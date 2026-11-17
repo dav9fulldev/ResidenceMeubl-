@@ -1028,8 +1028,8 @@ test('remboursement automatique PI-SPI : retour de fonds, rejet, relance, délai
   assert.match(r.acompte.remboursement.raison, /90 jours/);
 });
 
-test('politique de remboursement : 5 jours après paiement, 3 jours avant l\'arrivée', async (t) => {
-  configurerPiSpi(t, { PAIEMENT_MODE: 'pispi', ACOMPTE_REMBOURSEMENT_POURCENTAGE: '100' });
+test('politique de remboursement par paliers : 100 % pendant 5 jours, puis 50 %, rien à 3 jours de l\'arrivée', async (t) => {
+  configurerPiSpi(t, { PAIEMENT_MODE: 'pispi' });
   const es = ReservationService.emailService;
   es.sendRemboursementEffectue = async () => {};
   const { politiqueRemboursement } = require('../services/paiement/acompte');
@@ -1039,14 +1039,26 @@ test('politique de remboursement : 5 jours après paiement, 3 jours avant l\'arr
     acompte: { paye: true, payeLe: jour(-payeIlYa) },
     dates: { arrivee: jourDansNJours(arriveeDans) },
   });
-  assert.equal(politiqueRemboursement(resa(1, 30)).remboursable, true, 'payé hier, arrivée dans 30 j');
-  assert.equal(politiqueRemboursement(resa(6, 30)).remboursable, false, 'payé il y a 6 j');
-  assert.match(politiqueRemboursement(resa(6, 30)).raison, /5 jours après le paiement/);
+  const p0 = politiqueRemboursement({ ...resa(0, 12), acompte: { ...resa(0, 12).acompte, montant: 25200 } });
+  assert.equal(p0.pourcentage, 100, 'annulation le jour du paiement : remboursement intégral');
+  assert.equal(p0.montant, 25200);
+  assert.equal(p0.integral, true);
+  assert.equal(p0.paliers, true);
+  assert.equal(p0.montantPartiel, 12600);
+  assert.equal(politiqueRemboursement(resa(1, 30)).pourcentage, 100, 'payé hier, arrivée dans 30 j');
+  const p6 = politiqueRemboursement(resa(6, 30));
+  assert.equal(p6.remboursable, true, 'payé il y a 6 j : remboursement partiel');
+  assert.equal(p6.pourcentage, 50);
   assert.equal(politiqueRemboursement(resa(1, 2)).remboursable, false, 'arrivée dans 2 j');
   assert.match(politiqueRemboursement(resa(1, 2)).raison, /3 jours avant l'arrivée/);
   process.env.ACOMPTE_REMBOURSABLE_APRES_PAIEMENT_JOURS = '3';
   t.after(() => { delete process.env.ACOMPTE_REMBOURSABLE_APRES_PAIEMENT_JOURS; });
-  assert.equal(politiqueRemboursement(resa(4, 30)).remboursable, false, 'délai réglable');
+  assert.equal(politiqueRemboursement(resa(4, 30)).pourcentage, 50, 'délai réglable');
+  // Sans palier partiel (0 %), plus rien après le délai
+  process.env.ACOMPTE_REMBOURSEMENT_POURCENTAGE = '0';
+  t.after(() => { delete process.env.ACOMPTE_REMBOURSEMENT_POURCENTAGE; });
+  assert.equal(politiqueRemboursement(resa(6, 30)).remboursable, false);
+  assert.match(politiqueRemboursement(resa(6, 30)).raison, /3 jours après le paiement/);
 
   // Annulation acceptée hors délai : pas de retour PI-SPI, acompte conservé ; l'admin peut rembourser quand même
   const PiSpiLocal = require('../services/paiement/PiSpiClient');
@@ -1107,7 +1119,8 @@ test('remboursement partiel (50 % par défaut) : paiement sortant vers l\'adress
 
   const preparer = async (j, payeurAlias) => {
     const { id, headersAdmin, headersClient } = await reservationConfirmee(1, j, j + 3, `partiel${j}@example.com`);
-    await db.collection('reservations').updateOne({ id }, { $set: { acompte: { paye: true, montant: 40500, payeLe: new Date(), txId: 'TXP' + j, end2endId: 'E2E-P' + j, methode: 'demande', ...(payeurAlias ? { payeurAlias } : {}) } } });
+    // Payé il y a 8 jours : au-delà du remboursement intégral → palier à 50 %
+    await db.collection('reservations').updateOne({ id }, { $set: { acompte: { paye: true, montant: 40500, payeLe: new Date(Date.now() - 8 * 86400000), txId: 'TXP' + j, end2endId: 'E2E-P' + j, methode: 'demande', ...(payeurAlias ? { payeurAlias } : {}) } } });
     const vue = (await api('/api/client/reservations', { headers: headersClient })).body.data.find(r => r.id === id);
     assert.equal(vue.acompte.politique.montant, 20250, 'le client voit le montant qu\'il recevra');
     assert.equal(vue.acompte.politique.pourcentage, 50);
@@ -1139,4 +1152,17 @@ test('remboursement partiel (50 % par défaut) : paiement sortant vers l\'adress
   await preparer(520);
   assert.equal(envois[1].payeAlias, 'alias-client-lu');
   assert.equal(PiSpiLocal.retournerFonds.mock.callCount(), 0);
+
+  // Annulation demandée le jour du paiement → remboursement intégral (retour de fonds)
+  PiSpiLocal.retournerFonds.mock.mockImplementation(async (e2e) => ({ end2endId: e2e, retourStatut: 'IRREVOCABLE' }));
+  const { id, headersAdmin, headersClient } = await reservationConfirmee(1, 540, 543, 'integral@example.com');
+  await db.collection('reservations').updateOne({ id }, { $set: { acompte: { paye: true, montant: 25200, payeLe: new Date(), txId: 'TXI', end2endId: 'E2E-I', methode: 'demande' } } });
+  await api(`/api/client/reservations/${id}/annulation`, { method: 'POST', headers: headersClient, body: {} });
+  await api(`/api/reservations/${id}/annulation`, { method: 'PUT', headers: headersAdmin, body: { decision: 'accepter' } });
+  r = await db.collection('reservations').findOne({ id });
+  assert.equal(r.acompte.remboursement.statut, 'rembourse');
+  assert.equal(r.acompte.remboursement.montant, 25200);
+  assert.equal(r.acompte.remboursement.pourcentage, 100);
+  assert.equal(r.acompte.remboursement.methode, 'retour');
+  assert.equal(envois.length, 2, 'pas de paiement sortant pour un remboursement intégral');
 });
