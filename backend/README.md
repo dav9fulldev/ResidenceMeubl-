@@ -1,312 +1,111 @@
-# 🏠 Sankofart Résidence - API Backend
+# 🏠 Sankofart Résidence — API backend
 
-## 📋 Description
+API Express qui gère les résidences, les réservations, l'administration, les emails et la recherche intelligente. Les données sont stockées dans MongoDB Atlas.
 
-API backend pour le site de réservation de Sankofart Résidence. Cette API permet de gérer les résidences, les réservations et l'envoi automatique d'emails.
-
-## 🚀 Fonctionnalités
-
-### ✅ Résidences
-- Liste des résidences disponibles
-- Détails complets d'une résidence
-- Recherche et filtres avancés
-- Vérification de disponibilité
-
-### ✅ Réservations
-- Création de réservations
-- Validation des données
-- Calcul automatique des prix
-- Gestion des statuts
-
-### ✅ Emails
-- Envoi automatique à l'administrateur
-- Confirmation au client
-- Templates HTML professionnels
-
-### ✅ Sécurité
-- Rate limiting anti-spam
-- Validation des données
-- CORS configuré
-- Gestion des erreurs
-
-## 🛠️ Technologies
-
-- **Node.js** - Runtime JavaScript
-- **Express.js** - Framework web
-- **Nodemailer** - Envoi d'emails
-- **Morgan** - Logging des requêtes
-- **Express Rate Limit** - Protection anti-spam
-
-## 📦 Installation
-
-### 1. Cloner le projet
-```bash
-git clone <repository-url>
-cd sankofart-residence-backend
-```
-
-### 2. Installer les dépendances
-```bash
-npm install
-```
-
-### 3. Configuration des variables d'environnement
-Créer un fichier `.env` à la racine du projet :
-
-```env
-# Configuration Email Gmail
-EMAIL_USER=votre_email@gmail.com
-EMAIL_PASS=votre_app_password_gmail
-
-# Configuration du serveur
-PORT=5000
-
-# Configuration CORS (URL du frontend)
-FRONTEND_URL=https://sankofartresidence.com
-
-# Configuration reCAPTCHA (optionnel)
-RECAPTCHA_SECRET_KEY=votre_cle_secrete_recaptcha
-```
-
-### 4. Configuration Gmail
-1. Aller dans les paramètres de votre compte Gmail
-2. Activer l'authentification à 2 facteurs
-3. Générer un "Mot de passe d'application"
-4. Utiliser ce mot de passe dans `EMAIL_PASS`
-
-### 5. Démarrer le serveur
-```bash
-# Mode développement
-npm run dev
-
-# Mode production
-npm start
-```
-
-## 📚 API Endpoints
-
-### 🏠 Résidences
-
-#### GET `/api/residences`
-Récupérer toutes les résidences
-```json
-{
-  "success": true,
-  "data": [...],
-  "total": 4
-}
-```
-
-#### GET `/api/residences/:id`
-Récupérer une résidence par ID
-```json
-{
-  "success": true,
-  "data": {
-    "id": 1,
-    "nom": "Appartement Luxe Cocody",
-    "reference": "ALC001",
-    "localisation": "Cocody, Abidjan",
-    "prix": 45000,
-    "nombreChambres": 2,
-    "photos": [...],
-    "equipements": [...],
-    "amenities": [...]
-  }
-}
-```
-
-#### POST `/api/residences/search`
-Rechercher des résidences avec filtres
-```json
-{
-  "recherche": "Cocody",
-  "prixMin": 30000,
-  "prixMax": 50000,
-  "nombreChambres": 2,
-  "typeAppartement": "Appartement"
-}
-```
-
-#### GET `/api/residences/types`
-Obtenir tous les types d'appartements
-
-#### GET `/api/residences/villes`
-Obtenir toutes les villes disponibles
-
-#### GET `/api/residences/quartiers/:ville`
-Obtenir les quartiers d'une ville
-
-#### POST `/api/residences/check-disponibilite`
-Vérifier la disponibilité d'une résidence
-```json
-{
-  "residenceId": 1,
-  "dateArrivee": "2024-01-15",
-  "dateDepart": "2024-01-20"
-}
-```
-
-### 📅 Réservations
-
-#### POST `/api/reservations`
-Créer une nouvelle réservation
-```json
-{
-  "residenceId": 1,
-  "nom": "Dupont",
-  "prenom": "Jean",
-  "email": "jean.dupont@email.com",
-  "telephone": "+225070123456",
-  "dateArrivee": "2024-01-15",
-  "dateDepart": "2024-01-20",
-  "nombrePersonnes": 2,
-  "notes": "Arrivée en soirée"
-}
-```
-
-#### GET `/api/reservations/:id`
-Récupérer une réservation par ID
-
-#### GET `/api/reservations`
-Récupérer toutes les réservations (admin)
-
-#### PUT `/api/reservations/:id/status`
-Mettre à jour le statut d'une réservation
-```json
-{
-  "statut": "confirmee"
-}
-```
-
-#### GET `/api/reservations/stats`
-Obtenir les statistiques des réservations
-
-#### POST `/api/reservations/check-disponibilite`
-Vérifier la disponibilité (même endpoint que résidences)
-
-### 🏥 Santé
-
-#### GET `/health`
-Vérifier l'état de l'API
-```json
-{
-  "success": true,
-  "message": "Sankofart Résidence API - Opérationnel",
-  "timestamp": "2024-01-01T00:00:00.000Z",
-  "version": "1.0.0"
-}
-```
-
-## 🔒 Sécurité
-
-### Rate Limiting
-- **Global** : 100 requêtes par IP toutes les 15 minutes
-- **Réservations** : 3 réservations par IP toutes les 15 minutes
-
-### CORS
-- Origines autorisées configurées
-- Support des credentials
-- Blocage des origines non autorisées
-
-### Validation
-- Validation stricte des données de réservation
-- Vérification des champs obligatoires
-- Validation des formats (email, dates)
-
-## 📧 Configuration Email
-
-### Templates
-- **Email Admin** : Notification détaillée avec toutes les informations
-- **Email Client** : Confirmation avec récapitulatif de la réservation
-
-### Format
-- HTML responsive
-- Design professionnel
-- Informations structurées
-- Photos de la résidence
-
-## 🚀 Déploiement
-
-### Variables d'environnement requises
-- `EMAIL_USER` : Email Gmail
-- `EMAIL_PASS` : App Password Gmail
-- `PORT` : Port du serveur (optionnel)
-- `FRONTEND_URL` : URL du frontend
-
-### Plateformes recommandées
-- **Render** : Déploiement gratuit et simple
-- **Railway** : Déploiement automatique
-- **Heroku** : Plateforme robuste
-- **VPS** : Contrôle total
-
-## 🧪 Tests
-
-### Tester l'API
-```bash
-# Vérifier la santé de l'API
-curl http://localhost:5000/health
-
-# Lister les résidences
-curl http://localhost:5000/api/residences
-
-# Tester la recherche
-curl -X POST http://localhost:5000/api/residences/search \
-  -H "Content-Type: application/json" \
-  -d '{"recherche": "Cocody"}'
-```
-
-### Tester les emails
-1. Configurer les variables d'environnement
-2. Créer une réservation de test
-3. Vérifier la réception des emails
-
-## 📝 Structure du Projet
-
-```
-sankofart-residence-backend/
-├── models/                 # Modèles de données
-│   ├── Residence.js       # Modèle résidence
-│   └── Reservation.js     # Modèle réservation
-├── services/              # Services métier
-│   ├── ResidenceService.js    # Gestion des résidences
-│   ├── ReservationService.js  # Gestion des réservations
-│   └── EmailService.js        # Envoi d'emails
-├── routes/                # Routes de l'API
-│   ├── residences.js      # Routes résidences
-│   └── reservations.js    # Routes réservations
-├── server.js              # Serveur principal
-├── package.json           # Dépendances
-├── env.example            # Variables d'environnement
-└── README.md              # Documentation
-```
-
-## 🔧 Développement
-
-### Scripts disponibles
-```bash
-npm start          # Démarrer en production
-npm run dev        # Démarrer en développement (nodemon)
-npm test           # Lancer les tests
-```
-
-### Ajouter une nouvelle résidence
-Modifier le fichier `services/ResidenceService.js` et ajouter dans le tableau `residences`.
-
-### Personnaliser les emails
-Modifier les méthodes `generateAdminEmailHTML` et `generateClientEmailHTML` dans `services/EmailService.js`.
-
-## 📞 Support
-
-Pour toute question ou problème :
-- **Email** : [votre-email@domain.com]
-- **Documentation** : Consultez ce README
-- **Issues** : Créez une issue sur le repository
-
-## 📄 Licence
-
-Ce projet est sous licence ISC.
+Déploiement : voir [../DEPLOIEMENT.md](../DEPLOIEMENT.md) (Render).
 
 ---
 
-**Développé avec ❤️ pour Sankofart Résidence**
+## ⚙️ Variables d'environnement
+
+Copier [`.env.example`](.env.example) en `.env`. Ne jamais commiter `.env`.
+
+| Variable | Obligatoire | Description |
+|---|---|---|
+| `MONGODB_URI` | ✅ | URL de connexion Atlas (*Cluster0 → Connect → Drivers*). Le serveur refuse de démarrer sans. |
+| `MONGODB_DB` | | Nom de la base (défaut : `sankofart`). |
+| `PORT` | | Port d'écoute (défaut : `5001`, fourni automatiquement par Render). |
+| `FRONTEND_URL` | ✅ | Adresse(s) du site autorisée(s) par CORS, séparées par des virgules. `localhost:3000/3001` sont toujours autorisés. |
+| `EMAIL_USER` / `EMAIL_PASS` | ✅ | Compte Gmail et **mot de passe d'application** (16 lettres). |
+| `ADMIN_USERNAME` / `ADMIN_PASSWORD` | ✅ | Identifiants de l'espace admin. |
+| `ADMIN_TOKEN_SECRET` | ✅ en production | Clé de signature des jetons admin (`openssl rand -hex 32`). Sans elle, une clé temporaire est utilisée et les admins sont déconnectés à chaque redémarrage. |
+| `VOYAGE_API_KEY` | | Clé Atlas *AI Model APIs*. Sans elle, la recherche intelligente fonctionne en mode mots-clés. |
+| `VOYAGE_MODEL` | | Défaut : `voyage-4-lite`. |
+| `VOYAGE_API_URL` | | Défaut : `https://ai.mongodb.com/v1` (`https://api.voyageai.com/v1` pour une clé créée sur voyageai.com). |
+
+---
+
+## 🧪 Commandes
+
+```bash
+npm install     # dépendances
+npm run dev     # développement (redémarre à chaque modification)
+npm start       # production
+npm test        # tests (MongoDB lancé en mémoire, aucune connexion à Atlas ni à Voyage)
+```
+
+---
+
+## 📚 Routes de l'API
+
+Toutes les réponses ont la forme `{ success, data?, message? }`. 🔒 = en-tête `Authorization: Bearer <jeton>` obligatoire (obtenu via `/api/admin/login`).
+
+### Résidences
+| Méthode | Route | Description |
+|---|---|---|
+| GET | `/api/residences` | Résidences actives avec leur statut calculé (sans nom d'occupant) |
+| GET | `/api/residences/:id` | Détail d'une résidence |
+| GET | `/api/residences/:id/similaires` | 3 résidences proches (« Vous aimerez aussi ») |
+| POST | `/api/residences/recherche-ia` | `{ question }` → `{ mode, criteres, resultats, suggestions }` |
+| POST | `/api/residences/search` | Filtres : `recherche`, `prixMin`, `prixMax`, `nombreChambres`, `typeAppartement`, `localisation` |
+| POST | `/api/residences/check-disponibilite` | `{ residenceId, dateArrivee, dateDepart }` |
+| GET | `/api/residences/types`, `/villes`, `/quartiers/:ville` | Listes pour les filtres |
+
+### Réservations
+| Méthode | Route | Description |
+|---|---|---|
+| POST | `/api/reservations` | Crée une réservation (dates `AAAA-MM-JJ`) ; contrôle dates prises, capacité, durée ; envoie les emails |
+| GET | `/api/reservations/:id` | Détail par référence |
+| GET 🔒 | `/api/reservations` | Liste (plus récentes d'abord) |
+| GET 🔒 | `/api/reservations/stats` | Totaux par statut |
+| PUT 🔒 | `/api/reservations/:id/status` | `{ statut: en_attente | confirmee | annulee }` → email au client si le statut change |
+
+### Administration
+| Méthode | Route | Description |
+|---|---|---|
+| POST | `/api/admin/login` | `{ username, password }` → `{ token }` (8 h, 10 tentatives / 15 min) |
+| GET / POST 🔒 | `/api/admin/residences` | Lister (avec occupants) / créer |
+| PUT / DELETE 🔒 | `/api/admin/residences/:id` | Modifier / supprimer |
+| PUT 🔒 | `/api/admin/residences/:id/status` | `{ statut, details }` — statut posé à la main (prioritaire sur le calcul automatique) |
+
+### Divers
+`GET /health` — état du service (utilisé par Render).
+
+---
+
+## 🧠 Fonctionnement
+
+**Statut des résidences.** Si l'admin n'a pas posé de statut à la main, le statut est calculé à chaque lecture : une réservation **confirmée** en cours donne « occupé », une réservation confirmée à venir donne « réservé ». « Maintenance » bloque toute réservation.
+
+**Disponibilité.** Une réservation est refusée si une autre réservation non annulée chevauche ses dates (on peut arriver le jour du départ précédent).
+
+**Recherche intelligente** ([`services/SmartSearchService.js`](services/SmartSearchService.js)) :
+1. Les critères chiffrés sont extraits de la phrase (personnes, chambres, budget, y compris « cinquante mille ») et appliqués strictement.
+2. Les résidences sont classées par similarité de sens entre la question et leur description, grâce aux vecteurs Voyage AI.
+3. Si Voyage est indisponible (clé absente, limite atteinte, panne), le classement se fait par mots-clés : le site reste fonctionnel.
+
+Les vecteurs des résidences sont stockés dans la collection `residence_embeddings` et recalculés automatiquement au démarrage et après chaque modification admin, uniquement pour les résidences dont le texte a changé. Le calcul de similarité se fait dans le serveur, ce qui convient jusqu'à quelques milliers de résidences ; au-delà, passer à un index Atlas Vector Search.
+
+**Collections MongoDB** : `residences`, `reservations`, `residence_embeddings`, `counters`.
+
+---
+
+## 📁 Structure
+
+```text
+backend/
+├── server.js                 # Point d'entrée Express (CORS, limites, routes)
+├── db.js                     # Connexion MongoDB, index, catalogue initial
+├── data/residences.js        # Catalogue inséré au premier démarrage
+├── middleware/requireAdmin.js
+├── models/                   # Residence, Reservation (validation)
+├── routes/                   # residences, reservations, admin
+├── services/
+│   ├── ResidenceService.js   # Résidences + statut calculé
+│   ├── ReservationService.js # Réservations, disponibilité, statuts
+│   ├── EmailService.js       # Emails HTML (admin, client, confirmation/annulation)
+│   ├── AuthService.js        # Jetons admin signés (HMAC)
+│   ├── AIService.js          # Appels Voyage AI
+│   └── SmartSearchService.js # Recherche intelligente et suggestions
+└── tests/api.test.js         # Tests de bout en bout de l'API
+```

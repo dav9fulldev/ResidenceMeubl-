@@ -1,157 +1,93 @@
-# 🏠 Résidences Meublé - Projet Complet (Monorepo)
+# 🏠 Sankofart Résidence
 
-## 📋 ÉTAT DU PROJET
-- ✅ Frontend branché sur l'API (catalogue, réservations, administration)
-- ✅ Connexion admin vérifiée côté serveur (jeton signé), routes admin protégées
-- ✅ Tests automatisés du backend + build du frontend dans la CI (GitHub Actions) + analyse CodeQL
-- ✅ Données enregistrées dans **MongoDB Atlas** (le catalogue initial est inséré automatiquement au premier démarrage)
-- ✨ **Recherche intelligente** en langage naturel et suggestions « Vous aimerez aussi » (Voyage AI via Atlas), avec repli automatique sur la recherche par mots-clés
+Plateforme de réservation de résidences meublées à Abidjan : site vitrine, réservation en ligne, espace d'administration et **recherche intelligente par IA, à l'écrit comme à la voix**.
 
----
+| | |
+|---|---|
+| **Frontend** | React 19, Webpack, React Router, React Hook Form — déployé sur **Vercel** |
+| **Backend** | Node.js, Express, MongoDB (driver officiel), Nodemailer — déployé sur **Render** |
+| **Base de données** | MongoDB **Atlas** |
+| **IA** | Voyage AI `voyage-4-lite` (via Atlas AI Model APIs) + reconnaissance vocale du navigateur |
+| **Qualité** | Tests automatisés (`node:test` + MongoDB en mémoire), CI GitHub Actions, analyse CodeQL |
 
-## 🎯 Présentation et Réalisations
-
-Ce dépôt unique (Monorepo) regroupe l'ensemble de l'écosystème de **Sankofart Résidence**, un système complet de réservation d'hôtels et de résidences meublées en Côte d'Ivoire.
-
-### ✅ FRONTEND (React.js)
-- Application complète intégrant la liste des résidences.
-- Système de réservation en ligne avec validation stricte des formulaires.
-- Gestion locale des favoris via `localStorage`.
-- Panel d'administration pour la gestion des statuts de réservation.
-- Design moderne, responsive avec arrière-plan vidéo fluide.
-- Filtres de recherche multicritères avancés.
-
-### ✅ BACKEND (Node.js + Express)
-- API REST robuste et structurée.
-- Gestion des résidences avec statuts dynamiques (*disponible, occupé, réservé, maintenance*).
-- Notifications automatisées par emails professionnels via **Nodemailer** (Admin & Client).
-- Sécurité renforcée : Protection anti-spam (**Rate Limiting**) et contrôle d'accès **CORS**.
+👉 **Mise en ligne : voir [DEPLOIEMENT.md](DEPLOIEMENT.md).**
 
 ---
 
-## 📁 Structure du Projet (Monorepo)
+## ✨ Fonctionnalités
+
+### Pour les clients
+- **Catalogue** de résidences avec photos, équipements, statut en temps réel (disponible, réservé, occupé, maintenance).
+- **Recherche intelligente** : « une villa avec jardin pour une famille de 6, moins de 90 000 FCFA ». Le site comprend les critères chiffrés (personnes, chambres, budget) et classe les résidences par pertinence. Fonctionne en français et en anglais.
+- **Recherche vocale** : bouton micro, le texte s'écrit en direct et la recherche se lance à la fin de la phrase (Chrome, Edge, Safari).
+- **« Vous aimerez aussi »** : 3 résidences comparables sur chaque fiche.
+- **Réservation en ligne** : contrôle des dates déjà prises, de la capacité et de la durée de séjour ; référence et montant affichés ; email d'accusé de réception.
+- **Favoris** enregistrés dans le navigateur.
+
+### Pour l'administrateur (`/admin/login`)
+- Connexion vérifiée par le serveur (jeton signé valable 8 h, tentatives limitées).
+- **Réservations** : liste filtrable, confirmation ou annulation → email automatique au client.
+- **Résidences** : ajout, modification, suppression, mise en maintenance.
+- Le statut « Réservé » / « Occupé » se met à jour **automatiquement** à partir des réservations confirmées.
+
+### Sécurité et confidentialité
+- Le nom des clients n'est **jamais** visible côté public (filtré par le serveur).
+- Identifiants et clés uniquement dans les variables d'environnement, jamais dans le code.
+- Limitation des requêtes (anti-spam, anti force brute, protection du quota IA), CORS restreint, échappement HTML des emails.
+
+---
+
+## 📁 Structure
 
 ```text
-SANKOFART-RESIDENCE/
-├── .github/
-│   └── workflows/
-│       ├── ci.yml                # Tests backend + build frontend
-│       └── codeql-analysis.yml   # Analyse de sécurité automatisée
-├── client/                      # --- DOSSIER FRONTEND ---
-│   ├── public/                  # Fichiers publics (index.html, icônes)
-│   ├── src/                     # Code source React (Composants, pages, styles)
-│   ├── package.json             # Dépendances Frontend
-│   └── webpack.config.js        # Configuration du serveur Mac / Webpack
-└── backend/                     # --- DOSSIER BACKEND ---
-    ├── models/                  # Structures de données
-    ├── routes/                  # Endpoints de l'API REST
-    ├── services/                # Logique métier et EmailService
-    ├── server.js                # Point d'entrée de l'API Express
-    └── package.json             # Dépendances Backend
+RESIDENCE/
+├── .github/workflows/
+│   ├── ci.yml                  # Tests backend + build frontend à chaque push
+│   └── codeql-analysis.yml     # Analyse de sécurité
+├── render.yaml                 # Configuration Render (backend)
+├── DEPLOIEMENT.md              # Guide de mise en ligne Render + Vercel
+├── backend/                    # API Express → voir backend/README.md
+└── client/                     # Site React → voir client/README.md
 ```
 
 ---
 
-## 🛠️ Technologies Utilisées
+## 🚀 Lancer le projet en local
 
-- **Frontend** : React 19, Webpack, Webpack Dev Server, Babel, React Router DOM, React Hook Form, React Icons.
-- **Backend** : Node.js, Express.js, MongoDB, Nodemailer, Morgan, Express Rate Limit, Cors, Dotenv.
-- **Sécurité & CI/CD** : GitHub Actions, CodeQL Semantic Code Analysis.
+Prérequis : **Node.js 20.19 ou plus récent**, un cluster MongoDB Atlas (gratuit) et votre IP autorisée dans *Atlas → Network Access*.
 
----
-
-## 🚀 Installation et Lancement du Projet
-
-### 1. Configuration initiale
-Clonez le dépôt, puis ouvrez deux terminaux distincts pour lancer simultanément les deux environnements.
-
-### 2. Configuration et Lancement du Backend
-Allez dans le dossier `backend` :
+**1. Backend** (terminal 1)
 ```bash
 cd backend
 npm install
+cp .env.example .env      # puis remplir les valeurs (voir backend/README.md)
+npm run dev               # http://localhost:5001
 ```
+Au premier démarrage, les 10 résidences du catalogue sont insérées dans la base.
 
-Copiez `backend/.env.example` en `backend/.env` et remplissez les valeurs :
-```env
-PORT=5001
-FRONTEND_URL=http://localhost:3001
-EMAIL_USER=votre_email@gmail.com
-EMAIL_PASS=votre_mot_de_passe_d_application_gmail
-ADMIN_USERNAME=admin
-ADMIN_PASSWORD=un_mot_de_passe_long_et_unique
-ADMIN_TOKEN_SECRET=   # générer avec : openssl rand -hex 32
-MONGODB_URI=mongodb+srv://...   # Atlas : Cluster0 > Connect > Drivers
-VOYAGE_API_KEY=                 # optionnel — Atlas > AI Model APIs (recherche intelligente)
-```
-*Note : Sur macOS, le port `5001` est utilisé pour éviter les conflits système avec AirPlay (port 5000).*
-
-Démarrez le serveur :
+**2. Frontend** (terminal 2)
 ```bash
-npm run dev
-```
-Le serveur backend s'exécute sur : `http://localhost:5001`
-
-Lancer les tests :
-```bash
-npm test
-```
-
-### 3. Configuration et Lancement du Frontend
-Allez dans le dossier `client` :
-```bash
-cd ../client
+cd client
 npm install
-cp .env.example .env   # REACT_APP_API_URL=http://localhost:5001/api
+cp .env.example .env      # REACT_APP_API_URL=http://localhost:5001/api
+npm start                 # http://localhost:3001
 ```
 
-> **Déploiement Vercel** : définir `REACT_APP_API_URL` (URL publique du backend + `/api`) dans *Settings → Environment Variables*, puis redéployer.
-
-Démarrez le serveur de développement React :
+**3. Tests**
 ```bash
-npm start
+cd backend && npm test
 ```
-L'application frontend s'ouvre automatiquement sur : `http://localhost:3001` (autre port : `PORT=3002 npm start`)
+
+> 💡 **macOS + iCloud** : si le projet est dans `Documents` synchronisé avec iCloud, iCloud peut vider des fichiers de `node_modules` et bloquer Node. Supprimez `node_modules` puis relancez `npm install`, ou déplacez le projet hors de `Documents`.
 
 ---
 
-## 📚 Endpoints Clés de l'API (Port 5001)
+## 📚 Documentation
 
-### 🏠 Résidences
-- `GET /api/residences` : Récupère la liste de toutes les résidences.
-- `GET /api/residences/:id` : Détails complets d'une résidence par son identifiant.
-- `POST /api/residences/search` : Recherche multicritères (Prix, Localisation, Chambres).
-- `POST /api/residences/check-disponibilite` : Vérifie les conflits de dates pour une réservation.
-
-- `POST /api/residences/recherche-ia` : `{ question }` en langage naturel → critères compris (personnes, chambres, budget) + résidences classées par pertinence.
-- `GET /api/residences/:id/similaires` : 3 résidences proches (« Vous aimerez aussi »).
-
-### 📅 Réservations
-- `POST /api/reservations` : Soumet une demande de réservation (vérifie dates, capacité, durée) et envoie les emails.
-- `GET /api/reservations/:id` : Détail d'une réservation par sa référence.
-- `GET /api/reservations` 🔒 : Liste des réservations.
-- `GET /api/reservations/stats` 🔒 : Statistiques.
-- `PUT /api/reservations/:id/status` 🔒 : Modifier le statut (`en_attente`, `confirmee`, `annulee`). Une réservation annulée libère les dates.
-
-### 🛠️ Administration
-- `POST /api/admin/login` : `{ username, password }` → `{ token }` (valable 8 h).
-- `GET / POST /api/admin/residences` 🔒 : Lister (y compris inactives) / ajouter.
-- `PUT / DELETE /api/admin/residences/:id` 🔒 : Modifier / supprimer.
-- `PUT /api/admin/residences/:id/status` 🔒 : `{ statut, details }` — `disponible`, `occupé`, `réservé`, `maintenance` (une résidence en maintenance n'est plus réservable).
-
-🔒 = en-tête `Authorization: Bearer <token>` obligatoire.
-
-### 🏥 Surveillance (Healthcheck)
-- `GET /health` : Retourne l'état de santé opérationnel de l'API.
+- [DEPLOIEMENT.md](DEPLOIEMENT.md) — mise en ligne Render + Vercel, conseils de démo, dépannage
+- [backend/README.md](backend/README.md) — variables d'environnement, routes de l'API, architecture
+- [client/README.md](client/README.md) — structure du frontend, configuration, composants clés
 
 ---
 
-## 🔒 Sécurité et Bonnes Pratiques
-- **Rate Limiting** : 100 requêtes globales par 15 minutes, 3 créations de réservations et 10 tentatives de connexion admin par IP.
-- **Authentification admin** : identifiants dans les variables d'environnement du serveur, jamais dans le code du frontend.
-- **CORS** : Filtrage strict restreignant l'accès aux seules adresses définies dans les variables d'environnement (`FRONTEND_URL`).
-- **CodeQL** : Scan automatique de vulnérabilités (failles de sécurité, fuites de mémoire) exécuté par GitHub à chaque commit poussé sur la branche principale.
-
----
-
-**Développé avec ❤️ pour les Résidence.**
+**Développé par David YAO.**
