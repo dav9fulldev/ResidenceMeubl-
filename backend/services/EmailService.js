@@ -1,4 +1,5 @@
 const nodemailer = require('nodemailer');
+const AuthService = require('./AuthService');
 
 // Adresse publique du site (première valeur de FRONTEND_URL), pour les liens et images des emails
 const urlSite = () => (process.env.FRONTEND_URL || '').split(',')[0].trim().replace(/\/$/, '');
@@ -326,6 +327,13 @@ class EmailService {
             <p>Notre équipe va examiner votre réservation et vous contacter dans les plus brefs délais pour confirmer la disponibilité et finaliser les détails.</p>
           </div>
 
+          <div class="section">
+            <h2>🗂️ Gérer ma réservation</h2>
+            <p>Suivez son statut ou demandez une annulation, sans créer de compte :
+              <a href="${esc(this.lienGestion(info.client.email))}">accéder à mes réservations</a>.</p>
+            <p>Vous pouvez aussi utiliser la page « Mes réservations » du site avec votre email et la référence <strong>${esc(info.id)}</strong>.</p>
+          </div>
+
           <div class="footer">
             <p><strong>Contact Sankofart Résidence</strong></p>
             <p>📧 ${process.env.EMAIL_USER}</p>
@@ -337,8 +345,98 @@ class EmailService {
     `;
   }
 
+  // Lien « Gérer mes réservations » (accès sans compte, valable 30 jours)
+  lienGestion(email) {
+    const jeton = AuthService.creerJetonClient(email, { dureeMs: 30 * 24 * 60 * 60 * 1000 });
+    return `${urlSite()}/mes-reservations?acces=${encodeURIComponent(jeton)}`;
+  }
+
+  // Gabarit simple pour les emails courts
+  emailSimple({ titre, couleur = '#1e3c72', contenu, bouton }) {
+    return `
+      <!DOCTYPE html>
+      <html><head><meta charset="utf-8"></head>
+      <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0;">
+        <div style="background: ${couleur}; color: white; padding: 20px; text-align: center;">
+          <h1 style="margin: 0; font-size: 22px;">${titre}</h1>
+          <p style="margin: 6px 0 0;">Sankofart Résidence</p>
+        </div>
+        <div style="padding: 20px;">
+          ${contenu}
+          ${bouton ? `<p style="text-align: center; margin: 28px 0;">
+            <a href="${esc(bouton.url)}" style="background: #d4af37; color: #1a1a2e; padding: 12px 22px; border-radius: 8px; text-decoration: none; font-weight: bold;">${bouton.texte}</a>
+          </p>` : ''}
+          <p style="text-align: center; color: #777; font-size: 13px; margin-top: 30px;">📧 ${esc(this.expediteur)}</p>
+        </div>
+      </body></html>
+    `;
+  }
+
+  recapReservation(r) {
+    const date = (d) => new Date(d).toLocaleDateString('fr-FR');
+    return `<div style="margin: 16px 0; padding: 14px; border-left: 4px solid #d4af37; background: #f9f9f9;">
+      <p style="margin: 4px 0;"><strong>Référence :</strong> ${esc(r.id)}</p>
+      <p style="margin: 4px 0;"><strong>Résidence :</strong> ${esc(r.residenceInfo?.nom)}</p>
+      <p style="margin: 4px 0;"><strong>Séjour :</strong> du ${date(r.dates.arrivee)} au ${date(r.dates.depart)}</p>
+      <p style="margin: 4px 0;"><strong>Montant :</strong> ${Number(r.prixTotal).toLocaleString('fr-FR')} FCFA</p>
+    </div>`;
+  }
+
+  // Lien d'accès à l'historique, demandé depuis « Mes réservations »
+  async sendLienAcces(email) {
+    const jeton = AuthService.creerJetonClient(email, { dureeMs: 24 * 60 * 60 * 1000 });
+    await this.envoyer({
+      to: email,
+      subject: '🔑 Accédez à vos réservations - Sankofart Résidence',
+      html: this.emailSimple({
+        titre: 'Vos réservations',
+        contenu: `<p>Bonjour,</p>
+          <p>Vous avez demandé à consulter vos réservations. Cliquez sur le bouton ci-dessous : vous pourrez voir votre historique et, si besoin, demander une annulation.</p>
+          <p style="color: #777; font-size: 13px;">Ce lien est valable 24 heures. Si vous n'êtes pas à l'origine de cette demande, ignorez cet email.</p>`,
+        bouton: { texte: 'Voir mes réservations', url: `${urlSite()}/mes-reservations?acces=${encodeURIComponent(jeton)}` },
+      }),
+    });
+  }
+
+  // Prévenir l'admin qu'un client demande une annulation
+  async sendDemandeAnnulationAdmin(r) {
+    await this.envoyer({
+      to: process.env.ADMIN_EMAIL || process.env.EMAIL_USER,
+      replyTo: r.client.email,
+      subject: `↩️ Demande d'annulation - ${r.residenceInfo?.nom} (${r.client.prenom} ${r.client.nom})`,
+      html: this.emailSimple({
+        titre: 'Demande d\'annulation',
+        couleur: '#b45309',
+        contenu: `<p><strong>${esc(r.client.prenom)} ${esc(r.client.nom)}</strong> (${esc(r.client.email)}, ${esc(r.client.telephone)}) demande l'annulation de sa réservation.</p>
+          ${this.recapReservation(r)}
+          <p><strong>Motif :</strong> ${r.demandeAnnulation?.motif ? esc(r.demandeAnnulation.motif) : '<em>non précisé</em>'}</p>
+          <p>Acceptez ou refusez la demande depuis le tableau de bord.</p>`,
+        bouton: { texte: 'Ouvrir le tableau de bord', url: `${urlSite()}/admin/dashboard` },
+      }),
+    });
+  }
+
+  // Informer le client que sa demande d'annulation est refusée
+  async sendRefusAnnulation(r) {
+    await this.envoyer({
+      to: r.client.email,
+      replyTo: this.expediteur,
+      subject: `Votre demande d'annulation - ${r.residenceInfo?.nom}`,
+      html: this.emailSimple({
+        titre: 'Demande d\'annulation refusée',
+        couleur: '#475569',
+        contenu: `<p>Bonjour ${esc(r.client.prenom)},</p>
+          <p>Votre demande d'annulation n'a pas pu être acceptée : votre réservation est <strong>maintenue</strong>.</p>
+          ${r.demandeAnnulation?.reponse ? `<p><strong>Message de notre équipe :</strong> ${esc(r.demandeAnnulation.reponse)}</p>` : ''}
+          ${this.recapReservation(r)}
+          <p>Pour en discuter, répondez simplement à cet email.</p>`,
+        bouton: { texte: 'Gérer mes réservations', url: this.lienGestion(r.client.email) },
+      }),
+    });
+  }
+
   // Informer le client d'un changement de statut (confirmée ou annulée)
-  async sendStatusEmail(reservation) {
+  async sendStatusEmail(reservation, { message = null } = {}) {
     const confirmee = reservation.statut === 'confirmee';
     const nomResidence = reservation.residenceInfo?.nom || 'votre résidence';
 
@@ -348,11 +446,11 @@ class EmailService {
       subject: confirmee
         ? `✅ Réservation confirmée - ${nomResidence}`
         : `❌ Réservation annulée - ${nomResidence}`,
-      html: this.generateStatusEmailHTML(reservation),
+      html: this.generateStatusEmailHTML(reservation, message),
     });
   }
 
-  generateStatusEmailHTML(reservation) {
+  generateStatusEmailHTML(reservation, message = null) {
     const confirmee = reservation.statut === 'confirmee';
     const couleur = confirmee ? '#2e7d32' : '#c62828';
     const date = (d) => new Date(d).toLocaleDateString('fr-FR');
@@ -397,8 +495,11 @@ class EmailService {
             ${photo ? `<img src="${esc(urlAbsolue(photo))}" alt="Photo de la résidence" class="residence-photo">` : ''}
           </div>
 
+          ${message ? `<div class="section"><p><span class="label">Message de notre équipe :</span> ${esc(message)}</p></div>` : ''}
+
           ${confirmee
-            ? `<div class="section"><p>Pour toute question avant votre arrivée, répondez simplement à cet email.</p></div>`
+            ? `<div class="section"><p>Pour toute question avant votre arrivée, répondez simplement à cet email.
+                Vous pouvez aussi <a href="${esc(this.lienGestion(reservation.client.email))}">gérer vos réservations en ligne</a> (demande d'annulation).</p></div>`
             : ''}
 
           <div class="footer">

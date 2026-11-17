@@ -64,6 +64,17 @@ Toutes les réponses ont la forme `{ success, data?, message? }`. 🔒 = en-têt
 | GET 🔒 | `/api/reservations/stats` | Totaux par statut |
 | PUT 🔒 | `/api/reservations/:id/status` | `{ statut: en_attente | confirmee | annulee }` → email au client si le statut change |
 
+### Espace client « Mes réservations » (sans compte)
+| Méthode | Route | Description |
+|---|---|---|
+| POST | `/api/client/acces` | `{ email, reference }` → jeton limité à cette réservation (24 h) |
+| POST | `/api/client/lien` | `{ email }` → envoie par email un lien vers tout l'historique (24 h). Réponse identique que l'email soit connu ou non |
+| GET 👤 | `/api/client/reservations` | Historique (sans données internes) |
+| POST 👤 | `/api/client/reservations/:id/annulation` | `{ motif? }` → demande d'annulation, l'admin est prévenu par email |
+| PUT 🔒 | `/api/reservations/:id/annulation` | `{ decision: accepter | refuser, message? }` → accepter annule la réservation (dates libérées) ; email au client dans les deux cas |
+
+👤 = jeton client (`Authorization: Bearer <jeton>`), distinct du jeton admin : l'un n'ouvre jamais les routes de l'autre. Les emails de réservation contiennent un lien « Gérer mes réservations » valable 30 jours.
+
 ### Administration
 | Méthode | Route | Description |
 |---|---|---|

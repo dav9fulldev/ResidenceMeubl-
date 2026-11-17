@@ -479,3 +479,91 @@ test("avec BREVO_API_KEY, les emails partent par l'API Brevo (HTTPS, pas de SMTP
   globalThis.fetch.mock.mockImplementation(async () => new Response(JSON.stringify({ message: 'sender not valid' }), { status: 400 }));
   await assert.rejects(service.envoyer({ to: 'a@b.c', subject: 's', html: 'h' }), /Brevo 400 : sender not valid/);
 });
+
+// ---------- Espace client et demande d'annulation ----------
+test("le client sans compte retrouve sa réservation et demande l'annulation, l'admin décide", async () => {
+  const es = ReservationService.emailService;
+  const envois = [];
+  es.sendDemandeAnnulationAdmin = async (r) => { envois.push(['admin', r.id]); };
+  es.sendRefusAnnulation = async (r) => { envois.push(['refus', r.id, r.demandeAnnulation.reponse]); };
+  es.sendLienAcces = async (email) => { envois.push(['lien', email]); };
+  const headersAdmin = await connexionAdmin();
+
+  const email = 'koffi@example.com';
+  const resa = (j1, j2) => api('/api/reservations', {
+    method: 'POST',
+    body: nouvelleReservation({ residenceId: 6, email, nom: 'Koffi', prenom: 'Ama', dateArrivee: jourDansNJours(j1), dateDepart: jourDansNJours(j2) }),
+  });
+  const c1 = await resa(60, 63);
+  assert.equal(c1.status, 201, JSON.stringify(c1.body));
+  const r1 = c1.body.data.id;
+  const c2 = await resa(70, 73);
+  assert.equal(c2.status, 201, JSON.stringify(c2.body));
+  const r2 = c2.body.data.id;
+  await api(`/api/reservations/${r1}/status`, { method: 'PUT', headers: headersAdmin, body: { statut: 'confirmee' } });
+
+  // Accès par email + référence : mauvaise combinaison refusée
+  assert.equal((await api('/api/client/acces', { method: 'POST', body: { email: 'autre@example.com', reference: r1 } })).status, 404);
+  const acces = await api('/api/client/acces', { method: 'POST', body: { email: 'KOFFI@example.com ', reference: r1 } });
+  assert.equal(acces.status, 200);
+  const hRef = { Authorization: `Bearer ${acces.body.data.token}` };
+
+  // Ce jeton ne voit que cette réservation et n'ouvre pas l'admin
+  const liste1 = await api('/api/client/reservations', { headers: hRef });
+  assert.deepEqual(liste1.body.data.map(r => r.id), [r1]);
+  assert.equal(liste1.body.data[0].client, undefined, 'pas de données personnelles inutiles');
+  assert.equal((await api('/api/reservations', { headers: hRef })).status, 401);
+  assert.equal((await api('/api/admin/residences', { headers: hRef })).status, 401);
+  assert.equal((await api(`/api/client/reservations/${r2}/annulation`, { method: 'POST', headers: hRef, body: {} })).status, 403);
+
+  // Lien par email : même réponse que l'adresse soit connue ou non
+  const lienConnu = await api('/api/client/lien', { method: 'POST', body: { email } });
+  const lienInconnu = await api('/api/client/lien', { method: 'POST', body: { email: 'inconnu@example.com' } });
+  assert.equal(lienConnu.body.message, lienInconnu.body.message);
+  assert.deepEqual(envois.filter(e => e[0] === 'lien'), [['lien', email]]);
+
+  // Jeton « historique » (celui du lien envoyé) : toutes les réservations
+  const hTout = { Authorization: `Bearer ${require('../services/AuthService').creerJetonClient(email)}` };
+  const historique = await api('/api/client/reservations', { headers: hTout });
+  assert.deepEqual(historique.body.data.map(r => r.id).sort(), [r1, r2].sort());
+
+  // Demande d'annulation sur la réservation confirmée
+  const demande = await api(`/api/client/reservations/${r1}/annulation`, { method: 'POST', headers: hRef, body: { motif: 'Voyage reporté' } });
+  assert.equal(demande.status, 200, JSON.stringify(demande.body));
+  assert.equal(demande.body.data.demandeAnnulation.statut, 'en_attente');
+  assert.equal(demande.body.data.statut, 'confirmee', 'la réservation reste active tant que l\'admin n\'a pas décidé');
+  assert.equal(demande.body.data.peutDemanderAnnulation, false);
+  assert.deepEqual(envois.at(-1), ['admin', r1]);
+  assert.equal((await api(`/api/client/reservations/${r1}/annulation`, { method: 'POST', headers: hRef, body: {} })).status, 400, 'pas de doublon');
+
+  // La résidence reste réservée pendant la demande
+  assert.equal((await api('/api/residences/6')).body.data.disponibilite.statut, 'réservé');
+
+  // L'admin voit la demande puis l'accepte
+  const vueAdmin = (await api('/api/reservations', { headers: headersAdmin })).body.data.find(r => r.id === r1);
+  assert.equal(vueAdmin.demandeAnnulation.motif, 'Voyage reporté');
+  const nbStatut = emailsStatut.length;
+  const accept = await api(`/api/reservations/${r1}/annulation`, { method: 'PUT', headers: headersAdmin, body: { decision: 'accepter' } });
+  assert.equal(accept.status, 200, JSON.stringify(accept.body));
+  assert.equal(accept.body.data.statut, 'annulee');
+  assert.equal(accept.body.data.demandeAnnulation.statut, 'acceptee');
+  assert.equal(emailsStatut.length, nbStatut + 1, 'email d\'annulation au client');
+  assert.equal((await api('/api/residences/6')).body.data.disponibilite.statut, 'disponible', 'dates libérées');
+
+  // Deuxième réservation : demande refusée avec un message
+  const hTout2 = hTout;
+  await api(`/api/client/reservations/${r2}/annulation`, { method: 'POST', headers: hTout2, body: {} });
+  const refus = await api(`/api/reservations/${r2}/annulation`, { method: 'PUT', headers: headersAdmin, body: { decision: 'refuser', message: 'Délai dépassé' } });
+  assert.equal(refus.body.data.statut, 'en_attente');
+  assert.equal(refus.body.data.demandeAnnulation.statut, 'refusee');
+  assert.deepEqual(envois.at(-1), ['refus', r2, 'Délai dépassé']);
+  assert.equal((await api(`/api/reservations/${r2}/annulation`, { method: 'PUT', headers: headersAdmin, body: { decision: 'accepter' } })).status, 400, 'plus de demande en attente');
+
+  // Après un refus, le client peut refaire une demande
+  const apres = (await api('/api/client/reservations', { headers: hTout })).body.data.find(r => r.id === r2);
+  assert.equal(apres.peutDemanderAnnulation, true);
+
+  // Jeton client absent ou falsifié
+  assert.equal((await api('/api/client/reservations')).status, 401);
+  assert.equal((await api('/api/client/reservations', { headers: { Authorization: `Bearer ${jetonAdmin}` } })).status, 401, 'jeton admin ≠ jeton client');
+});

@@ -41,7 +41,26 @@ class AuthService {
   }
 
   creerJeton(username) {
-    const contenu = base64url(JSON.stringify({ sub: username, exp: Date.now() + DUREE_JETON_MS }));
+    return this.signerDonnees({ role: 'admin', sub: username, exp: Date.now() + DUREE_JETON_MS });
+  }
+
+  /**
+   * Jeton d'accès client (sans compte) à ses réservations.
+   * @param {string} email
+   * @param {{ reference?: string, dureeMs?: number }} options
+   *   reference : limite l'accès à une seule réservation
+   */
+  creerJetonClient(email, { reference, dureeMs = 24 * 60 * 60 * 1000 } = {}) {
+    return this.signerDonnees({
+      role: 'client',
+      email: String(email).trim().toLowerCase(),
+      ...(reference ? { ref: reference } : {}),
+      exp: Date.now() + dureeMs,
+    });
+  }
+
+  signerDonnees(donnees) {
+    const contenu = base64url(JSON.stringify(donnees));
     return `${contenu}.${signer(contenu)}`;
   }
 

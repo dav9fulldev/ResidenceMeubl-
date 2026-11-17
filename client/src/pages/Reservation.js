@@ -48,7 +48,7 @@ const Reservation = () => {
 
     try {
       const result = await createReservation(residence.id, data);
-      setConfirmation(result);
+      setConfirmation({ ...result, email: data.email });
       window.scrollTo(0, 0);
     } catch (error) {
       setSubmitError(error.message);
@@ -80,6 +80,14 @@ const Reservation = () => {
               ? <p>Un email de confirmation vous a été envoyé.</p>
               : <p>Conservez cette référence : l'email de confirmation n'a pas pu être envoyé.</p>}
             <div className="success-actions">
+              <button
+                className="btn btn-outline"
+                onClick={() => navigate('/mes-reservations', {
+                  state: { email: confirmation.email, reference: confirmation.reference },
+                })}
+              >
+                Gérer ma réservation
+              </button>
               <button 
                 className="btn btn-primary"
                 onClick={handleBackToResidences}

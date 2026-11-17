@@ -114,6 +114,7 @@ FRONTEND_URL=https://sankofart-residence.vercel.app,https://sankofartresidence.c
 - [ ] Une **réservation de test** arrive dans le tableau de bord `/admin/login` et les emails sont reçus.
 - [ ] **Confirmer** la réservation envoie l'email au client et passe la résidence en « Réservé ».
 - [ ] Recharger une page comme `/residence/3` fonctionne (pas d'erreur 404).
+- [ ] **Mes réservations** : email + référence affichent la réservation ; « Demander l'annulation » fait apparaître la demande dans le tableau de bord (filtre « Demandes d'annulation »).
 
 ---
 

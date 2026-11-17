@@ -73,6 +73,15 @@ const Header = () => {
                 )}
               </Link>
             </li>
+            <li className="nav-item">
+              <Link
+                to="/mes-reservations"
+                className={`nav-link ${isActive('/mes-reservations') ? 'active' : ''}`}
+                onClick={closeMenu}
+              >
+                Mes réservations
+              </Link>
+            </li>
           </ul>
         </nav>
 
