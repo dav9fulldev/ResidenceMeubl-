@@ -567,3 +567,71 @@ test("le client sans compte retrouve sa réservation et demande l'annulation, l'
   assert.equal((await api('/api/client/reservations')).status, 401);
   assert.equal((await api('/api/client/reservations', { headers: { Authorization: `Bearer ${jetonAdmin}` } })).status, 401, 'jeton admin ≠ jeton client');
 });
+
+// ---------- Statistiques et export ----------
+test('statistiques : revenus par mois, cumul, occupation, et export CSV', async () => {
+  const headers = await connexionAdmin();
+  const col = db.collection('reservations');
+  const base = (id, statut, arrivee, depart, prixTotal, extra = {}) => ({
+    id, residenceId: 2, statut, prixTotal, dateCreation: new Date('2031-01-01'),
+    residenceInfo: { id: 2, nom: 'Résidence 2', reference: 'RES-002' },
+    client: { prenom: 'Test', nom: 'Stats', email: 'stats@example.com', telephone: '0700000000' },
+    dates: { arrivee, depart }, details: { nombrePersonnes: 2 }, notes: '', demandeAnnulation: null, ...extra,
+  });
+  await col.insertMany([
+    // 3 nuits à 30 000 : 2 nuits en mars, 1 en avril
+    base('STAT_1', 'confirmee', '2031-03-30', '2031-04-02', 90000),
+    // 2 nuits en avril
+    base('STAT_2', 'confirmee', '2031-04-10', '2031-04-12', 50000),
+    // En attente : prévisionnel seulement
+    base('STAT_3', 'en_attente', '2031-04-20', '2031-04-22', 40000),
+    // Annulée : ni revenu ni occupation ; nom dangereux pour Excel
+    base('STAT_4', 'annulee', '2031-05-01', '2031-05-03', 70000, { client: { prenom: '=HYPERLINK("x")', nom: 'Pirate', email: 'p@example.com', telephone: '1' } }),
+  ]);
+
+  assert.equal((await api('/api/admin/statistiques?annee=2031')).status, 401, 'protégé');
+  const res = await api('/api/admin/statistiques?annee=2031', { headers });
+  assert.equal(res.status, 200, JSON.stringify(res.body));
+  const s = res.body.data;
+  const m = (n) => s.mois[n - 1];
+
+  assert.equal(m(3).revenus, 60000);
+  assert.equal(m(4).revenus, 80000);           // 30 000 + 50 000
+  assert.equal(m(4).revenusPrevisionnels, 40000);
+  assert.equal(m(5).revenus, 0);
+  assert.equal(m(3).cumul, 60000);
+  assert.equal(m(4).cumul, 140000);
+  assert.equal(m(12).cumul, 140000);
+  assert.equal(m(3).reservations.confirmees, 1); // compté au mois d'arrivée
+  assert.equal(m(4).reservations.confirmees, 1);
+  assert.equal(m(4).reservations.enAttente, 1);
+  assert.equal(m(5).reservations.annulees, 1);
+  assert.equal(m(4).nuitsOccupees, 3);
+  assert.ok(m(4).occupation > 0 && m(4).occupation < 100);
+
+  assert.equal(s.resume.revenusAnnee, 140000);
+  assert.equal(s.resume.confirmees, 2);
+  assert.equal(s.resume.tauxAnnulation, 25);
+  assert.equal(s.resume.panierMoyen, 70000);
+  assert.equal(s.resume.dureeMoyenne, 2.5);
+  assert.deepEqual(s.residences.map(r => [r.nom, r.revenus, r.nuits]), [['Résidence 2', 140000, 5]]);
+  assert.ok(s.anneesDisponibles.includes(2031));
+
+  assert.equal((await api('/api/admin/statistiques?annee=abc', { headers })).status, 400);
+
+  // Export CSV
+  const csvRes = await fetch(`${baseUrl}/api/admin/export/reservations.csv?annee=2031`, { headers });
+  assert.equal(csvRes.status, 200);
+  assert.match(csvRes.headers.get('content-type'), /text\/csv/);
+  assert.match(csvRes.headers.get('content-disposition'), /reservations-sankofart-2031\.csv/);
+  const octets = Buffer.from(await csvRes.arrayBuffer());
+  assert.deepEqual([...octets.subarray(0, 3)], [0xEF, 0xBB, 0xBF], 'BOM UTF-8 pour Excel');
+  const csv = octets.subarray(3).toString('utf8');
+  const lignes = csv.trim().split('\r\n');
+  assert.equal(lignes.length, 5, 'en-tête + 4 réservations');
+  assert.match(lignes[0], /^Référence;Reçue le;Statut/);
+  assert.ok(lignes.some(l => l.startsWith('STAT_1;') && l.includes(';Confirmée;') && l.includes(';3;2;90000;')));
+  const pirate = lignes.find(l => l.startsWith('STAT_4;'));
+  assert.ok(pirate.includes(`"'=HYPERLINK(""x"") Pirate"`), 'formule neutralisée : ' + pirate);
+  assert.equal((await fetch(`${baseUrl}/api/admin/export/reservations.csv`)).status, 401);
+});
