@@ -199,7 +199,9 @@ const AdminReservations = () => {
                 {enDemande(r) && r.acompte?.paye && r.acompte.politique && (
                   <p className={`reservation-acompte ${r.acompte.politique.remboursable ? 'paye' : 'attente'}`}>
                     {r.acompte.politique.remboursable
-                      ? `Si vous acceptez : ${Number(r.acompte.politique.montant).toLocaleString('fr-FR')} FCFA remboursés automatiquement (${r.acompte.politique.pourcentage} % de l'acompte de ${Number(r.acompte.montant).toLocaleString('fr-FR')} FCFA).`
+                      ? (r.acompte.politique.integral
+                        ? `Si vous acceptez : acompte de ${Number(r.acompte.montant).toLocaleString('fr-FR')} FCFA remboursé en entier automatiquement (annulation dans le délai de remboursement intégral).`
+                        : `Si vous acceptez : ${Number(r.acompte.politique.montant).toLocaleString('fr-FR')} FCFA remboursés automatiquement (${r.acompte.politique.pourcentage} % de l'acompte de ${Number(r.acompte.montant).toLocaleString('fr-FR')} FCFA).`)
                       : `Si vous acceptez : acompte conservé (${r.acompte.politique.raison.toLowerCase()}).`}
                   </p>
                 )}
