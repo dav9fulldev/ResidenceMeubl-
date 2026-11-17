@@ -4,6 +4,8 @@ const router = express.Router();
 const AuthService = require('../services/AuthService');
 const ReservationService = require('../services/ReservationService');
 const requireClient = require('../middleware/requireClient');
+const PaymentService = require('../services/paiement/PaymentService');
+const PiSpi = require('../services/paiement/PiSpiClient');
 const { cleLimite } = require('../middleware/clientIp');
 
 /**
@@ -22,7 +24,7 @@ const accesLimiter = rateLimit({
 const emailValide = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || '').trim());
 
 const gererErreur = (res, error, contexte) => {
-  if (error instanceof ReservationService.ErreurClient) {
+  if (error instanceof ReservationService.ErreurClient || error instanceof PaymentService.ErreurPaiement) {
     return res.status(error.status).json({ success: false, message: error.message });
   }
   console.error(`Erreur ${contexte}:`, error);
@@ -101,6 +103,59 @@ router.post('/reservations/:id/annulation', requireClient, async (req, res) => {
     });
   } catch (error) {
     gererErreur(res, error, 'lors de la demande d\'annulation');
+  }
+});
+
+// ---------- Acompte PI-SPI ----------
+
+const paiementLimiter = rateLimit({
+  keyGenerator: cleLimite,
+  skip: () => process.env.NODE_ENV === 'test',
+  windowMs: 15 * 60 * 1000,
+  max: 15,
+  message: { success: false, message: 'Trop de tentatives de paiement, réessayez dans 15 minutes.' },
+});
+
+/**
+ * @route   POST /api/client/reservations/:id/acompte
+ * @desc    Démarre le paiement de l'acompte : { methode: 'qr' } ou { methode: 'demande', payeurAlias }
+ */
+router.post('/reservations/:id/acompte', paiementLimiter, requireClient, async (req, res) => {
+  try {
+    const data = await PaymentService.demarrer(req.params.id, req.client, req.body || {});
+    res.status(201).json({ success: true, data });
+  } catch (error) {
+    if (error instanceof PiSpi.ErreurPiSpi || error?.name === 'TimeoutError') {
+      // Erreur ou délai dépassé côté PI-SPI
+      console.error('Erreur PI-SPI :', error.message);
+      return res.status(502).json({ success: false, message: 'Le service de paiement PI-SPI a refusé la demande. Réessayez dans un instant.' });
+    }
+    gererErreur(res, error, 'lors du démarrage du paiement');
+  }
+});
+
+/**
+ * @route   GET /api/client/reservations/:id/acompte/:txId
+ * @desc    Suivi du paiement (vérifie auprès de PI-SPI)
+ */
+router.get('/reservations/:id/acompte/:txId', requireClient, async (req, res) => {
+  try {
+    res.json({ success: true, data: await PaymentService.statutPourClient(req.params.id, req.client, req.params.txId) });
+  } catch (error) {
+    gererErreur(res, error, 'lors du suivi du paiement');
+  }
+});
+
+/**
+ * @route   POST /api/client/reservations/:id/acompte/:txId/simuler
+ * @desc    Mode simulation uniquement (démonstrations) : marque l'acompte comme payé
+ */
+router.post('/reservations/:id/acompte/:txId/simuler', requireClient, async (req, res) => {
+  try {
+    await PaymentService.simuler(req.params.id, req.client, req.params.txId);
+    res.json({ success: true, data: await PaymentService.statutPourClient(req.params.id, req.client, req.params.txId) });
+  } catch (error) {
+    gererErreur(res, error, 'lors de la simulation');
   }
 });
 

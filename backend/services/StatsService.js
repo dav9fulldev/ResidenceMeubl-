@@ -42,6 +42,7 @@ class StatsService {
       reservations: { confirmees: 0, enAttente: 0, annulees: 0 },
       revenus: 0,
       revenusPrevisionnels: 0,
+      acomptes: 0,
       nuitsOccupees: 0,
       occupation: 0,
       cumul: 0,
@@ -49,7 +50,16 @@ class StatsService {
     const parResidence = new Map();
     const annees = new Set([annee]);
 
+    let acomptesEncaisses = 0;
     for (const r of reservations) {
+      // Acomptes PI-SPI encaissés : comptés au mois du paiement
+      if (r.acompte?.paye && r.acompte.payeLe) {
+        const d = new Date(r.acompte.payeLe);
+        if (d.getUTCFullYear() === annee) {
+          mois[d.getUTCMonth()].acomptes += Number(r.acompte.montant) || 0;
+          acomptesEncaisses += Number(r.acompte.montant) || 0;
+        }
+      }
       const arrivee = r.dates?.arrivee;
       const depart = r.dates?.depart;
       if (!arrivee || !depart) continue;
@@ -124,6 +134,7 @@ class StatsService {
       resume: {
         revenusAnnee,
         revenusPrevisionnels: mois.reduce((s, m) => s + m.revenusPrevisionnels, 0),
+        acomptesEncaisses,
         revenusMoisCourant: moisCourant !== null ? mois[moisCourant].revenus : null,
         revenusMoisPrecedent: moisCourant !== null && moisCourant > 0 ? mois[moisCourant - 1].revenus : null,
         moisCourant: moisCourant !== null ? moisCourant + 1 : null,
@@ -164,7 +175,8 @@ class StatsService {
 
     const entetes = [
       'Référence', 'Reçue le', 'Statut', 'Résidence', 'Réf. résidence', 'Client', 'Email', 'Téléphone',
-      'Arrivée', 'Départ', 'Nuits', 'Personnes', 'Montant (FCFA)', 'Demande d\'annulation', 'Motif', 'Notes',
+      'Arrivée', 'Départ', 'Nuits', 'Personnes', 'Montant (FCFA)', 'Acompte payé (FCFA)', 'Acompte payé le',
+      'Réf. paiement PI-SPI', 'Demande d\'annulation', 'Motif', 'Notes',
     ];
     const lignes = reservations.map(r => [
       r.id,
@@ -180,6 +192,9 @@ class StatsService {
       nuitsDuSejour(r.dates?.arrivee, r.dates?.depart).length,
       r.details?.nombrePersonnes,
       Number(r.prixTotal) || 0,
+      r.acompte?.paye ? Number(r.acompte.montant) || 0 : '',
+      r.acompte?.paye ? date(r.acompte.payeLe) : '',
+      r.acompte?.paye ? (r.acompte.end2endId || r.acompte.txId) : '',
       r.demandeAnnulation ? DEMANDES[r.demandeAnnulation.statut] || '' : '',
       r.demandeAnnulation?.motif || '',
       r.notes || '',

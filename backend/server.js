@@ -54,6 +54,23 @@ app.use(cors({
   credentials: true
 }));
 
+// Webhook PI-SPI : corps brut indispensable pour vérifier la signature X-Signature
+const PaymentService = require('./services/paiement/PaymentService');
+app.post('/api/paiements/pispi/webhook', express.raw({ type: '*/*', limit: '1mb' }), (req, res) => {
+  const corpsBrut = Buffer.isBuffer(req.body) ? req.body : Buffer.from('');
+  if (!PaymentService.signatureValide(corpsBrut, req.get('X-Signature'))) {
+    return res.status(401).json({ success: false, message: 'Signature invalide' });
+  }
+  let corps;
+  try {
+    corps = JSON.parse(corpsBrut.toString('utf8'));
+  } catch {
+    return res.status(400).json({ success: false, message: 'JSON invalide' });
+  }
+  res.status(204).end(); // répondre en moins de 5 s, traiter ensuite
+  PaymentService.traiterEvenements(corps).catch(e => console.error('⚠️ Webhook PI-SPI :', e.message));
+});
+
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
@@ -138,6 +155,9 @@ if (require.main === module) {
   db.connect()
     .then(() => {
       console.log('🗄️  Connecté à MongoDB');
+      const modePaiement = require('./services/paiement/acompte').mode();
+      console.log(`💳 Paiement de l'acompte : ${modePaiement === 'pispi' ? 'PI-SPI' : modePaiement}`);
+      if (modePaiement === 'pispi') PaymentService.demarrerVerificationPeriodique();
       const AIService = require('./services/AIService');
       if (AIService.estActive()) {
         console.log(`🧠 Recherche intelligente : Voyage AI (${AIService.model})`);

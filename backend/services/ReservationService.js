@@ -2,6 +2,8 @@ const Reservation = require('../models/Reservation');
 const ResidenceService = require('./ResidenceService');
 const EmailService = require('./EmailService');
 const db = require('../db');
+const acompte = require('./paiement/acompte');
+const PaymentService = require('./paiement/PaymentService');
 
 const STATUTS_VALIDES = ['en_attente', 'confirmee', 'annulee'];
 const FORMAT_DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -19,6 +21,8 @@ const versDocument = (reservation) => ({
   notes: reservation.notes,
   prixTotal: reservation.prixTotal,
   demandeAnnulation: null,
+  acompte: null,
+  paiements: [],
 });
 
 const aujourdhui = () => new Date().toISOString().slice(0, 10);
@@ -45,6 +49,7 @@ const vueClient = (r) => ({
   dateCreation: r.dateCreation,
   demandeAnnulation: r.demandeAnnulation || null,
   peutDemanderAnnulation: peutDemanderAnnulation(r),
+  acompte: acompte.etatAcompte(r),
 });
 
 /**
@@ -53,6 +58,7 @@ const vueClient = (r) => ({
 class ReservationService {
   constructor() {
     this.emailService = new EmailService();
+    PaymentService.emailService = this.emailService;
   }
 
   get collection() {
@@ -160,7 +166,8 @@ class ReservationService {
       statut: reservation.statut,
       dateCreation: reservation.dateCreation,
       prixTotal: reservation.prixTotal,
-      demandeAnnulation: reservation.demandeAnnulation || null
+      demandeAnnulation: reservation.demandeAnnulation || null,
+      acompte: acompte.etatAcompte(reservation),
     }));
   }
 

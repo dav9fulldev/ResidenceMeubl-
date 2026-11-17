@@ -644,3 +644,219 @@ test('une origine non autorisée ne reçoit pas les en-têtes CORS (sans erreur 
   const ok = await fetch(`${baseUrl}/api/residences`, { headers: { Origin: 'http://localhost:3001' } });
   assert.equal(ok.headers.get('access-control-allow-origin'), 'http://localhost:3001');
 });
+
+// ---------- Acompte PI-SPI ----------
+const PiSpi = require('../services/paiement/PiSpiClient');
+const PaymentService = require('../services/paiement/PaymentService');
+const { isValidPispiQrPayload } = require('@pi-spi/qrcode');
+const crypto = require('node:crypto');
+
+const ALIAS_PAYE = '3497a720-ab11-4973-9619-534e04f263a1';
+const ALIAS_CLIENT = '9b1b3499-3e50-435b-b757-ac7a83d8aa96';
+
+function configurerPiSpi(t, valeurs = {}) {
+  const avant = {};
+  const env = {
+    PISPI_BASE_URL: 'https://participant.exemple.test/piz/v1',
+    PISPI_TOKEN_URL: 'https://auth.exemple.test/oauth2/token',
+    PISPI_CLIENT_ID: 'id-test', PISPI_CLIENT_SECRET: 'secret-test', PISPI_API_KEY: 'cle-test',
+    PISPI_PAYEE_ALIAS: ALIAS_PAYE, PISPI_WEBHOOK_SECRET: 'secret-webhook-test', ...valeurs,
+  };
+  for (const [k, v] of Object.entries(env)) { avant[k] = process.env[k]; if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+  t.after(() => { for (const [k, v] of Object.entries(avant)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; } });
+}
+
+async function reservationConfirmee(residenceId, j1, j2, email) {
+  const headersAdmin = await connexionAdmin();
+  const c = await api('/api/reservations', { method: 'POST', body: nouvelleReservation({ residenceId, email, dateArrivee: jourDansNJours(j1), dateDepart: jourDansNJours(j2) }) });
+  assert.equal(c.status, 201, JSON.stringify(c.body));
+  const id = c.body.data.id;
+  const acces = await api('/api/client/acces', { method: 'POST', body: { email, reference: id } });
+  return { id, headersAdmin, headersClient: { Authorization: `Bearer ${acces.body.data.token}` } };
+}
+
+test('acompte : désactivé tant que PI-SPI n\'est pas configuré', async () => {
+  delete process.env.PAIEMENT_MODE;
+  const { id, headersClient } = await reservationConfirmee(1, 100, 103, 'nopay@example.com');
+  const vue = (await api('/api/client/reservations', { headers: headersClient })).body.data[0];
+  assert.equal(vue.acompte.mode, 'desactive');
+  assert.equal(vue.acompte.possible, false);
+  const res = await api(`/api/client/reservations/${id}/acompte`, { method: 'POST', headers: headersClient, body: { methode: 'qr' } });
+  assert.equal(res.status, 503);
+});
+
+test('acompte en mode simulation : QR officiel, paiement, emails, statistiques', async (t) => {
+  configurerPiSpi(t, { PAIEMENT_MODE: 'simulation', ACOMPTE_POURCENTAGE: '30' });
+  const envois = [];
+  ReservationService.emailService.sendAcompteRecu = async (r) => { envois.push(['client', r.id]); };
+  ReservationService.emailService.sendAcompteRecuAdmin = async (r) => { envois.push(['admin', r.id]); };
+
+  const { id, headersAdmin, headersClient } = await reservationConfirmee(1, 110, 113, 'simu@example.com');
+
+  // Pas encore confirmée : impossible
+  const tropTot = await api(`/api/client/reservations/${id}/acompte`, { method: 'POST', headers: headersClient, body: { methode: 'qr' } });
+  assert.equal(tropTot.status, 400);
+
+  await api(`/api/reservations/${id}/status`, { method: 'PUT', headers: headersAdmin, body: { statut: 'confirmee' } });
+  const vue = (await api('/api/client/reservations', { headers: headersClient })).body.data[0];
+  assert.equal(vue.acompte.possible, true);
+  assert.equal(vue.acompte.montant, Math.ceil(vue.prixTotal * 0.3));
+
+  const qr = await api(`/api/client/reservations/${id}/acompte`, { method: 'POST', headers: headersClient, body: { methode: 'qr' } });
+  assert.equal(qr.status, 201, JSON.stringify(qr.body));
+  const { txId, qrPayload, qrSvg, montant } = qr.body.data;
+  assert.ok(txId.length <= 25 && /^[A-Z0-9]+$/.test(txId));
+  assert.ok(isValidPispiQrPayload(qrPayload), 'payload QR valide selon le SDK officiel');
+  assert.ok(qrPayload.includes('int.bceao.pi') && qrPayload.includes(txId) && qrPayload.includes(`54${String(montant).length.toString().padStart(2, '0')}${montant}`));
+  assert.ok(qrPayload.includes('1103400'), 'QR dynamique (catégorie 400)');
+  assert.match(qrSvg, /^<svg/);
+
+  let suivi = await api(`/api/client/reservations/${id}/acompte/${txId}`, { headers: headersClient });
+  assert.equal(suivi.body.data.statut, 'en_attente');
+
+  const simule = await api(`/api/client/reservations/${id}/acompte/${txId}/simuler`, { method: 'POST', headers: headersClient });
+  assert.equal(simule.status, 200, JSON.stringify(simule.body));
+  assert.equal(simule.body.data.statut, 'paye');
+  assert.equal(simule.body.data.acompte.paye, true);
+  await new Promise(r => setTimeout(r, 20));
+  assert.deepEqual(envois, [['client', id], ['admin', id]]);
+
+  // Idempotent et pas de second paiement
+  await api(`/api/client/reservations/${id}/acompte/${txId}/simuler`, { method: 'POST', headers: headersClient });
+  assert.equal(envois.length, 2, 'emails envoyés une seule fois');
+  assert.equal((await api(`/api/client/reservations/${id}/acompte`, { method: 'POST', headers: headersClient, body: { methode: 'qr' } })).status, 400);
+
+  // Visible côté admin et dans les statistiques
+  const admin = (await api('/api/reservations', { headers: headersAdmin })).body.data.find(r => r.id === id);
+  assert.equal(admin.acompte.paye, true);
+  const stats = (await api(`/api/admin/statistiques?annee=${new Date().getUTCFullYear()}`, { headers: headersAdmin })).body.data;
+  assert.ok(stats.resume.acomptesEncaisses >= montant);
+});
+
+test('acompte en mode PI-SPI : demande de paiement 521, vérification, rejet', async (t) => {
+  configurerPiSpi(t, { PAIEMENT_MODE: 'pispi' });
+  ReservationService.emailService.sendAcompteRecu = async () => {};
+  ReservationService.emailService.sendAcompteRecuAdmin = async () => {};
+  const { id, headersAdmin, headersClient } = await reservationConfirmee(1, 120, 123, 'pispi@example.com');
+  await api(`/api/reservations/${id}/status`, { method: 'PUT', headers: headersAdmin, body: { statut: 'confirmee' } });
+
+  const envoyees = [];
+  t.mock.method(PiSpi, 'creerDemandePaiement', async (args) => { envoyees.push(args); return { txId: args.txId, statut: 'ENVOYE' }; });
+  let recu = null;
+  t.mock.method(PiSpi, 'lirePaiementRecu', async () => recu);
+  t.mock.method(PiSpi, 'lireDemandePaiement', async () => ({ statut: 'ENVOYE' }));
+
+  // Adresse de paiement invalide
+  const mauvais = await api(`/api/client/reservations/${id}/acompte`, { method: 'POST', headers: headersClient, body: { methode: 'demande', payeurAlias: '0701020304' } });
+  assert.equal(mauvais.status, 400);
+  assert.match(mauvais.body.message, /Adresse de paiement invalide/);
+
+  const dem = await api(`/api/client/reservations/${id}/acompte`, { method: 'POST', headers: headersClient, body: { methode: 'demande', payeurAlias: ALIAS_CLIENT.toUpperCase() } });
+  assert.equal(dem.status, 201, JSON.stringify(dem.body));
+  const { txId, montant } = dem.body.data;
+  assert.equal(envoyees[0].payeurAlias, ALIAS_CLIENT, 'adresse normalisée en minuscules');
+  assert.equal(envoyees[0].montant, montant);
+
+  // Pas encore payé
+  let suivi = await api(`/api/client/reservations/${id}/acompte/${txId}`, { headers: headersClient });
+  assert.equal(suivi.body.data.statut, 'en_attente');
+
+  // PI-SPI indique le paiement irrévocable
+  recu = { txId, statut: 'IRREVOCABLE', montant, end2endId: 'E2E-TEST-1', payeurNom: 'Awa Kouassi' };
+  await new Promise(r => setTimeout(r, 3100)); // limite anti-rafale de 3 s
+  suivi = await api(`/api/client/reservations/${id}/acompte/${txId}`, { headers: headersClient });
+  assert.equal(suivi.body.data.statut, 'paye');
+  assert.equal(suivi.body.data.acompte.paye, true);
+
+  // La simulation est refusée en mode PI-SPI
+  assert.equal((await api(`/api/client/reservations/${id}/acompte/${txId}/simuler`, { method: 'POST', headers: headersClient })).status, 403);
+
+  // Rejet immédiat par PI-SPI (alias inconnu)
+  const autre = await reservationConfirmee(1, 130, 133, 'pispi2@example.com');
+  await api(`/api/reservations/${autre.id}/status`, { method: 'PUT', headers: headersAdmin, body: { statut: 'confirmee' } });
+  PiSpi.creerDemandePaiement.mock.mockImplementation(async (args) => ({ txId: args.txId, statut: 'REJETE', statutRaison: 'BE23' }));
+  const rejet = await api(`/api/client/reservations/${autre.id}/acompte`, { method: 'POST', headers: autre.headersClient, body: { methode: 'demande', payeurAlias: ALIAS_CLIENT } });
+  assert.equal(rejet.status, 400);
+  assert.match(rejet.body.message, /Adresse de paiement inconnue/);
+});
+
+test('webhook PI-SPI : signature HMAC obligatoire, puis vérification via l\'API', async (t) => {
+  configurerPiSpi(t, { PAIEMENT_MODE: 'pispi' });
+  ReservationService.emailService.sendAcompteRecu = async () => {};
+  ReservationService.emailService.sendAcompteRecuAdmin = async () => {};
+  const { id, headersAdmin, headersClient } = await reservationConfirmee(8, 140, 143, 'webhook@example.com');
+  await api(`/api/reservations/${id}/status`, { method: 'PUT', headers: headersAdmin, body: { statut: 'confirmee' } });
+
+  const qr = await api(`/api/client/reservations/${id}/acompte`, { method: 'POST', headers: headersClient, body: { methode: 'qr' } });
+  const { txId, montant } = qr.body.data;
+  assert.ok(qr.body.data.qrPayload.includes(ALIAS_PAYE), 'QR vers l\'alias Sankofart');
+  t.mock.method(PiSpi, 'lirePaiementRecu', async () => ({ txId, statut: 'IRREVOCABLE', montant, end2endId: 'E2E-WEBHOOK' }));
+
+  const corps = JSON.stringify({ data: [{ evCode: 'PAIEMENT_RECU', txId, montant, end2endId: 'E2E-WEBHOOK' }], meta: { total: 1 } });
+  const envoyer = (signature) => fetch(`${baseUrl}/api/paiements/pispi/webhook`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', ...(signature ? { 'X-Signature': signature } : {}) }, body: corps,
+  });
+
+  assert.equal((await envoyer()).status, 401);
+  assert.equal((await envoyer('sha256=00ff')).status, 401);
+  // Montant modifié après signature → refusé
+  const signature = crypto.createHmac('sha256', 'secret-webhook-test').update(corps).digest('hex');
+  const altere = await fetch(`${baseUrl}/api/paiements/pispi/webhook`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Signature': signature }, body: corps.replace(`"montant":${montant}`, '"montant":1'),
+  });
+  assert.equal(altere.status, 401);
+
+  assert.equal((await envoyer(`sha256=${signature}`)).status, 204);
+  await new Promise(r => setTimeout(r, 100));
+  const vue = (await api('/api/client/reservations', { headers: headersClient })).body.data[0];
+  assert.equal(vue.acompte.paye, true);
+  assert.equal(PiSpi.lirePaiementRecu.mock.callCount() >= 1, true, 'statut relu via l\'API avant validation');
+});
+
+test('client PI-SPI : jeton OAuth2 en cache, x-api-key, nouvel essai sur 401, 404 = rien reçu', async (t) => {
+  configurerPiSpi(t);
+  PiSpi.jeton = null;
+  const appels = [];
+  let jetonNumero = 0;
+  let refuserUneFois = true;
+  t.mock.method(globalThis, 'fetch', async (url, options) => {
+    appels.push({ url: String(url), options });
+    if (String(url).includes('/oauth2/token')) {
+      jetonNumero += 1;
+      return new Response(JSON.stringify({ access_token: `jeton-${jetonNumero}`, expires_in: 3600 }), { status: 200 });
+    }
+    if (String(url).endsWith('/paiements-recus/INCONNU')) return new Response('', { status: 404 });
+    if (refuserUneFois) { refuserUneFois = false; return new Response('', { status: 401 }); }
+    return new Response(JSON.stringify({ txId: 'X', statut: 'IRREVOCABLE' }), { status: 200 });
+  });
+
+  const r1 = await PiSpi.lirePaiementRecu('ABC');
+  assert.equal(r1.statut, 'IRREVOCABLE');
+  const jeton = appels.find(a => a.url.includes('/oauth2/token'));
+  const formulaire = new URLSearchParams(jeton.options.body.toString());
+  assert.equal(formulaire.get('grant_type'), 'client_credentials');
+  assert.equal(formulaire.get('client_id'), 'id-test');
+  assert.match(formulaire.get('scope'), /piz\/paiement\.read/);
+  const appelApi = appels.filter(a => a.url.startsWith('https://participant.exemple.test/piz/v1/paiements-recus/ABC'));
+  assert.equal(appelApi.length, 2, 'nouvel essai après 401');
+  assert.equal(appelApi[1].options.headers['x-api-key'], 'cle-test');
+  assert.equal(appelApi[1].options.headers.Authorization, 'Bearer jeton-2');
+
+  assert.equal(await PiSpi.lirePaiementRecu('INCONNU'), null);
+  assert.equal(appels.filter(a => a.url.includes('/oauth2/token')).length, 2, 'jeton réutilisé');
+
+  // Corps de la demande de paiement conforme à la spécification
+  await PiSpi.creerDemandePaiement({ txId: 'SKFTEST', payeurAlias: ALIAS_CLIENT.toUpperCase(), montant: 15000.4, motif: 'Acompte' });
+  const demande = appels.at(-1);
+  const corps = JSON.parse(demande.options.body);
+  assert.equal(demande.url, 'https://participant.exemple.test/piz/v1/demandes-paiements');
+  assert.equal(PiSpi.urlAvecParticipant('https://api.test', 'CIC999'), 'https://api.test/CIC999');
+  assert.equal(PiSpi.urlAvecParticipant('https://api.test/CIC999/', 'CIC999'), 'https://api.test/CIC999');
+  assert.equal(corps.categorie, '521');
+  assert.equal(corps.confirmation, false);
+  assert.equal(corps.payeurAlias, ALIAS_CLIENT);
+  assert.equal(corps.payeAlias, ALIAS_PAYE);
+  assert.equal(corps.montant, 15000);
+  assert.equal(corps.dateLimitePaiement, undefined, 'refusé par le sandbox pour la catégorie 521');
+  assert.equal(demande.url.startsWith('https://participant.exemple.test/piz/v1/'), true);
+});
