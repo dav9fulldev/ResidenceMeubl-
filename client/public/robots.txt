@@ -1,3 +1,4 @@
 # https://www.robotstxt.org/robotstxt.html
 User-agent: *
-Disallow:
+# Back-office : jamais indexé par les moteurs de recherche
+Disallow: /admin

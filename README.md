@@ -25,7 +25,9 @@ Plateforme de réservation de résidences meublées à Abidjan : site vitrine, r
 - **Mes réservations, sans compte** : avec l'email et la référence, ou via un lien reçu par email, le client voit l'historique de ses réservations et peut **demander une annulation**.
 - **Favoris** enregistrés dans le navigateur.
 
-### Pour l'administrateur (`/admin/login`)
+### Pour l'administrateur (`/admin`)
+Le back-office n'est lié nulle part sur le site public : on y accède par l'adresse **`/admin`** (à mettre en favori) ou par l'application **Sankofart Admin** installée sur ordinateur / téléphone. Les pages `/admin` ne sont pas indexées par les moteurs de recherche.
+
 - Connexion vérifiée par le serveur (jeton signé valable 8 h, tentatives limitées).
 - **Réservations** : liste filtrable, confirmation ou annulation → email automatique au client.
 - **Statistiques** : chiffre d'affaires de l'année et du mois (avec évolution), revenus par mois, chiffre d'affaires cumulé, réservations par mois, taux d'occupation, panier moyen, classement des résidences ; **export Excel (CSV)**.

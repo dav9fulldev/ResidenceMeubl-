@@ -22,6 +22,12 @@
       // Manifeste : le back-office (/admin) s'installe comme une application à part
       (function () {
         var admin = location.pathname.indexOf('/admin') === 0;
+        if (admin) {
+          var robots = document.createElement('meta');
+          robots.name = 'robots';
+          robots.content = 'noindex, nofollow';
+          document.head.appendChild(robots);
+        }
         var link = document.createElement('link');
         link.rel = 'manifest';
         link.href = admin ? '/admin/manifest.webmanifest' : '/manifest.json';
