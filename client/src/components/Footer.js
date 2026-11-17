@@ -34,11 +34,7 @@ const Footer = () => {
               <li><Link to="/">Accueil</Link></li>
               <li><Link to="/residences">Résidences</Link></li>
               <li><Link to="/favorites">Favoris</Link></li>
-              <li>
-                <Link to="/admin/login" className="admin-link">
-                  🛠️ Administration
-                </Link>
-              </li>
+              <li><Link to="/mes-reservations">Mes réservations</Link></li>
             </ul>
           </div>
 
