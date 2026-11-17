@@ -635,3 +635,12 @@ test('statistiques : revenus par mois, cumul, occupation, et export CSV', async 
   assert.ok(pirate.includes(`"'=HYPERLINK(""x"") Pirate"`), 'formule neutralisée : ' + pirate);
   assert.equal((await fetch(`${baseUrl}/api/admin/export/reservations.csv`)).status, 401);
 });
+
+test('une origine non autorisée ne reçoit pas les en-têtes CORS (sans erreur serveur)', async () => {
+  const res = await fetch(`${baseUrl}/api/residences`, { headers: { Origin: 'https://site-inconnu.vercel.app' } });
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get('access-control-allow-origin'), null, 'le navigateur bloquera la réponse');
+
+  const ok = await fetch(`${baseUrl}/api/residences`, { headers: { Origin: 'http://localhost:3001' } });
+  assert.equal(ok.headers.get('access-control-allow-origin'), 'http://localhost:3001');
+});
