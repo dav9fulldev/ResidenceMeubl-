@@ -343,3 +343,9 @@
     font-size: 16px;
   }
 }
+
+.sejour-regle {
+  margin: -8px 0 16px;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}

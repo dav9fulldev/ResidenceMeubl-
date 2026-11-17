@@ -117,6 +117,11 @@ const AdminStatsPage = () => {
               <span className="stats-kpi-sub">{r.nuitsOccupees} nuits sur {stats.nbResidences} résidences</span>
             </div>
             <div className="stats-kpi">
+              <span className="stats-kpi-label">Acomptes encaissés (PI-SPI)</span>
+              <span className="stats-kpi-value">{formatFCFA(r.acomptesEncaisses)}</span>
+              <span className="stats-kpi-sub">Paiements reçus en {annee}</span>
+            </div>
+            <div className="stats-kpi">
               <span className="stats-kpi-label">Panier moyen</span>
               <span className="stats-kpi-value">{formatFCFA(r.panierMoyen)}</span>
               <span className="stats-kpi-sub">Séjour moyen : {r.dureeMoyenne.toLocaleString('fr-FR')} nuits</span>

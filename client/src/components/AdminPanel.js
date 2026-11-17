@@ -8,6 +8,7 @@ const AdminPanel = () => {
   const {
     residences,
     updateResidenceStatus,
+    updateStayLimits,
     updateReservationStatus,
     reloadResidences,
     addResidence,
@@ -50,7 +51,9 @@ const AdminPanel = () => {
       currentOccupant: residence.availability.currentOccupant || '',
       checkIn: residence.availability.checkIn || '',
       checkOut: residence.availability.checkOut || '',
-      nextAvailable: residence.availability.nextAvailable || ''
+      nextAvailable: residence.availability.nextAvailable || '',
+      minStay: residence.availability.minStay ?? 2,
+      maxStay: residence.availability.maxStay ?? 30,
     });
   };
 
@@ -82,12 +85,21 @@ const AdminPanel = () => {
 
   const handleSave = async () => {
     if (editingResidence && editForm.status) {
-      const ok = await runAction(() => updateResidenceStatus(editingResidence.id, editForm.status, {
-        currentOccupant: editForm.currentOccupant,
-        checkIn: editForm.checkIn,
-        checkOut: editForm.checkOut,
-        nextAvailable: editForm.nextAvailable
-      }));
+      const a = editingResidence.availability;
+      const statutChange = editForm.status !== a.status || !a.automatic;
+      const sejourChange = Number(editForm.minStay) !== a.minStay || Number(editForm.maxStay) !== a.maxStay;
+      const ok = await runAction(async () => {
+        if (sejourChange) await updateStayLimits(editingResidence.id, editForm.minStay, editForm.maxStay);
+        // Un statut « Réservé » calculé automatiquement n'est pas transformé en statut manuel
+        if (statutChange) {
+          await updateResidenceStatus(editingResidence.id, editForm.status, {
+            currentOccupant: editForm.currentOccupant,
+            checkIn: editForm.checkIn,
+            checkOut: editForm.checkOut,
+            nextAvailable: editForm.nextAvailable
+          });
+        }
+      });
       if (!ok) return;
       setEditingResidence(null);
       setEditForm({
@@ -155,6 +167,9 @@ const AdminPanel = () => {
                   </div>
                   <p className="residence-reference">Réf: {residence.reference}</p>
                   <p className="residence-location">{residence.location}</p>
+                  <p className="residence-stay">
+                    Séjour : {residence.availability.minStay === 1 ? '1 nuit' : `${residence.availability.minStay} nuits`} min. · {residence.availability.maxStay} max.
+                  </p>
                 </div>
 
                 <div className="residence-admin-actions">
@@ -179,6 +194,18 @@ const AdminPanel = () => {
                           <p className="auto-status-hint">Ou choisissez « Maintenance » ci-dessous pour bloquer la résidence.</p>
                         </div>
                       )}
+                      <div className="stay-limits">
+                        <label>
+                          Séjour min. (nuits)
+                          <input type="number" min="1" max="365" value={editForm.minStay}
+                            onChange={(e) => setEditForm(prev => ({ ...prev, minStay: e.target.value }))} className="form-input" />
+                        </label>
+                        <label>
+                          Séjour max. (nuits)
+                          <input type="number" min="1" max="365" value={editForm.maxStay}
+                            onChange={(e) => setEditForm(prev => ({ ...prev, maxStay: e.target.value }))} className="form-input" />
+                        </label>
+                      </div>
                       <select
                         value={editForm.status}
                         onChange={(e) => setEditForm(prev => ({ ...prev, status: e.target.value }))}

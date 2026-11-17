@@ -177,6 +177,15 @@ export const ResidencesProvider = ({ children }) => {
     replaceResidence(response.data);
   }, [adminRequest]);
 
+  // Durée de séjour autorisée (nuits) pour une résidence
+  const updateStayLimits = useCallback(async (residenceId, minStay, maxStay) => {
+    const response = await adminRequest(API_ENDPOINTS.admin.residence(residenceId), {
+      method: 'PUT',
+      body: { disponibilite: { sejourMin: Number(minStay), sejourMax: Number(maxStay) } },
+    });
+    replaceResidence(response.data);
+  }, [adminRequest]);
+
   const deleteResidence = useCallback(async (residenceId) => {
     await adminRequest(API_ENDPOINTS.admin.residence(residenceId), { method: 'DELETE' });
     setResidences(prev => prev.filter(r => r.id !== residenceId));
@@ -250,12 +259,13 @@ export const ResidencesProvider = ({ children }) => {
     getReservations,
     updateReservationStatus,
     decideCancellation,
+    updateStayLimits,
     getStats,
     downloadReservationsCsv,
   }), [
     residences, loading, offline, isAdmin, loadResidences, getResidenceById, searchResidences,
     createReservation, smartSearch, getSimilarResidences, loginAdmin, logoutAdmin, updateResidenceStatus, addResidence,
-    updateResidence, deleteResidence, getReservations, updateReservationStatus, decideCancellation, getStats, downloadReservationsCsv,
+    updateResidence, deleteResidence, getReservations, updateReservationStatus, decideCancellation, updateStayLimits, getStats, downloadReservationsCsv,
   ]);
 
   return (
