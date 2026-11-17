@@ -13,6 +13,29 @@
     />
 
     <title>Sankofart Résidence</title>
+    <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <script>
+      // Manifeste : le back-office (/admin) s'installe comme une application à part
+      (function () {
+        var admin = location.pathname.indexOf('/admin') === 0;
+        var link = document.createElement('link');
+        link.rel = 'manifest';
+        link.href = admin ? '/admin/manifest.webmanifest' : '/manifest.json';
+        document.head.appendChild(link);
+        var titre = document.createElement('meta');
+        titre.name = 'apple-mobile-web-app-title';
+        titre.content = admin ? 'Sankofart Admin' : 'Sankofart';
+        document.head.appendChild(titre);
+        // Service worker du back-office (permet l'installation dès la page de connexion)
+        if (admin && 'serviceWorker' in navigator) {
+          navigator.serviceWorker.register('/admin/sw.js', { scope: '/admin/' }).catch(function () {});
+        }
+      })();
+    </script>
     <script>
       // Appliquer le thème avant l'affichage (évite un flash blanc en mode sombre)
       (function () {

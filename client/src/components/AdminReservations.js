@@ -113,7 +113,7 @@ const AdminReservations = () => {
   return (
     <section className="admin-reservations">
       <div className="admin-reservations-header">
-        <h3>📅 Réservations</h3>
+        <h3>Liste des réservations</h3>
         <button className="btn btn-outline btn-sm" onClick={load} disabled={loading}>
           <FaSyncAlt /> Actualiser
         </button>

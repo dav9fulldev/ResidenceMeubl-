@@ -123,9 +123,6 @@ const AdminPanel = () => {
 
   return (
     <div className="admin-panel">
-      <div className="admin-header">
-        <h3>🛠️ Panel Administrateur</h3>
-      </div>
 
       {actionError && (
         <div className="error-message" role="alert">{actionError}</div>
@@ -142,33 +139,7 @@ const AdminPanel = () => {
           </button>
         </div>
 
-        <div className="admin-stats">
-          <div className="stat-card">
-            <span className="stat-number">{residences.length}</span>
-            <span className="stat-label">Total Résidences</span>
-          </div>
-          <div className="stat-card">
-            <span className="stat-number">
-              {residences.filter(r => r.availability.status === 'disponible').length}
-            </span>
-            <span className="stat-label">Disponibles</span>
-          </div>
-          <div className="stat-card">
-            <span className="stat-number">
-              {residences.filter(r => r.availability.status === 'occupé').length}
-            </span>
-            <span className="stat-label">Occupées</span>
-          </div>
-          <div className="stat-card">
-            <span className="stat-number">
-              {residences.filter(r => r.availability.status === 'réservé').length}
-            </span>
-            <span className="stat-label">Réservées</span>
-          </div>
-        </div>
-
         <div className="residences-management">
-          <h4>Gestion des Résidences</h4>
           <div className="residences-list">
             {residences.map((residence) => (
               <div key={residence.id} className="residence-admin-card">
