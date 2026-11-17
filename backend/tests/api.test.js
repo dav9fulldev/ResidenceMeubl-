@@ -310,11 +310,20 @@ test('le statut affiché suit les réservations confirmées', async () => {
   // Forcer « disponible » est refusé avec une explication
   const force = await api('/api/admin/residences/5/status', { method: 'PUT', headers, body: { statut: 'disponible' } });
   assert.equal(force.status, 400);
-  assert.match(force.body.message, /Annulez cette réservation/);
+  assert.match(force.body.message, /demande l'annulation/);
 
   // Annulations → retour à « disponible »
-  await api(`/api/reservations/${enCours.body.data.id}/status`, { method: 'PUT', headers, body: { statut: 'annulee' } });
-  await api(`/api/reservations/${futur.body.data.id}/status`, { method: 'PUT', headers, body: { statut: 'annulee' } });
+  // L'admin ne peut pas annuler seul une réservation confirmée
+  const direct = await api(`/api/reservations/${enCours.body.data.id}/status`, { method: 'PUT', headers, body: { statut: 'annulee' } });
+  assert.equal(direct.status, 409);
+  assert.match(direct.body.message, /demande/);
+  // Annulation sur demande du client, acceptée par l'admin
+  for (const id of [enCours.body.data.id, futur.body.data.id]) {
+    const acces = await api('/api/client/acces', { method: 'POST', body: { email: 'awa@example.com', reference: id } });
+    const h = { Authorization: `Bearer ${acces.body.data.token}` };
+    assert.equal((await api(`/api/client/reservations/${id}/annulation`, { method: 'POST', headers: h, body: {} })).status, 200);
+    assert.equal((await api(`/api/reservations/${id}/annulation`, { method: 'PUT', headers, body: { decision: 'accepter' } })).status, 200);
+  }
   assert.equal((await statutDe(5)).statut, 'disponible');
 
   // La maintenance posée à la main reste prioritaire

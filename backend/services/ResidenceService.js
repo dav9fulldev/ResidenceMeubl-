@@ -198,7 +198,7 @@ class ResidenceService {
         throw new ErreurValidation(
           `Cette résidence est réservée par ${bloquante.client.prenom} ${bloquante.client.nom} ` +
           `du ${date(bloquante.dates.arrivee)} au ${date(bloquante.dates.depart)} (réf. ${bloquante.id}). ` +
-          'Annulez cette réservation pour libérer la résidence : le client sera prévenu par email.'
+          'Elle sera libérée si le client demande l\'annulation depuis « Mes réservations » et que vous l\'acceptez.'
         );
       }
     }
