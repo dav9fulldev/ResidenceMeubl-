@@ -142,7 +142,7 @@ class PaymentService {
     try {
       const recu = await PiSpi.lirePaiementRecu(txId);
       if (recu && recu.statut === 'IRREVOCABLE' && Number(recu.montant) >= p.montant) {
-        return this.marquerPaye(r.id, txId, { end2endId: recu.end2endId, payeurNom: recu.payeurNom });
+        return this.marquerPaye(r.id, txId, { end2endId: recu.end2endId, payeurNom: recu.payeurNom, payeurAlias: recu.payeurAlias });
       }
       if (p.methode === 'demande') {
         const demande = await PiSpi.lireDemandePaiement(txId);
@@ -172,7 +172,7 @@ class PaymentService {
   /**
    * Enregistre l'acompte comme payé (une seule fois) et envoie les emails.
    */
-  async marquerPaye(reservationId, txId, { end2endId = null, payeurNom = null } = {}) {
+  async marquerPaye(reservationId, txId, { end2endId = null, payeurNom = null, payeurAlias = null } = {}) {
     const avant = await this.collection.findOne({ id: reservationId }, { projection: { _id: 0 } });
     const p = avant.paiements.find(x => x.txId === txId);
     const maintenant = new Date();
@@ -202,6 +202,7 @@ class PaymentService {
             methode: p.methode,
             end2endId,
             payeurNom,
+            payeurAlias: payeurAlias || p.payeurAlias || null,
           },
         },
       }
@@ -260,6 +261,11 @@ class PaymentService {
   async traiterEvenements(corps) {
     const evenements = Array.isArray(corps?.data) ? corps.data : [];
     for (const ev of evenements) {
+      if (['PAIEMENT_ENVOYE', 'PAIEMENT_REJETE'].includes(ev?.evCode) && ev.txId && String(ev.txId).startsWith('RMB')) {
+        const r = await this.collection.findOne({ 'acompte.remboursement.txId': String(ev.txId) }, { projection: { id: 1 } });
+        if (r) await require('./RefundService').verifier(r.id).catch(e => console.error('⚠️ Webhook remboursement :', e.message));
+        continue;
+      }
       if (['RETOUR_ENVOYE', 'RETOUR_REJETE'].includes(ev?.evCode) && ev.end2endId) {
         try {
           await require('./RefundService').verifierParEnd2endId(String(ev.end2endId));

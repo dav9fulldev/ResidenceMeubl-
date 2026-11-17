@@ -1,0 +1,63 @@
+.parametres-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 640px;
+}
+
+.parametre {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 16px;
+}
+
+.parametre label {
+  display: block;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.parametre-saisie {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.parametre-saisie input {
+  width: 110px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 2px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 1rem;
+}
+
+.parametre-saisie span {
+  color: var(--text-muted);
+}
+
+.parametre-aide {
+  margin: 6px 0 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.parametres-exemple {
+  border-radius: 12px;
+  padding: 14px 16px;
+  background: rgba(212, 175, 55, 0.12);
+  border: 1px solid rgba(212, 175, 55, 0.4);
+}
+
+.parametres-exemple p {
+  margin: 6px 0 0;
+}
+
+.parametres-form .btn-primary {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}

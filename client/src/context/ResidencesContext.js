@@ -225,6 +225,16 @@ export const ResidencesProvider = ({ children }) => {
     return response.data;
   }, [adminRequest]);
 
+  const getSettings = useCallback(async () => {
+    const response = await adminRequest(API_ENDPOINTS.admin.settings);
+    return response.data;
+  }, [adminRequest]);
+
+  const updateSettings = useCallback(async (valeurs) => {
+    const response = await adminRequest(API_ENDPOINTS.admin.settings, { method: 'PUT', body: valeurs });
+    return response.data;
+  }, [adminRequest]);
+
   const getStats = useCallback(async (annee) => {
     const response = await adminRequest(API_ENDPOINTS.admin.stats(annee));
     return response.data;
@@ -276,11 +286,13 @@ export const ResidencesProvider = ({ children }) => {
     markRefunded,
     retryRefund,
     getStats,
+    getSettings,
+    updateSettings,
     downloadReservationsCsv,
   }), [
     residences, loading, offline, isAdmin, loadResidences, getResidenceById, searchResidences,
     createReservation, smartSearch, getSimilarResidences, loginAdmin, logoutAdmin, updateResidenceStatus, addResidence,
-    updateResidence, deleteResidence, getReservations, updateReservationStatus, decideCancellation, updateStayLimits, markRefunded, retryRefund, getStats, downloadReservationsCsv,
+    updateResidence, deleteResidence, getReservations, updateReservationStatus, decideCancellation, updateStayLimits, markRefunded, retryRefund, getStats, getSettings, updateSettings, downloadReservationsCsv,
   ]);
 
   return (

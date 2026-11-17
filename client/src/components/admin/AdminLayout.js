@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import {
   FaChartPie, FaChartLine, FaCalendarAlt, FaHome, FaSignOutAlt, FaExternalLinkAlt,
-  FaMoon, FaSun, FaDownload, FaTimes,
+  FaMoon, FaSun, FaDownload, FaTimes, FaCog,
 } from 'react-icons/fa';
 import { useResidences } from '../../context/ResidencesContext';
 import useTheme from '../../hooks/useTheme';
@@ -15,6 +15,7 @@ const TITRES = {
   '/admin/reservations': 'Réservations',
   '/admin/residences': 'Résidences',
   '/admin/statistiques': 'Statistiques',
+  '/admin/parametres': 'Paramètres',
 };
 
 /**
@@ -56,6 +57,7 @@ const AdminLayout = () => {
     { to: '/admin/reservations', icone: <FaCalendarAlt />, texte: 'Réservations', badge: aTraiter },
     { to: '/admin/residences', icone: <FaHome />, texte: 'Résidences' },
     { to: '/admin/statistiques', icone: <FaChartLine />, texte: 'Statistiques' },
+    { to: '/admin/parametres', icone: <FaCog />, texte: 'Paramètres' },
   ];
 
   return (

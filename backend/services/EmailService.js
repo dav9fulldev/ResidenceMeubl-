@@ -467,8 +467,10 @@ class EmailService {
         titre: 'Acompte remboursé',
         couleur: '#2e7d32',
         contenu: `<p>Bonjour ${esc(r.client.prenom)},</p>
-          <p>Suite à l'annulation de votre réservation, votre acompte de <strong>${Number(a.montant).toLocaleString('fr-FR')} FCFA</strong>
-          vous a été remboursé par PI-SPI sur le compte utilisé pour le paiement.</p>
+          <p>Suite à l'annulation de votre réservation, nous vous avons remboursé
+          <strong>${Number(a.remboursement?.montant ?? a.montant).toLocaleString('fr-FR')} FCFA</strong>
+          ${a.remboursement?.pourcentage && a.remboursement.pourcentage < 100 ? `(${a.remboursement.pourcentage} % de votre acompte de ${Number(a.montant).toLocaleString('fr-FR')} FCFA)` : ''}
+          par PI-SPI.</p>
           ${this.recapReservation(r)}
           ${a.remboursement?.reference ? `<p style="color:#777;font-size:13px;">Référence : ${esc(a.remboursement.reference)}</p>` : ''}`,
       }),
@@ -560,7 +562,7 @@ class EmailService {
           ${!confirmee && reservation.acompte?.paye ? `<div class="section"><p><span class="label">Votre acompte :</span>
             ${reservation.acompte.remboursement?.statut === 'non_remboursable'
               ? `${Number(reservation.acompte.montant).toLocaleString('fr-FR')} FCFA, non remboursable (${esc(reservation.acompte.remboursement.raison)}), conformément aux conditions acceptées lors du paiement.`
-              : `${Number(reservation.acompte.montant).toLocaleString('fr-FR')} FCFA vous est remboursé automatiquement par PI-SPI. Vous recevrez une confirmation par email.`}</p></div>` : ''}
+              : `${Number(reservation.acompte.remboursement?.montant ?? reservation.acompte.montant).toLocaleString('fr-FR')} FCFA${reservation.acompte.remboursement?.pourcentage < 100 ? ` (${reservation.acompte.remboursement.pourcentage} % de votre acompte)` : ''} vous sont remboursés automatiquement par PI-SPI. Vous recevrez une confirmation par email.`}</p></div>` : ''}
 
           ${confirmee && acompteInfo?.possible ? `<div class="section" style="border-left-color:#d4af37;">
               <p><span class="label">Acompte à régler :</span> ${Number(acompteInfo.montant).toLocaleString('fr-FR')} FCFA (${acompteInfo.pourcentage} %)</p>

@@ -968,7 +968,7 @@ test('annulation avec acompte payé → à rembourser ; le client peut nettoyer 
 });
 
 test('remboursement automatique PI-SPI : retour de fonds, rejet, relance, délai dépassé', async (t) => {
-  configurerPiSpi(t, { PAIEMENT_MODE: 'pispi' });
+  configurerPiSpi(t, { PAIEMENT_MODE: 'pispi', ACOMPTE_REMBOURSEMENT_POURCENTAGE: '100' });
   const es = ReservationService.emailService;
   es.sendAcompteRecu = async () => {}; es.sendAcompteRecuAdmin = async () => {};
   const rembourses = [];
@@ -1029,7 +1029,7 @@ test('remboursement automatique PI-SPI : retour de fonds, rejet, relance, délai
 });
 
 test('politique de remboursement : 5 jours après paiement, 3 jours avant l\'arrivée', async (t) => {
-  configurerPiSpi(t, { PAIEMENT_MODE: 'pispi' });
+  configurerPiSpi(t, { PAIEMENT_MODE: 'pispi', ACOMPTE_REMBOURSEMENT_POURCENTAGE: '100' });
   const es = ReservationService.emailService;
   es.sendRemboursementEffectue = async () => {};
   const { politiqueRemboursement } = require('../services/paiement/acompte');
@@ -1066,4 +1066,77 @@ test('politique de remboursement : 5 jours après paiement, 3 jours avant l\'arr
   const geste = await api(`/api/reservations/${id}/remboursement/relancer`, { method: 'POST', headers: headersAdmin });
   assert.equal(geste.body.data.remboursement.statut, 'rembourse');
   assert.deepEqual(retours, ['E2E-P']);
+});
+
+test('paramètres réglables depuis le back-office (admin uniquement, valeurs contrôlées)', async (t) => {
+  const Settings = require('../services/SettingsService');
+  t.after(async () => { await db.collection('parametres').deleteMany({}); await Settings.charger(); });
+  assert.equal((await api('/api/admin/parametres')).status, 401);
+  const headersAdmin = await connexionAdmin();
+  const lu = await api('/api/admin/parametres', { headers: headersAdmin });
+  assert.equal(lu.status, 200);
+  assert.deepEqual(lu.body.data, { acomptePourcentage: 30, remboursementPourcentage: 50, remboursableApresPaiementJours: 5, nonRemboursableAvantArriveeJours: 3 });
+  const invalide = await api('/api/admin/parametres', { method: 'PUT', headers: headersAdmin, body: { remboursementPourcentage: 150 } });
+  assert.equal(invalide.status, 400);
+  const maj = await api('/api/admin/parametres', { method: 'PUT', headers: headersAdmin, body: { remboursementPourcentage: 40, nonRemboursableAvantArriveeJours: 7 } });
+  assert.equal(maj.status, 200);
+  assert.equal(maj.body.data.remboursementPourcentage, 40);
+  assert.equal(maj.body.data.nonRemboursableAvantArriveeJours, 7);
+  assert.equal(maj.body.data.acomptePourcentage, 30, 'les autres valeurs restent');
+  // Pris en compte immédiatement (et après rechargement depuis la base)
+  const acompte = require('../services/paiement/acompte');
+  assert.equal(acompte.pourcentageRembourse(), 40);
+  assert.equal(acompte.montantRembourse(40500), 16200);
+  await Settings.charger();
+  assert.equal(Settings.get('nonRemboursableAvantArriveeJours'), 7);
+});
+
+test('remboursement partiel (50 % par défaut) : paiement sortant vers l\'adresse du client', async (t) => {
+  configurerPiSpi(t, { PAIEMENT_MODE: 'pispi' });
+  const es = ReservationService.emailService;
+  const emails = [];
+  es.sendRemboursementEffectue = async (r) => { emails.push(r.acompte.remboursement.montant); };
+  const PiSpiLocal = require('../services/paiement/PiSpiClient');
+  const RefundService = require('../services/paiement/RefundService');
+  const envois = [];
+  t.mock.method(PiSpiLocal, 'retournerFonds', async () => { throw new Error('pas de retour intégral'); });
+  t.mock.method(PiSpiLocal, 'lirePaiementRecu', async (txId) => ({ txId, payeurAlias: 'alias-client-lu', statut: 'IRREVOCABLE' }));
+  t.mock.method(PiSpiLocal, 'envoyerPaiement', async (p) => { envois.push(p); return { txId: p.txId, statut: 'ENVOYE' }; });
+  let statut = 'ENVOYE';
+  t.mock.method(PiSpiLocal, 'lirePaiementEnvoye', async (txId) => ({ txId, statut, end2endId: 'E2E-RMB' }));
+
+  const preparer = async (j, payeurAlias) => {
+    const { id, headersAdmin, headersClient } = await reservationConfirmee(1, j, j + 3, `partiel${j}@example.com`);
+    await db.collection('reservations').updateOne({ id }, { $set: { acompte: { paye: true, montant: 40500, payeLe: new Date(), txId: 'TXP' + j, end2endId: 'E2E-P' + j, methode: 'demande', ...(payeurAlias ? { payeurAlias } : {}) } } });
+    const vue = (await api('/api/client/reservations', { headers: headersClient })).body.data.find(r => r.id === id);
+    assert.equal(vue.acompte.politique.montant, 20250, 'le client voit le montant qu\'il recevra');
+    assert.equal(vue.acompte.politique.pourcentage, 50);
+    await api(`/api/client/reservations/${id}/annulation`, { method: 'POST', headers: headersClient, body: {} });
+    await api(`/api/reservations/${id}/annulation`, { method: 'PUT', headers: headersAdmin, body: { decision: 'accepter' } });
+    return id;
+  };
+
+  // Alias connu (enregistré au paiement)
+  const a = await preparer(500, 'alias-client-a');
+  assert.equal(envois.length, 1);
+  assert.equal(envois[0].payeAlias, 'alias-client-a');
+  assert.equal(envois[0].montant, 20250);
+  assert.match(envois[0].txId, /^RMB/);
+  let r = await db.collection('reservations').findOne({ id: a });
+  assert.equal(r.acompte.remboursement.statut, 'en_cours');
+  assert.equal(r.acompte.remboursement.methode, 'paiement');
+  assert.equal(r.acompte.remboursement.montant, 20250);
+  assert.equal(r.acompte.remboursement.pourcentage, 50);
+  statut = 'IRREVOCABLE';
+  await RefundService.verifierEnCours();
+  r = await db.collection('reservations').findOne({ id: a });
+  assert.equal(r.acompte.remboursement.statut, 'rembourse');
+  await new Promise(res => setTimeout(res, 20));
+  assert.deepEqual(emails, [20250]);
+
+  // Alias inconnu : relu sur le paiement reçu
+  statut = 'ENVOYE';
+  await preparer(520);
+  assert.equal(envois[1].payeAlias, 'alias-client-lu');
+  assert.equal(PiSpiLocal.retournerFonds.mock.callCount(), 0);
 });

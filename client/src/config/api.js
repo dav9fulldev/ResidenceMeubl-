@@ -32,6 +32,7 @@ export const API_ENDPOINTS = {
     residences: `${API_BASE_URL}/admin/residences`,
     residence: (id) => `${API_BASE_URL}/admin/residences/${id}`,
     residenceStatus: (id) => `${API_BASE_URL}/admin/residences/${id}/status`,
+    settings: `${API_BASE_URL}/admin/parametres`,
     stats: (annee) => `${API_BASE_URL}/admin/statistiques?annee=${annee}`,
     exportCsv: (annee) => `${API_BASE_URL}/admin/export/reservations.csv${annee ? `?annee=${annee}` : ''}`,
   },

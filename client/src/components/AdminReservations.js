@@ -27,7 +27,7 @@ const AdminReservations = () => {
 
   const rembourser = async (r) => {
     const reference = window.prompt(
-      `Confirmez que l'acompte de ${Number(r.acompte.montant).toLocaleString('fr-FR')} FCFA a été remboursé à ${r.client.prenom} ${r.client.nom}.\nRéférence du remboursement (facultatif) :`, '');
+      `Confirmez que ${Number(r.acompte.remboursement?.montant ?? r.acompte.montant).toLocaleString('fr-FR')} FCFA ont été remboursés à ${r.client.prenom} ${r.client.nom}.\nRéférence du remboursement (facultatif) :`, '');
     if (reference === null) return;
     try {
       const res = await markRefunded(r.id, reference);
@@ -199,18 +199,18 @@ const AdminReservations = () => {
                 {enDemande(r) && r.acompte?.paye && r.acompte.politique && (
                   <p className={`reservation-acompte ${r.acompte.politique.remboursable ? 'paye' : 'attente'}`}>
                     {r.acompte.politique.remboursable
-                      ? `Si vous acceptez : acompte de ${Number(r.acompte.montant).toLocaleString('fr-FR')} FCFA remboursé automatiquement.`
+                      ? `Si vous acceptez : ${Number(r.acompte.politique.montant).toLocaleString('fr-FR')} FCFA remboursés automatiquement (${r.acompte.politique.pourcentage} % de l'acompte de ${Number(r.acompte.montant).toLocaleString('fr-FR')} FCFA).`
                       : `Si vous acceptez : acompte conservé (${r.acompte.politique.raison.toLowerCase()}).`}
                   </p>
                 )}
                 {r.acompte?.remboursement?.statut === 'en_cours' && (
                   <p className="reservation-acompte attente">
-                    ↩️ Remboursement de {Number(r.acompte.montant).toLocaleString('fr-FR')} FCFA en cours via PI-SPI…
+                    ↩️ Remboursement de {Number(r.acompte.remboursement.montant ?? r.acompte.montant).toLocaleString('fr-FR')} FCFA en cours via PI-SPI…
                   </p>
                 )}
                 {['a_rembourser', 'echec'].includes(r.acompte?.remboursement?.statut) && (
                   <p className="reservation-acompte doublon">
-                    ⚠️ Acompte de {Number(r.acompte.montant).toLocaleString('fr-FR')} FCFA non remboursé
+                    ⚠️ Remboursement de {Number(r.acompte.remboursement.montant ?? r.acompte.montant).toLocaleString('fr-FR')} FCFA non effectué
                     {r.acompte.remboursement.raison ? ` : ${r.acompte.remboursement.raison}` : ''}.{' '}
                     <button type="button" className="btn btn-outline btn-sm" onClick={() => relancer(r)}>Relancer via PI-SPI</button>{' '}
                     <button type="button" className="btn btn-outline btn-sm" onClick={() => rembourser(r)}>Remboursé autrement</button>
@@ -218,7 +218,7 @@ const AdminReservations = () => {
                 )}
                 {r.acompte?.remboursement?.statut === 'rembourse' && (
                   <p className="reservation-acompte paye">
-                    ↩️ Acompte remboursé le {formatDate(r.acompte.remboursement.le)}{r.acompte.remboursement.automatique ? ' automatiquement par PI-SPI' : ''}{r.acompte.remboursement.reference ? ` (réf. ${r.acompte.remboursement.reference})` : ''}
+                    ↩️ {Number(r.acompte.remboursement.montant ?? r.acompte.montant).toLocaleString('fr-FR')} FCFA remboursés le {formatDate(r.acompte.remboursement.le)}{r.acompte.remboursement.automatique ? ' automatiquement par PI-SPI' : ''}{r.acompte.remboursement.reference ? ` (réf. ${r.acompte.remboursement.reference})` : ''}
                   </p>
                 )}
                 {r.acompte?.doublons?.length > 0 && (
