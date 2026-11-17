@@ -12,7 +12,7 @@ const STATUTS = {
 const formatDate = (value) => (value ? new Date(value).toLocaleDateString('fr-FR') : '—');
 
 const AdminReservations = () => {
-  const { getReservations, updateReservationStatus, reloadResidences } = useResidences();
+  const { getReservations, updateReservationStatus, reloadResidences, residences } = useResidences();
   const [reservations, setReservations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -20,23 +20,23 @@ const AdminReservations = () => {
   const [busyId, setBusyId] = useState(null);
   const [notice, setNotice] = useState('');
 
+  // Les messages (erreur d'email, confirmation) ne sont pas effacés par un rechargement
   const load = useCallback(async () => {
-    setLoading(true);
-    setError('');
     try {
       const data = await getReservations();
       // Les plus récentes en premier
       setReservations([...data].sort((a, b) => new Date(b.dateCreation) - new Date(a.dateCreation)));
     } catch (err) {
-      setError(err.message);
+      setError(`Chargement des réservations impossible : ${err.message}`);
     } finally {
       setLoading(false);
     }
   }, [getReservations]);
 
+  // Recharger aussi quand une action du panneau des résidences a modifié les données
   useEffect(() => {
     load();
-  }, [load]);
+  }, [load, residences]);
 
   const changeStatus = async (reservation, statut) => {
     if (statut === 'annulee' && !window.confirm(`Annuler la réservation ${reservation.id} ?`)) return;

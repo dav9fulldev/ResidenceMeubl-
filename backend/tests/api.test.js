@@ -302,6 +302,16 @@ test('le statut affiché suit les réservations confirmées', async () => {
   assert.equal(dispo.statut, 'occupé');
   assert.equal(dispo.prochaineDisponibilite, jourDansNJours(2));
 
+  // L'admin voit la réservation responsable ; le public non
+  const admin5 = (await api('/api/admin/residences', { headers })).body.data.find(r => r.id === 5);
+  assert.equal(admin5.disponibilite.reservationId, enCours.body.data.id);
+  assert.equal((await statutDe(5)).reservationId, undefined);
+
+  // Forcer « disponible » est refusé avec une explication
+  const force = await api('/api/admin/residences/5/status', { method: 'PUT', headers, body: { statut: 'disponible' } });
+  assert.equal(force.status, 400);
+  assert.match(force.body.message, /Annulez cette réservation/);
+
   // Annulations → retour à « disponible »
   await api(`/api/reservations/${enCours.body.data.id}/status`, { method: 'PUT', headers, body: { statut: 'annulee' } });
   await api(`/api/reservations/${futur.body.data.id}/status`, { method: 'PUT', headers, body: { statut: 'annulee' } });
