@@ -1,8 +1,10 @@
 # 🏠 Résidences Meublé - Projet Complet (Monorepo)
 
-## 📋 ÉTAT DU PROJET : ✅ TERMINÉ & SÉCURISÉ
-Statut : **100% Opérationnel - Prêt pour développement et déploiement**
-Intégration continue : **Analyse de sécurité automatisée avec GitHub Actions (CodeQL)**
+## 📋 ÉTAT DU PROJET
+- ✅ Frontend branché sur l'API (catalogue, réservations, administration)
+- ✅ Connexion admin vérifiée côté serveur (jeton signé), routes admin protégées
+- ✅ Tests automatisés du backend + build du frontend dans la CI (GitHub Actions) + analyse CodeQL
+- ✅ Données enregistrées dans **MongoDB Atlas** (le catalogue initial est inséré automatiquement au premier démarrage)
 
 ---
 
@@ -32,6 +34,7 @@ Ce dépôt unique (Monorepo) regroupe l'ensemble de l'écosystème de **Sankofar
 SANKOFART-RESIDENCE/
 ├── .github/
 │   └── workflows/
+│       ├── ci.yml                # Tests backend + build frontend
 │       └── codeql-analysis.yml   # Analyse de sécurité automatisée
 ├── client/                      # --- DOSSIER FRONTEND ---
 │   ├── public/                  # Fichiers publics (index.html, icônes)
@@ -51,7 +54,7 @@ SANKOFART-RESIDENCE/
 ## 🛠️ Technologies Utilisées
 
 - **Frontend** : React 19, Webpack, Webpack Dev Server, Babel, React Router DOM, React Hook Form, React Icons.
-- **Backend** : Node.js, Express.js, Nodemailer, Morgan, Express Rate Limit, Cors, Dotenv.
+- **Backend** : Node.js, Express.js, MongoDB, Nodemailer, Morgan, Express Rate Limit, Cors, Dotenv.
 - **Sécurité & CI/CD** : GitHub Actions, CodeQL Semantic Code Analysis.
 
 ---
@@ -68,12 +71,16 @@ cd backend
 npm install
 ```
 
-Créez un fichier `.env` dans le dossier `backend` et ajoutez-y vos accès :
+Copiez `backend/.env.example` en `backend/.env` et remplissez les valeurs :
 ```env
 PORT=5001
-FRONTEND_URL=http://localhost:3000
+FRONTEND_URL=http://localhost:3001
 EMAIL_USER=votre_email@gmail.com
 EMAIL_PASS=votre_mot_de_passe_d_application_gmail
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=un_mot_de_passe_long_et_unique
+ADMIN_TOKEN_SECRET=   # générer avec : openssl rand -hex 32
+MONGODB_URI=mongodb+srv://...   # Atlas : Cluster0 > Connect > Drivers
 ```
 *Note : Sur macOS, le port `5001` est utilisé pour éviter les conflits système avec AirPlay (port 5000).*
 
@@ -83,18 +90,26 @@ npm run dev
 ```
 Le serveur backend s'exécute sur : `http://localhost:5001`
 
+Lancer les tests :
+```bash
+npm test
+```
+
 ### 3. Configuration et Lancement du Frontend
 Allez dans le dossier `client` :
 ```bash
 cd ../client
-npm install --legacy-peer-deps
+npm install
+cp .env.example .env   # REACT_APP_API_URL=http://localhost:5001/api
 ```
+
+> **Déploiement Vercel** : définir `REACT_APP_API_URL` (URL publique du backend + `/api`) dans *Settings → Environment Variables*, puis redéployer.
 
 Démarrez le serveur de développement React :
 ```bash
 npm start
 ```
-L'application frontend s'ouvre automatiquement sur : `http://localhost:3000`
+L'application frontend s'ouvre automatiquement sur : `http://localhost:3001` (autre port : `PORT=3002 npm start`)
 
 ---
 
@@ -107,8 +122,19 @@ L'application frontend s'ouvre automatiquement sur : `http://localhost:3000`
 - `POST /api/residences/check-disponibilite` : Vérifie les conflits de dates pour une réservation.
 
 ### 📅 Réservations
-- `POST /api/reservations` : Soumet une demande de réservation et déclenche l'envoi d'emails.
-- `PUT /api/reservations/:id/status` : Permet à l'administrateur de modifier le statut (`confirmee`, `annulee`).
+- `POST /api/reservations` : Soumet une demande de réservation (vérifie dates, capacité, durée) et envoie les emails.
+- `GET /api/reservations/:id` : Détail d'une réservation par sa référence.
+- `GET /api/reservations` 🔒 : Liste des réservations.
+- `GET /api/reservations/stats` 🔒 : Statistiques.
+- `PUT /api/reservations/:id/status` 🔒 : Modifier le statut (`en_attente`, `confirmee`, `annulee`). Une réservation annulée libère les dates.
+
+### 🛠️ Administration
+- `POST /api/admin/login` : `{ username, password }` → `{ token }` (valable 8 h).
+- `GET / POST /api/admin/residences` 🔒 : Lister (y compris inactives) / ajouter.
+- `PUT / DELETE /api/admin/residences/:id` 🔒 : Modifier / supprimer.
+- `PUT /api/admin/residences/:id/status` 🔒 : `{ statut, details }` — `disponible`, `occupé`, `réservé`, `maintenance` (une résidence en maintenance n'est plus réservable).
+
+🔒 = en-tête `Authorization: Bearer <token>` obligatoire.
 
 ### 🏥 Surveillance (Healthcheck)
 - `GET /health` : Retourne l'état de santé opérationnel de l'API.
@@ -116,7 +142,8 @@ L'application frontend s'ouvre automatiquement sur : `http://localhost:3000`
 ---
 
 ## 🔒 Sécurité et Bonnes Pratiques
-- **Rate Limiting** : Restriction fixée à 100 requêtes globales par tranche de 15 minutes et bridée à 3 créations de réservations par IP pour faire barrage aux bots.
+- **Rate Limiting** : 100 requêtes globales par 15 minutes, 3 créations de réservations et 10 tentatives de connexion admin par IP.
+- **Authentification admin** : identifiants dans les variables d'environnement du serveur, jamais dans le code du frontend.
 - **CORS** : Filtrage strict restreignant l'accès aux seules adresses définies dans les variables d'environnement (`FRONTEND_URL`).
 - **CodeQL** : Scan automatique de vulnérabilités (failles de sécurité, fuites de mémoire) exécuté par GitHub à chaque commit poussé sur la branche principale.
 
