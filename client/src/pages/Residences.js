@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { FaSearch, FaFilter, FaStar, FaBed, FaBath, FaUsers, FaMapMarkerAlt, FaHeart } from 'react-icons/fa';
+import { FaStar, FaBed, FaBath, FaUsers, FaMapMarkerAlt, FaHeart } from 'react-icons/fa';
 import { useResidences } from '../context/ResidencesContext';
 import { useFavorites } from '../context/FavoritesContext';
 import SmartSearch, { CriteresCompris } from '../components/SmartSearch';
@@ -22,19 +22,22 @@ const Residences = () => {
   const [filteredResidences, setFilteredResidences] = useState(residences);
   const { addToFavorites, removeFromFavorites, isFavorite } = useFavorites();
 
-  // Mettre à jour les résultats de recherche quand la requête ou les filtres changent
+  // Filtrage en direct pour un ou deux mots (« Cocody », « studio »).
+  // Une phrase complète n'est pas filtrée mot à mot : elle part à l'IA avec Entrée.
+  const motsSignificatifs = searchQuery.trim().split(/\s+/).filter(m => m.length > 2);
+  const estUnePhrase = motsSignificatifs.length > 2;
+  const rechercheDirecte = estUnePhrase ? '' : searchQuery;
+
   useEffect(() => {
-    setFilteredResidences(searchResidences(searchQuery, filters));
-  }, [searchQuery, filters, searchResidences, residences]);
+    setFilteredResidences(searchResidences(rechercheDirecte, filters));
+  }, [rechercheDirecte, filters, searchResidences, residences]);
 
-  // Liste affichée : résultats IA (ou suggestions proches) sinon liste filtrée
+  // Liste affichée : résultats IA (ou suggestions proches), auxquels s'appliquent aussi les filtres
+  const idsFiltres = new Set(searchResidences('', filters).map(r => r.id));
   const displayed = aiResult
-    ? (aiResult.resultats.length > 0 ? aiResult.resultats : aiResult.suggestions)
+    ? (aiResult.resultats.length > 0 ? aiResult.resultats : aiResult.suggestions).filter(r => idsFiltres.has(r.id))
     : filteredResidences;
-
-  const handleSearchChange = (e) => {
-    setSearchQuery(e.target.value);
-  };
+  const activeFilters = Object.values(filters).filter(v => v !== '' && v !== null && v !== undefined).length;
 
   const handleFilterChange = (e) => {
     const { name, value } = e.target;
@@ -53,6 +56,7 @@ const Residences = () => {
       availability: ''
     });
     setSearchQuery('');
+    setAiResult(null);
   };
 
   const toggleFavorite = (residence) => {
@@ -75,35 +79,19 @@ const Residences = () => {
           <p>Découvrez notre sélection de résidences meublées d'exception</p>
         </div>
 
-        {/* Recherche intelligente (IA) */}
-        <SmartSearch onResult={setAiResult} active={Boolean(aiResult)} />
-
-        {/* Barre de recherche et filtres */}
-        {!aiResult && (
-        <div className="search-filters">
-          <div className="search-bar">
-            <FaSearch className="search-icon" />
-            <input
-              type="text"
-              placeholder="Rechercher une résidence, ville ou quartier..."
-              value={searchQuery}
-              onChange={handleSearchChange}
-              className="search-input"
-            />
-          </div>
-
-          <button
-            className="filter-toggle"
-            onClick={() => setShowFilters(!showFilters)}
-          >
-            <FaFilter />
-            Filtres
-          </button>
-        </div>
-        )}
+        {/* Barre de recherche unique : filtrage en direct + IA (Entrée, Trouver, micro) */}
+        <SmartSearch
+          query={searchQuery}
+          onQueryChange={setSearchQuery}
+          onResult={setAiResult}
+          active={Boolean(aiResult)}
+          onToggleFilters={() => setShowFilters(v => !v)}
+          filtersOpen={showFilters}
+          activeFilters={activeFilters}
+        />
 
         {/* Panneau de filtres */}
-        {showFilters && !aiResult && (
+        {showFilters && (
           <div className="filters-panel">
             <div className="filters-grid">
               <div className="filter-group">
@@ -187,12 +175,13 @@ const Residences = () => {
 
         {/* Résultats de recherche */}
         {aiResult ? (
-          <CriteresCompris result={aiResult} />
+          <CriteresCompris result={aiResult} count={displayed.length} />
         ) : (
         <div className="results-info">
           <p>
             {filteredResidences.length} résidence{filteredResidences.length > 1 ? 's' : ''} trouvée{filteredResidences.length > 1 ? 's' : ''}
-            {searchQuery && ` pour "${searchQuery}"`}
+            {rechercheDirecte && ` pour "${rechercheDirecte}"`}
+            {estUnePhrase && ' · appuyez sur Entrée pour lancer la recherche intelligente ✨'}
           </p>
         </div>
         )}

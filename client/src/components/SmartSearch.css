@@ -38,7 +38,7 @@
 .smart-search-form input {
   flex: 1;
   min-width: 0;
-  padding: 14px 58px 14px 18px;
+  padding: 14px 96px 14px 44px;
   border-radius: 10px;
   border: 2px solid transparent;
   font-size: 1rem;
@@ -194,4 +194,54 @@
 
 @media (prefers-reduced-motion: reduce) {
   .mic-button.active { animation: none; }
+}
+
+/* Barre unique : loupe, effacer, filtres */
+.smart-search-icon {
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.smart-search-form input[type="search"]::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+}
+
+.clear-button {
+  position: absolute;
+  right: 56px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.clear-button:hover {
+  background: var(--overlay-hover);
+}
+
+.smart-search-form .filters-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: white;
+  border-color: rgba(255, 255, 255, 0.6);
+  background: transparent;
+}
+
+.smart-search-form .filters-button.open {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: #d4af37;
+  color: #f5d77a;
 }

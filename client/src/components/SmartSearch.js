@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { FaMagic, FaTimes, FaMicrophone, FaStop } from 'react-icons/fa';
+import { FaMagic, FaTimes, FaMicrophone, FaStop, FaSearch, FaFilter } from 'react-icons/fa';
 import { useResidences } from '../context/ResidencesContext';
 import useVoiceInput from '../hooks/useVoiceInput';
 import './SmartSearch.css';
@@ -12,19 +12,20 @@ const EXEMPLES = [
 ];
 
 /**
- * Recherche en langage naturel.
- * Appelle onResult({ question, mode, criteres, resultats, suggestions }) ou onResult(null) pour réinitialiser.
+ * Barre de recherche unique.
+ * - Saisie : la page filtre la liste en direct (mots-clés), via onQueryChange
+ * - Entrée, bouton « Trouver » ou micro : recherche IA, résultat transmis à onResult
+ * onResult(null) revient à la liste classique.
  */
-const SmartSearch = ({ onResult, active }) => {
+const SmartSearch = ({ query, onQueryChange, onResult, active, onToggleFilters, filtersOpen, activeFilters = 0 }) => {
   const { smartSearch, offline } = useResidences();
-  const [question, setQuestion] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   const lancer = async (texte) => {
-    const q = (texte ?? question).trim();
+    const q = (texte ?? query).trim();
     if (q.length < 3) return;
-    setQuestion(q);
+    onQueryChange(q);
     setLoading(true);
     setError('');
     try {
@@ -39,41 +40,54 @@ const SmartSearch = ({ onResult, active }) => {
   // Dictée vocale : le texte s'écrit en direct, la recherche part à la fin de la phrase
   const voice = useVoiceInput({
     lang: 'fr-FR',
-    onInterim: setQuestion,
+    onInterim: onQueryChange,
     onFinal: (texte) => lancer(texte),
   });
 
-  const reinitialiser = () => {
-    setQuestion('');
+  const changerTexte = (valeur) => {
+    onQueryChange(valeur);
     setError('');
-    onResult(null);
+    if (active) onResult(null); // on modifie la phrase : retour au filtrage en direct
   };
 
-  if (offline) return null;
+  const effacer = () => {
+    changerTexte('');
+  };
+
+  const iaDisponible = !offline;
 
   return (
     <section className="smart-search" aria-labelledby="smart-search-title">
-      <h2 id="smart-search-title"><FaMagic /> Décrivez votre séjour idéal</h2>
+      <h2 id="smart-search-title"><FaMagic /> Trouvez votre résidence</h2>
       <p className="smart-search-hint">
-        {voice.supported ? 'Écrivez ou dites' : 'Écrivez'} ce que vous cherchez : nombre de personnes, budget, ambiance, quartier… notre IA trouve les résidences qui correspondent.
+        Tapez un quartier ou un type de logement, ou décrivez votre séjour
+        {voice.supported && iaDisponible ? ' (à l\'écrit ou au micro)' : ''} : notre IA trouve les résidences qui correspondent.
       </p>
 
       <form
         className="smart-search-form"
-        onSubmit={(e) => { e.preventDefault(); lancer(); }}
+        role="search"
+        onSubmit={(e) => { e.preventDefault(); if (iaDisponible) lancer(); }}
       >
         <div className={`smart-search-input ${voice.listening ? 'listening' : ''}`}>
+          <FaSearch className="smart-search-icon" aria-hidden="true" />
           <input
-            type="text"
-            value={question}
-            onChange={(e) => setQuestion(e.target.value)}
+            type="search"
+            value={query}
+            onChange={(e) => changerTexte(e.target.value)}
             placeholder={voice.listening
               ? 'Je vous écoute…'
-              : 'Ex. : un appartement calme pour 4 personnes près du Plateau, moins de 60 000 FCFA'}
+              : 'Quartier, type ou décrivez votre séjour…'}
             maxLength={300}
-            aria-label="Décrivez votre recherche"
+            aria-label="Rechercher une résidence"
+            enterKeyHint="search"
           />
-          {voice.supported && (
+          {query && !voice.listening && (
+            <button type="button" className="clear-button" onClick={effacer} aria-label="Effacer la recherche">
+              <FaTimes />
+            </button>
+          )}
+          {voice.supported && iaDisponible && (
             <button
               type="button"
               className={`mic-button ${voice.listening ? 'active' : ''}`}
@@ -89,17 +103,22 @@ const SmartSearch = ({ onResult, active }) => {
             </button>
           )}
         </div>
-        <button type="submit" className="btn btn-primary" disabled={loading || question.trim().length < 3}>
-          {loading ? 'Recherche…' : 'Trouver'}
-        </button>
-        {active && (
-          <button type="button" className="btn btn-outline" onClick={reinitialiser}>
-            <FaTimes /> Tout afficher
+        {iaDisponible && (
+          <button type="submit" className="btn btn-primary" disabled={loading || query.trim().length < 3}>
+            {loading ? 'Recherche…' : 'Trouver'}
           </button>
         )}
+        <button
+          type="button"
+          className={`btn btn-outline filters-button ${filtersOpen ? 'open' : ''}`}
+          onClick={onToggleFilters}
+          aria-expanded={filtersOpen}
+        >
+          <FaFilter /> Filtres{activeFilters > 0 ? ` (${activeFilters})` : ''}
+        </button>
       </form>
 
-      {!active && (
+      {!active && !query && iaDisponible && (
         <div className="smart-search-examples">
           {EXEMPLES.map((ex) => (
             <button key={ex} type="button" className="example-chip" onClick={() => lancer(ex)} disabled={loading}>
@@ -118,9 +137,10 @@ const SmartSearch = ({ onResult, active }) => {
 };
 
 // Résumé des critères compris, affiché au-dessus des résultats
-export const CriteresCompris = ({ result }) => {
+export const CriteresCompris = ({ result, count }) => {
   if (!result) return null;
   const { criteres, mode, resultats, question } = result;
+  const nombre = count ?? resultats.length;
   const puces = [
     criteres.personnes && `${criteres.personnes} personne${criteres.personnes > 1 ? 's' : ''} ou plus`,
     criteres.chambres && `${criteres.chambres} chambre${criteres.chambres > 1 ? 's' : ''} ou plus`,
@@ -131,7 +151,7 @@ export const CriteresCompris = ({ result }) => {
     <div className="smart-search-summary">
       <p>
         {resultats.length > 0
-          ? <>{resultats.length} résidence{resultats.length > 1 ? 's' : ''} pour « {question} », de la plus pertinente à la moins pertinente</>
+          ? <>{nombre} résidence{nombre > 1 ? 's' : ''} pour « {question} », de la plus pertinente à la moins pertinente</>
           : <>Aucune résidence ne remplit tous vos critères. Voici les plus proches de « {question} » :</>}
       </p>
       {(puces.length > 0 || mode) && (
