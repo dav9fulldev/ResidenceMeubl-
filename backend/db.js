@@ -22,6 +22,7 @@ async function connect(uri = process.env.MONGODB_URI, dbName = process.env.MONGO
     db.collection('residences').createIndex({ reference: 1 }, { unique: true }),
     db.collection('reservations').createIndex({ id: 1 }, { unique: true }),
     db.collection('reservations').createIndex({ residenceId: 1, statut: 1 }),
+    db.collection('residence_embeddings').createIndex({ residenceId: 1 }, { unique: true }),
   ]);
 
   await seedResidences();

@@ -4,6 +4,7 @@ const router = express.Router();
 const AuthService = require('../services/AuthService');
 const ResidenceService = require('../services/ResidenceService');
 const requireAdmin = require('../middleware/requireAdmin');
+const SmartSearchService = require('../services/SmartSearchService');
 
 // Limiter les tentatives de connexion (anti force brute)
 const loginLimiter = rateLimit({
@@ -66,6 +67,7 @@ router.get('/residences', async (req, res) => {
 router.post('/residences', async (req, res) => {
   try {
     const residence = await ResidenceService.createResidence(req.body || {});
+    SmartSearchService.synchroniserEnFond(); // met à jour la recherche intelligente
     res.status(201).json({ success: true, data: residence });
   } catch (error) {
     gererErreur(res, error, 'lors de la création de la résidence');
@@ -79,6 +81,7 @@ router.post('/residences', async (req, res) => {
 router.put('/residences/:id', async (req, res) => {
   try {
     const residence = await ResidenceService.updateResidence(req.params.id, req.body || {});
+    SmartSearchService.synchroniserEnFond(); // met à jour la recherche intelligente
     if (!residence) return res.status(404).json({ success: false, message: 'Résidence non trouvée' });
     res.json({ success: true, data: residence });
   } catch (error) {
@@ -111,6 +114,7 @@ router.delete('/residences/:id', async (req, res) => {
     if (!(await ResidenceService.deleteResidence(req.params.id))) {
       return res.status(404).json({ success: false, message: 'Résidence non trouvée' });
     }
+    SmartSearchService.synchroniserEnFond();
     res.json({ success: true, message: 'Résidence supprimée' });
   } catch (error) {
     gererErreur(res, error, 'lors de la suppression de la résidence');

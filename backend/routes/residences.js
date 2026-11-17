@@ -2,6 +2,16 @@ const express = require('express');
 const router = express.Router();
 const ResidenceService = require('../services/ResidenceService');
 const ReservationService = require('../services/ReservationService');
+const SmartSearchService = require('../services/SmartSearchService');
+const rateLimit = require('express-rate-limit');
+
+// Protège le quota Voyage AI : 30 recherches IA par minute et par IP
+const rechercheIaLimiter = rateLimit({
+  skip: () => process.env.NODE_ENV === 'test',
+  windowMs: 60 * 1000,
+  max: 30,
+  message: { success: false, message: 'Trop de recherches, réessayez dans une minute.' },
+});
 
 /**
  * @route   GET /api/residences
@@ -153,6 +163,44 @@ router.post('/check-disponibilite', async (req, res) => {
       success: false,
       message: 'Erreur lors de la vérification de disponibilité'
     });
+  }
+});
+
+/**
+ * @route   POST /api/residences/recherche-ia
+ * @desc    Recherche en langage naturel (« un appart calme pour 5 avec piscine, moins de 60 000 »)
+ * @body    { question }
+ * @access  Public
+ */
+router.post('/recherche-ia', rechercheIaLimiter, async (req, res) => {
+  try {
+    const question = String(req.body?.question || '').trim();
+    if (question.length < 3 || question.length > 300) {
+      return res.status(400).json({ success: false, message: 'Décrivez votre recherche (3 à 300 caractères)' });
+    }
+    const resultat = await SmartSearchService.rechercher(question);
+    res.json({ success: true, data: resultat });
+  } catch (error) {
+    console.error('Erreur lors de la recherche intelligente:', error);
+    res.status(500).json({ success: false, message: 'Erreur lors de la recherche' });
+  }
+});
+
+/**
+ * @route   GET /api/residences/:id/similaires
+ * @desc    Résidences les plus proches (« Vous aimerez aussi »)
+ * @access  Public
+ */
+router.get('/:id/similaires', async (req, res) => {
+  try {
+    const similaires = await SmartSearchService.similaires(req.params.id);
+    if (!similaires) {
+      return res.status(404).json({ success: false, message: 'Résidence non trouvée' });
+    }
+    res.json({ success: true, data: similaires });
+  } catch (error) {
+    console.error('Erreur lors de la recherche de résidences similaires:', error);
+    res.status(500).json({ success: false, message: 'Erreur lors de la recherche' });
   }
 });
 

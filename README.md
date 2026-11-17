@@ -5,6 +5,7 @@
 - ✅ Connexion admin vérifiée côté serveur (jeton signé), routes admin protégées
 - ✅ Tests automatisés du backend + build du frontend dans la CI (GitHub Actions) + analyse CodeQL
 - ✅ Données enregistrées dans **MongoDB Atlas** (le catalogue initial est inséré automatiquement au premier démarrage)
+- ✨ **Recherche intelligente** en langage naturel et suggestions « Vous aimerez aussi » (Voyage AI via Atlas), avec repli automatique sur la recherche par mots-clés
 
 ---
 
@@ -81,6 +82,7 @@ ADMIN_USERNAME=admin
 ADMIN_PASSWORD=un_mot_de_passe_long_et_unique
 ADMIN_TOKEN_SECRET=   # générer avec : openssl rand -hex 32
 MONGODB_URI=mongodb+srv://...   # Atlas : Cluster0 > Connect > Drivers
+VOYAGE_API_KEY=                 # optionnel — Atlas > AI Model APIs (recherche intelligente)
 ```
 *Note : Sur macOS, le port `5001` est utilisé pour éviter les conflits système avec AirPlay (port 5000).*
 
@@ -120,6 +122,9 @@ L'application frontend s'ouvre automatiquement sur : `http://localhost:3001` (au
 - `GET /api/residences/:id` : Détails complets d'une résidence par son identifiant.
 - `POST /api/residences/search` : Recherche multicritères (Prix, Localisation, Chambres).
 - `POST /api/residences/check-disponibilite` : Vérifie les conflits de dates pour une réservation.
+
+- `POST /api/residences/recherche-ia` : `{ question }` en langage naturel → critères compris (personnes, chambres, budget) + résidences classées par pertinence.
+- `GET /api/residences/:id/similaires` : 3 résidences proches (« Vous aimerez aussi »).
 
 ### 📅 Réservations
 - `POST /api/reservations` : Soumet une demande de réservation (vérifie dates, capacité, durée) et envoie les emails.

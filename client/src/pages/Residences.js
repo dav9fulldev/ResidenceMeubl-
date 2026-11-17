@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { FaSearch, FaFilter, FaStar, FaBed, FaBath, FaUsers, FaMapMarkerAlt, FaHeart } from 'react-icons/fa';
 import { useResidences } from '../context/ResidencesContext';
 import { useFavorites } from '../context/FavoritesContext';
+import SmartSearch, { CriteresCompris } from '../components/SmartSearch';
 import './Residences.css';
 
 const Residences = () => {
@@ -15,21 +16,21 @@ const Residences = () => {
     availability: ''
   });
   const [showFilters, setShowFilters] = useState(false);
+  // Résultat de la recherche intelligente (null = liste classique)
+  const [aiResult, setAiResult] = useState(null);
   const { residences, searchResidences } = useResidences();
   const [filteredResidences, setFilteredResidences] = useState(residences);
   const { addToFavorites, removeFromFavorites, isFavorite } = useFavorites();
 
   // Mettre à jour les résultats de recherche quand la requête ou les filtres changent
   useEffect(() => {
-    console.log('Residences disponibles:', residences);
-    console.log('Filtres actuels:', filters);
-    console.log('Requête de recherche:', searchQuery);
-    
-    const results = searchResidences(searchQuery, filters);
-    console.log('Résultats filtrés:', results);
-    
-    setFilteredResidences(results);
+    setFilteredResidences(searchResidences(searchQuery, filters));
   }, [searchQuery, filters, searchResidences, residences]);
+
+  // Liste affichée : résultats IA (ou suggestions proches) sinon liste filtrée
+  const displayed = aiResult
+    ? (aiResult.resultats.length > 0 ? aiResult.resultats : aiResult.suggestions)
+    : filteredResidences;
 
   const handleSearchChange = (e) => {
     setSearchQuery(e.target.value);
@@ -74,7 +75,11 @@ const Residences = () => {
           <p>Découvrez notre sélection de résidences meublées d'exception</p>
         </div>
 
+        {/* Recherche intelligente (IA) */}
+        <SmartSearch onResult={setAiResult} active={Boolean(aiResult)} />
+
         {/* Barre de recherche et filtres */}
+        {!aiResult && (
         <div className="search-filters">
           <div className="search-bar">
             <FaSearch className="search-icon" />
@@ -95,9 +100,10 @@ const Residences = () => {
             Filtres
           </button>
         </div>
+        )}
 
         {/* Panneau de filtres */}
-        {showFilters && (
+        {showFilters && !aiResult && (
           <div className="filters-panel">
             <div className="filters-grid">
               <div className="filter-group">
@@ -180,17 +186,21 @@ const Residences = () => {
         )}
 
         {/* Résultats de recherche */}
+        {aiResult ? (
+          <CriteresCompris result={aiResult} />
+        ) : (
         <div className="results-info">
           <p>
             {filteredResidences.length} résidence{filteredResidences.length > 1 ? 's' : ''} trouvée{filteredResidences.length > 1 ? 's' : ''}
             {searchQuery && ` pour "${searchQuery}"`}
           </p>
         </div>
+        )}
 
         {/* Grille des résidences */}
-        {filteredResidences.length > 0 ? (
+        {displayed.length > 0 ? (
           <div className="residences-grid">
-            {filteredResidences.map((residence) => (
+            {displayed.map((residence) => (
               <div key={residence.id} className="residence-card">
                 <div className="residence-image">
                   <img 
@@ -198,7 +208,6 @@ const Residences = () => {
                     alt={residence.name}
                     className="residence-img"
                     onError={(e) => {
-                      console.error('Erreur de chargement image:', residence.images[0]);
                       e.target.style.display = 'none';
                       e.target.nextSibling.style.display = 'flex';
                     }}
@@ -206,6 +215,14 @@ const Residences = () => {
                   <div className="image-fallback" style={{display: 'none'}}>
                     <span>Photo {residence.name}</span>
                   </div>
+
+                  {aiResult?.mode === 'ia' && aiResult.resultats.length > 0 && (
+                    <div className="match-badge" title="Proximité avec votre description, comparée au meilleur résultat">
+                      {residence.id === displayed[0].id
+                        ? '✨ Meilleur choix'
+                        : `✨ Correspondance ${Math.round(Math.max(0, residence.score) / displayed[0].score * 100)} %`}
+                    </div>
+                  )}
                   
                   {/* Badge de disponibilité */}
                   <div className={`availability-badge ${residence.availability.status}`}>

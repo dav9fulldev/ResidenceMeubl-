@@ -4,24 +4,27 @@ import { FaStar, FaBed, FaBath, FaUsers, FaMapMarkerAlt, FaArrowLeft, FaCheck } 
 import { useResidences } from '../context/ResidencesContext';
 import { useFavorites } from '../context/FavoritesContext';
 import AvailabilityStatus from '../components/AvailabilityStatus';
+import SimilarResidences from '../components/SimilarResidences';
 import './ResidenceDetail.css';
 
 const ResidenceDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { getResidenceById } = useResidences();
+  const { getResidenceById, loading } = useResidences();
   const [residence, setResidence] = useState(null);
   const [activeImage, setActiveImage] = useState(0);
   const { addToFavorites, removeFromFavorites, isFavorite } = useFavorites();
 
   useEffect(() => {
+    if (loading) return; // attendre le chargement (lien direct, rechargement de page)
     const foundResidence = getResidenceById(id);
     if (foundResidence) {
       setResidence(foundResidence);
+      setActiveImage(0);
     } else {
       navigate('/residences');
     }
-  }, [id, navigate, getResidenceById]);
+  }, [id, navigate, getResidenceById, loading]);
 
   const toggleFavorite = () => {
     if (isFavorite(residence.id)) {
@@ -146,13 +149,15 @@ const ResidenceDetail = () => {
                 <span className="spec-label">Voyageurs max</span>
               </div>
             </div>
-            <div className="spec-item">
-              <div className="area-icon">m²</div>
-              <div>
-                <span className="spec-value">{residence.area}</span>
-                <span className="spec-label">Surface</span>
+            {residence.area && (
+              <div className="spec-item">
+                <div className="area-icon">m²</div>
+                <div>
+                  <span className="spec-value">{residence.area}</span>
+                  <span className="spec-label">Surface</span>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
 
@@ -174,6 +179,9 @@ const ResidenceDetail = () => {
             ))}
           </div>
         </div>
+
+        {/* Suggestions IA */}
+        <SimilarResidences residenceId={residence.id} />
 
         {/* CTA Réservation */}
         <div className="reservation-cta">

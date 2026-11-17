@@ -307,3 +307,85 @@ test('le statut affiché suit les réservations confirmées', async () => {
   await api('/api/admin/residences/7/status', { method: 'PUT', headers, body: { statut: 'maintenance' } });
   assert.equal((await api('/api/admin/residences', { headers })).body.data.find(r => r.id === 7).disponibilite.statut, 'maintenance');
 });
+
+// ---------- Recherche intelligente ----------
+const AIService = require('../services/AIService');
+const SmartSearchService = require('../services/SmartSearchService');
+
+test('les critères chiffrés sont compris dans une phrase libre', () => {
+  const c = SmartSearchService.extraireCriteres;
+  assert.deepEqual(c('Un appart calme pour une famille de 5, moins de 60 000 FCFA'), { personnes: 5, budgetMax: 60000 });
+  assert.deepEqual(c('3 chambres pour six personnes, budget 80k'), { personnes: 6, chambres: 3, budgetMax: 80000 });
+  assert.deepEqual(c('studio pas cher pour 2 nuits'), {});
+  assert.deepEqual(c('pour deux, max 35 mille'), { personnes: 2, budgetMax: 35000 });
+  assert.deepEqual(c('quelque chose à 45.000 f la nuit'), { budgetMax: 45000 });
+  assert.deepEqual(c('studio pour un étudiant, moins de 30 000'), { budgetMax: 30000 });
+  assert.deepEqual(c('pour une semaine en famille de 4'), { personnes: 4 });
+  assert.deepEqual(c('pour 3 nuits'), {});
+  // Phrases dictées à l'oral
+  assert.deepEqual(c('une villa pour cinq personnes moins de cinquante mille francs'), { personnes: 5, budgetMax: 50000 });
+  assert.deepEqual(c('budget soixante-cinq mille'), { budgetMax: 65000 });
+});
+
+test('sans clé Voyage, la recherche bascule sur les mots-clés', async () => {
+  delete process.env.VOYAGE_API_KEY;
+  const res = await api('/api/residences/recherche-ia', { method: 'POST', body: { question: 'villa avec piscine à Riviera' } });
+  assert.equal(res.status, 200);
+  assert.equal(res.body.data.mode, 'mots-cles');
+  assert.ok(res.body.data.resultats.length > 0);
+  assert.equal((await api('/api/residences/recherche-ia', { method: 'POST', body: { question: '' } })).status, 400);
+});
+
+test('avec Voyage, les résidences sont classées par le sens et filtrées par critères', async (t) => {
+  // Fausse IA déterministe : chaque mot active une dimension du vecteur
+  const vecteurMots = (texte) => {
+    const v = new Array(512).fill(0);
+    for (const mot of texte.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').split(/[^a-z]+/)) {
+      if (mot.length > 3) v[[...mot].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) % 512, 7)] += 1;
+    }
+    return v;
+  };
+  process.env.VOYAGE_API_KEY = 'cle-de-test';
+  const appels = [];
+  t.mock.method(AIService, 'vectoriser', async (textes, type) => {
+    appels.push(type);
+    return textes.map(vecteurMots);
+  });
+  t.after(() => { delete process.env.VOYAGE_API_KEY; });
+
+  const sync = await SmartSearchService.synchroniser();
+  assert.ok(sync.misesAJour >= 10);
+  // Deuxième passage : rien n'a changé, aucun nouvel appel
+  assert.equal((await SmartSearchService.synchroniser()).misesAJour, 0);
+
+  const res = await api('/api/residences/recherche-ia', {
+    method: 'POST',
+    body: { question: 'Une villa prestige avec jardin pour une famille de 6, moins de 90 000' },
+  });
+  const { mode, criteres, resultats } = res.body.data;
+  assert.equal(mode, 'ia');
+  assert.deepEqual(criteres, { personnes: 6, budgetMax: 90000 });
+  assert.ok(resultats.length > 0);
+  assert.ok(resultats.every(r => r.capacite >= 6 && r.prix <= 90000));
+  assert.ok(resultats.every(r => r.disponibilite.occupant === undefined), 'pas de nom de client');
+  assert.ok(resultats.every((r, i) => i === 0 || resultats[i - 1].score >= r.score), 'trié par pertinence');
+  assert.ok(appels.includes('query'));
+
+  // Critères impossibles : aucun résultat mais des suggestions
+  const impossible = await api('/api/residences/recherche-ia', { method: 'POST', body: { question: 'villa pour 40 personnes' } });
+  assert.equal(impossible.body.data.resultats.length, 0);
+  assert.equal(impossible.body.data.suggestions.length, 3);
+
+  // Résidences similaires
+  const similaires = await api('/api/residences/1/similaires');
+  assert.equal(similaires.status, 200);
+  assert.equal(similaires.body.data.length, 3);
+  assert.ok(similaires.body.data.every(r => r.id !== 1));
+
+  // Voyage en panne : repli automatique
+  AIService.vectoriser.mock.mockImplementation(async () => { throw new Error('Voyage AI 503'); });
+  AIService.cache.clear();
+  const panne = await api('/api/residences/recherche-ia', { method: 'POST', body: { question: 'studio économique' } });
+  assert.equal(panne.status, 200);
+  assert.equal(panne.body.data.mode, 'mots-cles');
+});

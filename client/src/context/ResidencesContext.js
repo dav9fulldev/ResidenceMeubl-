@@ -99,6 +99,25 @@ export const ResidencesProvider = ({ children }) => {
     return response.data;
   }, []);
 
+  // Recherche en langage naturel : { mode, criteres, resultats, suggestions }
+  const smartSearch = useCallback(async (question) => {
+    const response = await apiRequest(API_ENDPOINTS.residences.smartSearch, {
+      method: 'POST',
+      body: { question },
+    });
+    const withScore = (r) => ({ ...fromApiResidence(r), score: r.score });
+    return {
+      ...response.data,
+      resultats: response.data.resultats.map(withScore),
+      suggestions: response.data.suggestions.map(withScore),
+    };
+  }, []);
+
+  const getSimilarResidences = useCallback(async (id) => {
+    const response = await apiRequest(API_ENDPOINTS.residences.similar(id));
+    return response.data.map(fromApiResidence);
+  }, []);
+
   // ---------- Administration ----------
 
   const loginAdmin = useCallback(async (username, password) => {
@@ -185,6 +204,8 @@ export const ResidencesProvider = ({ children }) => {
     getResidenceById,
     searchResidences,
     createReservation,
+    smartSearch,
+    getSimilarResidences,
     loginAdmin,
     logoutAdmin,
     updateResidenceStatus,
@@ -195,7 +216,7 @@ export const ResidencesProvider = ({ children }) => {
     updateReservationStatus,
   }), [
     residences, loading, offline, isAdmin, loadResidences, getResidenceById, searchResidences,
-    createReservation, loginAdmin, logoutAdmin, updateResidenceStatus, addResidence,
+    createReservation, smartSearch, getSimilarResidences, loginAdmin, logoutAdmin, updateResidenceStatus, addResidence,
     updateResidence, deleteResidence, getReservations, updateReservationStatus,
   ]);
 

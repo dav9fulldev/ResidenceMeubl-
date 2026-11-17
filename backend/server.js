@@ -123,6 +123,13 @@ if (require.main === module) {
   db.connect()
     .then(() => {
       console.log('🗄️  Connecté à MongoDB');
+      const AIService = require('./services/AIService');
+      if (AIService.estActive()) {
+        console.log(`🧠 Recherche intelligente : Voyage AI (${AIService.model})`);
+        require('./services/SmartSearchService').synchroniserEnFond();
+      } else {
+        console.log('🔎 Recherche intelligente : mode mots-clés (VOYAGE_API_KEY non définie)');
+      }
       app.listen(PORT, () => {
         console.log('🏠 Sankofart Résidence API');
         console.log(`🚀 Serveur démarré sur http://localhost:${PORT}`);

@@ -9,6 +9,8 @@ export const API_ENDPOINTS = {
     getAll: `${API_BASE_URL}/residences`,
     getById: (id) => `${API_BASE_URL}/residences/${id}`,
     checkAvailability: `${API_BASE_URL}/residences/check-disponibilite`,
+    smartSearch: `${API_BASE_URL}/residences/recherche-ia`,
+    similar: (id) => `${API_BASE_URL}/residences/${id}/similaires`,
   },
   reservations: {
     create: `${API_BASE_URL}/reservations`,
