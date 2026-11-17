@@ -4,9 +4,11 @@ const ResidenceService = require('../services/ResidenceService');
 const ReservationService = require('../services/ReservationService');
 const SmartSearchService = require('../services/SmartSearchService');
 const rateLimit = require('express-rate-limit');
+const { cleLimite } = require('../middleware/clientIp');
 
 // Protège le quota Voyage AI : 30 recherches IA par minute et par IP
 const rechercheIaLimiter = rateLimit({
+  keyGenerator: cleLimite, // IP réelle du visiteur (voir middleware/clientIp.js)
   skip: () => process.env.NODE_ENV === 'test',
   windowMs: 60 * 1000,
   max: 30,

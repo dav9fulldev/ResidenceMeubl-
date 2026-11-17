@@ -14,6 +14,9 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      # Render passe par Cloudflare : la vraie IP du visiteur est dans cet en-tête
+      - key: CLIENT_IP_HEADER
+        value: cf-connecting-ip
       - key: ADMIN_TOKEN_SECRET
         generateValue: true
       # Valeurs à saisir dans le tableau de bord Render (jamais dans Git)

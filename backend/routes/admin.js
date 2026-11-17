@@ -1,5 +1,6 @@
 const express = require('express');
 const rateLimit = require('express-rate-limit');
+const { cleLimite } = require('../middleware/clientIp');
 const router = express.Router();
 const AuthService = require('../services/AuthService');
 const ResidenceService = require('../services/ResidenceService');
@@ -8,6 +9,7 @@ const SmartSearchService = require('../services/SmartSearchService');
 
 // Limiter les tentatives de connexion (anti force brute)
 const loginLimiter = rateLimit({
+  keyGenerator: cleLimite, // IP réelle du visiteur (voir middleware/clientIp.js)
   skip: () => process.env.NODE_ENV === 'test', // pas de limite pendant les tests
   windowMs: 15 * 60 * 1000,
   max: 10,

@@ -423,3 +423,17 @@ test('avec Voyage, les résidences sont classées par le sens et filtrées par c
   assert.equal(panne.status, 200);
   assert.equal(panne.body.data.mode, 'mots-cles');
 });
+
+test("l'IP du visiteur est lue dans l'en-tête configuré (Cloudflare sur Render)", () => {
+  const { clientIp } = require('../middleware/clientIp');
+  const req = { ip: '10.195.55.6', headers: { 'cf-connecting-ip': '41.202.10.7' } };
+
+  delete process.env.CLIENT_IP_HEADER;
+  assert.equal(clientIp(req), '10.195.55.6', 'en-tête ignoré sans configuration');
+
+  process.env.CLIENT_IP_HEADER = 'CF-Connecting-IP';
+  assert.equal(clientIp(req), '41.202.10.7');
+  assert.equal(clientIp({ ip: '10.0.0.1', headers: { 'cf-connecting-ip': 'pas-une-ip' } }), '10.0.0.1');
+  assert.equal(clientIp({ ip: '10.0.0.1', headers: {} }), '10.0.0.1');
+  delete process.env.CLIENT_IP_HEADER;
+});

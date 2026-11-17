@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
+const { clientIp, cleLimite } = require('./middleware/clientIp');
 
 // Import des routes
 const residencesRoutes = require('./routes/residences');
@@ -20,7 +21,9 @@ if (process.env.NODE_ENV === 'production' || process.env.TRUST_PROXY) {
 
 // ✅ Logger toutes les requêtes
 if (process.env.NODE_ENV !== 'test') {
-  app.use(morgan('combined'));
+  // Format « combined » avec l'IP réelle du visiteur
+  morgan.token('client-ip', (req) => clientIp(req));
+  app.use(morgan(':client-ip - :remote-user [:date[clf]] ":method :url HTTP/:http-version" :status :res[content-length] ":referrer" ":user-agent"'));
 }
 
 // ✅ Configuration CORS
@@ -53,6 +56,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // ✅ Limiter les requêtes globales pour protéger contre le spam
 const globalLimiter = rateLimit({
+  keyGenerator: cleLimite, // IP réelle du visiteur (voir middleware/clientIp.js)
   skip: () => process.env.NODE_ENV === 'test', // pas de limite pendant les tests
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // max 100 requêtes par IP

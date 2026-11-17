@@ -19,6 +19,7 @@ Copier [`.env.example`](.env.example) en `.env`. Ne jamais commiter `.env`.
 | `EMAIL_USER` / `EMAIL_PASS` | ✅ | Compte Gmail et **mot de passe d'application** (16 lettres). |
 | `ADMIN_USERNAME` / `ADMIN_PASSWORD` | ✅ | Identifiants de l'espace admin. |
 | `ADMIN_TOKEN_SECRET` | ✅ en production | Clé de signature des jetons admin (`openssl rand -hex 32`). Sans elle, une clé temporaire est utilisée et les admins sont déconnectés à chaque redémarrage. |
+| `CLIENT_IP_HEADER` | ✅ sur Render | En-tête contenant la vraie IP du visiteur, pour les limites anti-spam : `cf-connecting-ip` sur Render. À ne définir que derrière un relais qui écrase cet en-tête (Cloudflare). |
 | `VOYAGE_API_KEY` | | Clé Atlas *AI Model APIs*. Sans elle, la recherche intelligente fonctionne en mode mots-clés. |
 | `VOYAGE_MODEL` | | Défaut : `voyage-4-lite`. |
 | `VOYAGE_API_URL` | | Défaut : `https://ai.mongodb.com/v1` (`https://api.voyageai.com/v1` pour une clé créée sur voyageai.com). |

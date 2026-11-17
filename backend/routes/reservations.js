@@ -2,10 +2,12 @@ const express = require('express');
 const router = express.Router();
 const ReservationService = require('../services/ReservationService');
 const rateLimit = require('express-rate-limit');
+const { cleLimite } = require('../middleware/clientIp');
 const requireAdmin = require('../middleware/requireAdmin');
 
 // Limiter les réservations pour éviter le spam
 const reservationLimiter = rateLimit({
+  keyGenerator: cleLimite, // IP réelle du visiteur (voir middleware/clientIp.js)
   skip: () => process.env.NODE_ENV === 'test', // pas de limite pendant les tests
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 3, // max 3 réservations par IP

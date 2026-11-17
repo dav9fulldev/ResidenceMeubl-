@@ -45,7 +45,7 @@ Render (offre gratuite) n'a pas d'adresse IP fixe. Pour la démo :
    | `ADMIN_USERNAME` / `ADMIN_PASSWORD` | les identifiants de l'espace admin (mot de passe long et unique) |
    | `VOYAGE_API_KEY` | la clé Atlas « AI Model APIs » (laisser vide = recherche par mots-clés) |
 
-   `ADMIN_TOKEN_SECRET` est généré automatiquement par Render.
+   `ADMIN_TOKEN_SECRET` est généré automatiquement par Render, et `CLIENT_IP_HEADER=cf-connecting-ip` est déjà défini : il permet d'appliquer les limites anti-spam à chaque visiteur (Render passe par Cloudflare).
 3. **Apply** / **Create**. Le premier déploiement prend 2 à 4 minutes.
 4. Vérifiez : ouvrez `https://<votre-service>.onrender.com/health`. Vous devez voir `"success": true`.
    Dans **Logs**, vous devez lire `🗄️ Connecté à MongoDB` et `🧠 Recherche intelligente : Voyage AI`.
@@ -58,7 +58,7 @@ Render → **New → Web Service** → dépôt GitHub, puis :
 - Build Command : `npm ci --omit=dev`
 - Start Command : `npm start`
 - Health Check Path : `/health`
-- Variables : celles du tableau ci-dessus, plus `NODE_ENV=production` et `ADMIN_TOKEN_SECRET` (générer avec `openssl rand -hex 32`).
+- Variables : celles du tableau ci-dessus, plus `NODE_ENV=production`, `CLIENT_IP_HEADER=cf-connecting-ip` et `ADMIN_TOKEN_SECRET` (générer avec `openssl rand -hex 32`).
 </details>
 
 ---
@@ -121,5 +121,6 @@ FRONTEND_URL=https://sankofart-residence.vercel.app,https://sankofartresidence.c
 | Erreur « Origine non autorisée » (console du navigateur) | Adresse Vercel absente de `FRONTEND_URL` | Étape 4 |
 | Render : `Impossible de se connecter à MongoDB` | IP Render non autorisée dans Atlas ou mot de passe erroné | Étape 1 ; vérifier `MONGODB_URI` |
 | Réservation enregistrée mais « email non envoyé » | `EMAIL_PASS` n'est pas un mot de passe d'application | Recréer un mot de passe d'application Google |
+| Logs Render : toutes les requêtes viennent d'IP `10.x.x.x`, réservations refusées « trop de réservations » | `CLIENT_IP_HEADER` absent | Ajouter `CLIENT_IP_HEADER=cf-connecting-ip` dans Render → Environment |
 | Badge « Recherche par mots-clés » au lieu de « Classement par IA » | Limite Voyage atteinte ou clé absente | Ajouter un moyen de paiement Atlas ; vérifier `VOYAGE_API_KEY` |
 | Erreur 404 en rechargeant une page | `vercel.json` non pris en compte | Vérifier que le *Root Directory* Vercel est bien `client` |
