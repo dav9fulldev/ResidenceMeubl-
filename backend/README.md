@@ -16,7 +16,10 @@ Copier [`.env.example`](.env.example) en `.env`. Ne jamais commiter `.env`.
 | `MONGODB_DB` | | Nom de la base (défaut : `sankofart`). |
 | `PORT` | | Port d'écoute (défaut : `5001`, fourni automatiquement par Render). |
 | `FRONTEND_URL` | ✅ | Adresse(s) du site autorisée(s) par CORS, séparées par des virgules. `localhost:3000/3001` sont toujours autorisés. |
-| `EMAIL_USER` / `EMAIL_PASS` | ✅ | Compte Gmail et **mot de passe d'application** (16 lettres). |
+| `EMAIL_USER` / `EMAIL_PASS` | ✅ en local | Compte Gmail et **mot de passe d'application** (16 lettres), envoi par SMTP. |
+| `BREVO_API_KEY` | ✅ sur Render | Envoi des emails par l'API Brevo (HTTPS). **Obligatoire sur Render gratuit**, qui bloque le SMTP. Prioritaire sur Gmail s'il est défini. |
+| `EMAIL_FROM` | | Expéditeur des emails (défaut : `EMAIL_USER`). Avec Brevo, cette adresse doit être validée dans Brevo. |
+| `ADMIN_EMAIL` | | Adresse qui reçoit les nouvelles réservations (défaut : `EMAIL_USER`). |
 | `ADMIN_USERNAME` / `ADMIN_PASSWORD` | ✅ | Identifiants de l'espace admin. |
 | `ADMIN_TOKEN_SECRET` | ✅ en production | Clé de signature des jetons admin (`openssl rand -hex 32`). Sans elle, une clé temporaire est utilisée et les admins sont déconnectés à chaque redémarrage. |
 | `CLIENT_IP_HEADER` | ✅ sur Render | En-tête contenant la vraie IP du visiteur, pour les limites anti-spam : `cf-connecting-ip` sur Render. À ne définir que derrière un relais qui écrase cet en-tête (Cloudflare). |

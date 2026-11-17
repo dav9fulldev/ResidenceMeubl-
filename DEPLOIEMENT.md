@@ -15,7 +15,7 @@ Durée : environ 30 minutes. Faites les étapes **dans l'ordre** : le frontend a
 ## 0. Avant de commencer
 
 - [ ] Le code est poussé sur GitHub.
-- [ ] Vous avez sous la main, **sans les partager** : l'URL MongoDB (`MONGODB_URI`), l'email Gmail et son mot de passe d'application, la clé Voyage AI, et les identifiants admin choisis.
+- [ ] Vous avez sous la main, **sans les partager** : l'URL MongoDB (`MONGODB_URI`), la clé Brevo (étape 1 bis), la clé Voyage AI, et les identifiants admin choisis.
 - [ ] Un compte [Render](https://render.com) et un compte [Vercel](https://vercel.com), connectés à GitHub.
 
 ---
@@ -31,6 +31,18 @@ Render (offre gratuite) n'a pas d'adresse IP fixe. Pour la démo :
 
 ---
 
+## 1 bis. Emails : créer une clé Brevo (gratuit)
+
+Render (offre gratuite) **bloque l'envoi d'emails par SMTP** : Gmail échoue avec `Connection timeout`. Les emails passent donc par l'API de [Brevo](https://www.brevo.com) (gratuit jusqu'à 300 emails par jour).
+
+1. Créez un compte Brevo.
+2. **Senders, domains & dedicated IPs → Senders → Add a sender** : ajoutez l'adresse qui enverra les emails (par exemple votre Gmail) et validez-la via l'email reçu.
+3. **SMTP & API → API keys → Generate a new API key**. Copiez-la : elle servira pour `BREVO_API_KEY`.
+
+> Pour une meilleure délivrabilité (moins de spams), utilisez plus tard une adresse de votre domaine (`contact@sankofartresidence.com`) et authentifiez le domaine dans Brevo.
+
+---
+
 ## 2. Backend sur Render
 
 1. Render → **New → Blueprint** → choisissez le dépôt GitHub.
@@ -41,14 +53,16 @@ Render (offre gratuite) n'a pas d'adresse IP fixe. Pour la démo :
    |---|---|
    | `MONGODB_URI` | l'URL Atlas avec l'utilisateur `sankofart_app` |
    | `FRONTEND_URL` | provisoirement `https://sankofartresidence.com` (on ajoutera l'adresse Vercel à l'étape 4) |
-   | `EMAIL_USER` / `EMAIL_PASS` | l'adresse Gmail et son **mot de passe d'application** (16 lettres) |
+   | `BREVO_API_KEY` | la clé Brevo (étape 1 bis) |
+   | `EMAIL_FROM` | l'adresse validée comme expéditeur dans Brevo |
+   | `EMAIL_USER` | l'adresse qui reçoit les nouvelles réservations (admin) |
    | `ADMIN_USERNAME` / `ADMIN_PASSWORD` | les identifiants de l'espace admin (mot de passe long et unique) |
    | `VOYAGE_API_KEY` | la clé Atlas « AI Model APIs » (laisser vide = recherche par mots-clés) |
 
    `ADMIN_TOKEN_SECRET` est généré automatiquement par Render, et `CLIENT_IP_HEADER=cf-connecting-ip` est déjà défini : il permet d'appliquer les limites anti-spam à chaque visiteur (Render passe par Cloudflare).
 3. **Apply** / **Create**. Le premier déploiement prend 2 à 4 minutes.
 4. Vérifiez : ouvrez `https://<votre-service>.onrender.com/health`. Vous devez voir `"success": true`.
-   Dans **Logs**, vous devez lire `🗄️ Connecté à MongoDB` et `🧠 Recherche intelligente : Voyage AI`.
+   Dans **Logs**, vous devez lire `🗄️ Connecté à MongoDB`, `🧠 Recherche intelligente : Voyage AI` et `📧 Emails : API Brevo`.
 
 <details>
 <summary>Sans Blueprint (configuration manuelle)</summary>
@@ -120,7 +134,9 @@ FRONTEND_URL=https://sankofart-residence.vercel.app,https://sankofartresidence.c
 | Le site affiche « catalogue hors ligne » ou les réservations sont impossibles | Backend en veille ou `REACT_APP_API_URL` incorrecte | Ouvrir `/health` sur Render ; vérifier la variable sur Vercel puis **Redeploy** |
 | Erreur « Origine non autorisée » (console du navigateur) | Adresse Vercel absente de `FRONTEND_URL` | Étape 4 |
 | Render : `Impossible de se connecter à MongoDB` | IP Render non autorisée dans Atlas ou mot de passe erroné | Étape 1 ; vérifier `MONGODB_URI` |
-| Réservation enregistrée mais « email non envoyé » | `EMAIL_PASS` n'est pas un mot de passe d'application | Recréer un mot de passe d'application Google |
+| Logs Render : `Connection timeout` à l'envoi des emails | Render gratuit bloque le SMTP | Définir `BREVO_API_KEY` et `EMAIL_FROM` (étape 1 bis) |
+| Logs : `Brevo 400 … sender` | Adresse `EMAIL_FROM` non validée dans Brevo | Brevo → Senders → valider l'adresse |
+| En local : « email non envoyé » | `EMAIL_PASS` n'est pas un mot de passe d'application | Recréer un mot de passe d'application Google |
 | Logs Render : toutes les requêtes viennent d'IP `10.x.x.x`, réservations refusées « trop de réservations » | `CLIENT_IP_HEADER` absent | Ajouter `CLIENT_IP_HEADER=cf-connecting-ip` dans Render → Environment |
 | Badge « Recherche par mots-clés » au lieu de « Classement par IA » | Limite Voyage atteinte ou clé absente | Ajouter un moyen de paiement Atlas ; vérifier `VOYAGE_API_KEY` |
 | Erreur 404 en rechargeant une page | `vercel.json` non pris en compte | Vérifier que le *Root Directory* Vercel est bien `client` |

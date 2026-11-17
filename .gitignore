@@ -15,3 +15,6 @@ client/dist/
 build/
 client/build/
 
+
+# Copies de conflit créées par iCloud (« fichier 2.js »)
+* [0-9].*

@@ -24,9 +24,12 @@ services:
         sync: false
       - key: FRONTEND_URL
         sync: false
-      - key: EMAIL_USER
+      # Render gratuit bloque le SMTP : les emails passent par l'API Brevo
+      - key: BREVO_API_KEY
         sync: false
-      - key: EMAIL_PASS
+      - key: EMAIL_FROM
+        sync: false
+      - key: EMAIL_USER
         sync: false
       - key: ADMIN_USERNAME
         sync: false

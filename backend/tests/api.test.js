@@ -437,3 +437,35 @@ test("l'IP du visiteur est lue dans l'en-tête configuré (Cloudflare sur Render
   assert.equal(clientIp({ ip: '10.0.0.1', headers: {} }), '10.0.0.1');
   delete process.env.CLIENT_IP_HEADER;
 });
+
+test("avec BREVO_API_KEY, les emails partent par l'API Brevo (HTTPS, pas de SMTP)", async (t) => {
+  const EmailService = require('../services/EmailService');
+  const env = { BREVO_API_KEY: process.env.BREVO_API_KEY, EMAIL_FROM: process.env.EMAIL_FROM };
+  process.env.BREVO_API_KEY = ' cle-brevo-test ';
+  process.env.EMAIL_FROM = 'contact@exemple.com';
+  t.after(() => {
+    for (const [k, v] of Object.entries(env)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+  });
+
+  const appels = [];
+  t.mock.method(globalThis, 'fetch', async (url, options) => {
+    appels.push({ url, options });
+    return new Response(JSON.stringify({ messageId: 'x' }), { status: 201 });
+  });
+
+  const service = new EmailService();
+  assert.equal(service.mode, 'brevo');
+  await service.envoyer({ to: 'client@exemple.com', subject: 'Sujet', html: '<p>Bonjour</p>', replyTo: 'contact@exemple.com' });
+
+  assert.equal(appels.length, 1);
+  assert.equal(appels[0].url, 'https://api.brevo.com/v3/smtp/email');
+  assert.equal(appels[0].options.headers['api-key'], 'cle-brevo-test');
+  const corps = JSON.parse(appels[0].options.body);
+  assert.deepEqual(corps.sender, { name: 'Sankofart Résidence', email: 'contact@exemple.com' });
+  assert.deepEqual(corps.to, [{ email: 'client@exemple.com' }]);
+  assert.equal(corps.htmlContent, '<p>Bonjour</p>');
+
+  // Erreur Brevo remontée clairement
+  globalThis.fetch.mock.mockImplementation(async () => new Response(JSON.stringify({ message: 'sender not valid' }), { status: 400 }));
+  await assert.rejects(service.envoyer({ to: 'a@b.c', subject: 's', html: 'h' }), /Brevo 400 : sender not valid/);
+});

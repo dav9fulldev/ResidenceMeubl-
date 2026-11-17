@@ -12,8 +12,18 @@ const esc = (value) => String(value ?? '')
   .replace(/"/g, '&quot;')
   .replace(/'/g, '&#39;');
 
+const DELAI_ENVOI_MS = 10000;
+
 /**
- * Service de gestion des emails
+ * Service de gestion des emails.
+ *
+ * Deux modes d'envoi :
+ *  - API Brevo (si BREVO_API_KEY est défini) : passe par HTTPS, fonctionne
+ *    sur les hébergeurs qui bloquent le SMTP (Render gratuit, etc.)
+ *  - SMTP Gmail (EMAIL_USER + EMAIL_PASS) : pratique en local
+ *
+ * L'expéditeur est EMAIL_FROM, ou à défaut EMAIL_USER. Avec Brevo, cette
+ * adresse doit être validée dans Brevo (Senders, domains & dedicated IPs).
  */
 class EmailService {
   constructor() {
@@ -21,7 +31,15 @@ class EmailService {
     this.initTransporter();
   }
 
-  // Initialiser le transporteur email
+  get mode() {
+    return process.env.BREVO_API_KEY ? 'brevo' : 'smtp';
+  }
+
+  get expediteur() {
+    return process.env.EMAIL_FROM || process.env.EMAIL_USER;
+  }
+
+  // Initialiser le transporteur SMTP (utilisé seulement sans Brevo)
   initTransporter() {
     try {
       this.transporter = nodemailer.createTransport({
@@ -30,37 +48,78 @@ class EmailService {
           user: process.env.EMAIL_USER,
           pass: process.env.EMAIL_PASS, // App Password Gmail
         },
+        // Ne jamais faire attendre le client plus de quelques secondes
+        connectionTimeout: DELAI_ENVOI_MS,
+        greetingTimeout: DELAI_ENVOI_MS,
+        socketTimeout: DELAI_ENVOI_MS * 2,
       });
     } catch (error) {
       console.error('Erreur lors de l\'initialisation du transporteur email:', error);
     }
   }
 
-  // Envoyer un email de réservation
-  async sendReservationEmail(reservation) {
+  /**
+   * Envoie un email, par l'API Brevo ou par SMTP.
+   * @param {{ to: string, subject: string, html: string, replyTo?: string }} message
+   */
+  async envoyer({ to, subject, html, replyTo }) {
+    if (this.mode === 'brevo') {
+      const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        headers: {
+          'api-key': process.env.BREVO_API_KEY.trim(),
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify({
+          sender: { name: 'Sankofart Résidence', email: this.expediteur },
+          to: [{ email: to }],
+          ...(replyTo ? { replyTo: { email: replyTo } } : {}),
+          subject,
+          htmlContent: html,
+        }),
+        signal: AbortSignal.timeout(DELAI_ENVOI_MS),
+      });
+      if (!response.ok) {
+        let detail = '';
+        try { detail = (await response.json()).message || ''; } catch { /* corps vide */ }
+        throw new Error(`Brevo ${response.status}${detail ? ` : ${detail}` : ''}`);
+      }
+      return;
+    }
+
     if (!this.transporter) {
       throw new Error('Transporteur email non initialisé');
     }
+    await this.transporter.sendMail({
+      from: `"Sankofart Résidence" <${this.expediteur}>`,
+      to,
+      replyTo,
+      subject,
+      html,
+    });
+  }
 
+  // Envoyer un email de réservation
+  async sendReservationEmail(reservation) {
     try {
       const info = reservation.getInfoEmail();
-      
-      // Email pour l'administrateur
-      await this.transporter.sendMail({
-        from: `"Sankofart Résidence" <${process.env.EMAIL_USER}>`,
-        replyTo: info.client.email,
-        to: process.env.EMAIL_USER,
-        subject: `🆕 Nouvelle réservation - ${info.residence.nom}`,
-        html: this.generateAdminEmailHTML(info),
-      });
 
-      // Email de confirmation pour le client
-      await this.transporter.sendMail({
-        from: `"Sankofart Résidence" <${process.env.EMAIL_USER}>`,
-        to: info.client.email,
-        subject: `✅ Confirmation de votre réservation - ${info.residence.nom}`,
-        html: this.generateClientEmailHTML(info),
-      });
+      // Email à l'administrateur et accusé de réception au client, en parallèle
+      await Promise.all([
+        this.envoyer({
+          to: process.env.ADMIN_EMAIL || process.env.EMAIL_USER,
+          replyTo: info.client.email,
+          subject: `🆕 Nouvelle réservation - ${info.residence.nom}`,
+          html: this.generateAdminEmailHTML(info),
+        }),
+        this.envoyer({
+          to: info.client.email,
+          replyTo: this.expediteur,
+          subject: `✅ Confirmation de votre réservation - ${info.residence.nom}`,
+          html: this.generateClientEmailHTML(info),
+        }),
+      ]);
 
       console.log('✅ Emails de réservation envoyés avec succès');
       return true;
@@ -280,16 +339,12 @@ class EmailService {
 
   // Informer le client d'un changement de statut (confirmée ou annulée)
   async sendStatusEmail(reservation) {
-    if (!this.transporter) {
-      throw new Error('Transporteur email non initialisé');
-    }
     const confirmee = reservation.statut === 'confirmee';
     const nomResidence = reservation.residenceInfo?.nom || 'votre résidence';
 
-    await this.transporter.sendMail({
-      from: `"Sankofart Résidence" <${process.env.EMAIL_USER}>`,
+    await this.envoyer({
       to: reservation.client.email,
-      replyTo: process.env.EMAIL_USER,
+      replyTo: this.expediteur,
       subject: confirmee
         ? `✅ Réservation confirmée - ${nomResidence}`
         : `❌ Réservation annulée - ${nomResidence}`,
@@ -358,6 +413,17 @@ class EmailService {
 
   // Tester la connexion email
   async testConnection() {
+    if (this.mode === 'brevo') {
+      try {
+        const response = await fetch('https://api.brevo.com/v3/account', {
+          headers: { 'api-key': process.env.BREVO_API_KEY.trim(), Accept: 'application/json' },
+          signal: AbortSignal.timeout(DELAI_ENVOI_MS),
+        });
+        return response.ok;
+      } catch {
+        return false;
+      }
+    }
     if (!this.transporter) {
       return false;
     }
