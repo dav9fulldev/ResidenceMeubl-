@@ -58,7 +58,10 @@ services:
         sync: false
       - key: PISPI_APP_URL
         sync: false
-      # Politique de remboursement de l'acompte
+      # Politique de remboursement de l'acompte (valeurs par défaut ;
+      # le back-office, page Paramètres, les remplace dès qu'elles y sont enregistrées)
+      - key: ACOMPTE_REMBOURSEMENT_POURCENTAGE
+        value: "50"
       - key: ACOMPTE_REMBOURSABLE_APRES_PAIEMENT_JOURS
         value: "5"
       - key: ACOMPTE_NON_REMBOURSABLE_AVANT_ARRIVEE_JOURS

@@ -240,16 +240,16 @@ const MesReservations = () => {
                   <p>{Number(r.prixTotal).toLocaleString('fr-FR')} FCFA · Réf. {r.id}</p>
 
                   {['a_rembourser', 'echec', 'en_cours'].includes(r.acompte?.remboursement?.statut) && (
-                    <p className="demande-info attente">↩️ Acompte de {Number(r.acompte.montant).toLocaleString('fr-FR')} FCFA : remboursement en cours.</p>
+                    <p className="demande-info attente">↩️ Remboursement de {Number(r.acompte.remboursement.montant ?? r.acompte.montant).toLocaleString('fr-FR')} FCFA en cours.</p>
                   )}
                   {r.acompte?.remboursement?.statut === 'rembourse' && (
-                    <p className="demande-info acceptee">↩️ Acompte remboursé le {formatDate(r.acompte.remboursement.le)}.</p>
+                    <p className="demande-info acceptee">↩️ {Number(r.acompte.remboursement.montant ?? r.acompte.montant).toLocaleString('fr-FR')} FCFA remboursés le {formatDate(r.acompte.remboursement.le)}.</p>
                   )}
                   {r.acompte?.paye && !r.acompte?.remboursement && (
                     <p className="demande-info acceptee">
                       💰 Acompte de {Number(r.acompte.montant).toLocaleString('fr-FR')} FCFA reçu le {formatDate(r.acompte.payeLe)}.
                       {r.acompte.politique && r.statut !== 'annulee' && (r.acompte.politique.remboursable
-                        ? ` Remboursable en cas d'annulation demandée avant le ${formatDate(r.acompte.politique.limite)}.`
+                        ? ` En cas d'annulation demandée avant le ${formatDate(r.acompte.politique.limite)}, ${Number(r.acompte.politique.montant).toLocaleString('fr-FR')} FCFA vous sont remboursés (${r.acompte.politique.pourcentage} % de l'acompte).`
                         : ' Non remboursable en cas d\'annulation.')}
                     </p>
                   )}
@@ -301,7 +301,7 @@ const MesReservations = () => {
                       {r.acompte?.paye && r.acompte.politique && (
                         <p className={`demande-info ${r.acompte.politique.remboursable ? 'acceptee' : 'refusee'}`}>
                           {r.acompte.politique.remboursable
-                            ? `✓ Votre acompte de ${Number(r.acompte.montant).toLocaleString('fr-FR')} FCFA vous sera remboursé intégralement si l'annulation est acceptée.`
+                            ? `✓ Si l'annulation est acceptée, ${Number(r.acompte.politique.montant).toLocaleString('fr-FR')} FCFA vous seront remboursés (${r.acompte.politique.pourcentage} % de votre acompte de ${Number(r.acompte.montant).toLocaleString('fr-FR')} FCFA).`
                             : `⚠️ Votre acompte de ${Number(r.acompte.montant).toLocaleString('fr-FR')} FCFA ne sera pas remboursé : ${r.acompte.politique.raison.toLowerCase()}.`}
                         </p>
                       )}

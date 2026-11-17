@@ -9,6 +9,7 @@ const SmartSearchService = require('../services/SmartSearchService');
 const StatsService = require('../services/StatsService');
 const acompte = require('../services/paiement/acompte');
 const PiSpi = require('../services/paiement/PiSpiClient');
+const Settings = require('../services/SettingsService');
 
 // Limiter les tentatives de connexion (anti force brute)
 const loginLimiter = rateLimit({
@@ -141,6 +142,24 @@ router.get('/paiements/config', (req, res) => {
       webhookUrl: `${req.protocol}://${req.get('host')}/api/paiements/pispi/webhook`,
     },
   });
+});
+
+/**
+ * @route   GET / PUT /api/admin/parametres
+ * @desc    Paramètres de l'acompte : acomptePourcentage, remboursementPourcentage,
+ *          remboursableApresPaiementJours, nonRemboursableAvantArriveeJours
+ */
+router.get('/parametres', (req, res) => {
+  res.json({ success: true, data: Settings.tous() });
+});
+
+router.put('/parametres', async (req, res) => {
+  try {
+    res.json({ success: true, data: await Settings.modifier(req.body || {}) });
+  } catch (error) {
+    if (error instanceof Settings.ErreurParametre) return res.status(400).json({ success: false, message: error.message });
+    gererErreur(res, error, 'lors de l\'enregistrement des paramètres');
+  }
 });
 
 /**

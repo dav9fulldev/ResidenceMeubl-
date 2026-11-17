@@ -53,10 +53,17 @@ class RefundService {
     }
 
     const maintenant = new Date();
-    const base = { depuis: r.acompte.remboursement?.depuis || maintenant, tentatives: (r.acompte.remboursement?.tentatives || 0) + 1, derniereTentative: maintenant };
+    const pourcentage = acompte.pourcentageRembourse();
+    const montant = pourcentage >= 100 ? Number(r.acompte.montant) : acompte.montantRembourse(r.acompte.montant);
+    if (montant <= 0) {
+      return this.majRemboursement(r.id, { statut: 'non_remboursable', depuis: maintenant, raison: 'Acompte non remboursable' });
+    }
+    const base = {
+      pourcentage,
+      montant, depuis: r.acompte.remboursement?.depuis || maintenant, tentatives: (r.acompte.remboursement?.tentatives || 0) + 1, derniereTentative: maintenant };
 
     if (acompte.mode() === 'simulation') {
-      const maj = await this.majRemboursement(r.id, { ...base, statut: 'rembourse', le: maintenant, reference: 'SIMULATION', automatique: true });
+      const maj = await this.majRemboursement(r.id, { ...base, statut: 'rembourse', le: maintenant, reference: 'SIMULATION', automatique: true, methode: pourcentage >= 100 ? 'retour' : 'paiement' });
       this.prevenir(maj);
       return maj;
     }
@@ -66,8 +73,26 @@ class RefundService {
     }
 
     try {
-      const reponse = await PiSpi.retournerFonds(end2endId);
-      return this.appliquerStatut(r.id, reponse, base);
+      if (pourcentage >= 100) {
+        // Remboursement intégral : retour de fonds (idempotent)
+        const reponse = await PiSpi.retournerFonds(end2endId);
+        return this.appliquerStatut(r.id, reponse, { ...base, methode: 'retour' });
+      }
+      // Remboursement partiel : paiement sortant du montant exact vers l'adresse du client
+      let payeAlias = r.acompte.payeurAlias;
+      if (!payeAlias) {
+        const recu = await PiSpi.lirePaiementRecu(r.acompte.txId);
+        payeAlias = recu?.payeurAlias;
+      }
+      if (!payeAlias) {
+        return this.majRemboursement(r.id, { ...base, statut: 'echec', raison: 'Adresse de paiement du client introuvable' });
+      }
+      const txId = r.acompte.remboursement?.txId && r.acompte.remboursement.statut !== 'echec'
+        ? r.acompte.remboursement.txId
+        : `RMB${Date.now().toString(36).toUpperCase()}${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+      await this.majRemboursement(r.id, { ...base, methode: 'paiement', txId, payeAlias });
+      const reponse = await PiSpi.envoyerPaiement({ txId, payeAlias, montant, motif: `Remboursement acompte ${r.id}` });
+      return this.appliquerStatutPaiement(r.id, reponse);
     } catch (error) {
       const delai = error.status === 403;
       console.error(`⚠️ Retour de fonds impossible (${r.id}) :`, error.message);
@@ -94,11 +119,31 @@ class RefundService {
     return this.majRemboursement(id, { ...base, statut: 'en_cours', raison: null });
   }
 
-  // Relit le statut des remboursements en cours (webhook RETOUR_* ou vérification périodique)
+  // Statut d'un paiement sortant de remboursement (ENVOYE / IRREVOCABLE / REJETE)
+  async appliquerStatutPaiement(id, paiement) {
+    if (paiement?.statut === 'IRREVOCABLE') {
+      const avant = await this.collection.findOne({ id }, { projection: { _id: 0, 'acompte.remboursement': 1 } });
+      const maj = await this.majRemboursement(id, { statut: 'rembourse', le: new Date(), reference: paiement.end2endId || paiement.txId, automatique: true, raison: null });
+      if (avant?.acompte?.remboursement?.statut !== 'rembourse') this.prevenir(maj);
+      return maj;
+    }
+    if (['REJETE', 'ANNULE'].includes(paiement?.statut)) {
+      return this.majRemboursement(id, { statut: 'echec', raison: RAISONS[paiement.statutRaison] || `Paiement de remboursement rejeté (${paiement.statutRaison || 'motif inconnu'})` });
+    }
+    return this.majRemboursement(id, { statut: 'en_cours', raison: null });
+  }
+
+  // Relit le statut des remboursements en cours (webhooks ou vérification périodique)
   async verifier(reservationId) {
     const r = await this.collection.findOne({ id: String(reservationId) }, { projection: { _id: 0 } });
-    if (r?.acompte?.remboursement?.statut !== 'en_cours' || !r.acompte.end2endId) return r;
+    if (r?.acompte?.remboursement?.statut !== 'en_cours') return r;
     try {
+      if (r.acompte.remboursement.methode === 'paiement') {
+        const paiement = await PiSpi.lirePaiementEnvoye(r.acompte.remboursement.txId);
+        if (paiement) return this.appliquerStatutPaiement(r.id, paiement);
+        return r;
+      }
+      if (!r.acompte.end2endId) return r;
       const paiement = await PiSpi.lirePaiement(r.acompte.end2endId);
       if (paiement) return this.appliquerStatut(r.id, paiement);
     } catch (error) {

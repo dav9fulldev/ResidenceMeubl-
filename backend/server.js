@@ -155,6 +155,7 @@ if (require.main === module) {
   db.connect()
     .then(() => {
       console.log('🗄️  Connecté à MongoDB');
+      require('./services/SettingsService').charger().catch(e => console.error('⚠️ Paramètres :', e.message));
       const modePaiement = require('./services/paiement/acompte').mode();
       console.log(`💳 Paiement de l'acompte : ${modePaiement === 'pispi' ? 'PI-SPI' : modePaiement}`);
       if (modePaiement === 'pispi') PaymentService.demarrerVerificationPeriodique();

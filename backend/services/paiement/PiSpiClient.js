@@ -18,6 +18,7 @@ const SCOPES_PAR_DEFAUT = [
   'piz/demande_paiement.read',
   'piz/paiement.read',
   'piz/retour_fonds.write',
+  'piz/paiement.write',
 ].join(' ');
 
 const DELAI_MS = 10000;
@@ -175,6 +176,25 @@ class PiSpiClient {
    */
   async retournerFonds(end2endId) {
     return this.requete('PUT', `/paiements/${encodeURIComponent(end2endId)}/retours`);
+  }
+
+  /**
+   * Paiement immédiat sortant (catégorie 733) : sert au remboursement partiel.
+   * payeurAlias = notre adresse (le business paie), payeAlias = adresse du client.
+   */
+  async envoyerPaiement({ txId, payeAlias, montant, motif }) {
+    return this.requete('POST', '/paiements-envoyes', {
+      txId,
+      payeurAlias: this.config.payeAlias,
+      payeAlias: String(payeAlias).trim().toLowerCase(),
+      montant: Math.round(montant),
+      confirmation: false,
+      motif: String(motif).slice(0, 140),
+    });
+  }
+
+  async lirePaiementEnvoye(txId) {
+    return this.requete('GET', `/paiements-envoyes/${encodeURIComponent(txId)}`);
   }
 
   // Détail d'un paiement (dont retourStatut) par son identifiant de bout en bout
