@@ -47,7 +47,7 @@ app.use(cors({
     } else {
       // Refus normal (ex. aperçus automatiques Vercel) : le navigateur bloque la réponse.
       // Une seule ligne d'information, pas d'erreur avec trace.
-      console.log('🚫 Origine non autorisée (CORS) :', origin);
+      if (process.env.NODE_ENV !== 'test') console.log('🚫 Origine non autorisée (CORS) :', origin);
       callback(null, false);
     }
   },
