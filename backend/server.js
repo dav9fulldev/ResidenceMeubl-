@@ -45,8 +45,10 @@ app.use(cors({
     if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
-      console.log('🚫 Origine bloquée par CORS:', origin);
-      callback(new Error('Non autorisé par CORS'));
+      // Refus normal (ex. aperçus automatiques Vercel) : le navigateur bloque la réponse.
+      // Une seule ligne d'information, pas d'erreur avec trace.
+      console.log('🚫 Origine non autorisée (CORS) :', origin);
+      callback(null, false);
     }
   },
   credentials: true

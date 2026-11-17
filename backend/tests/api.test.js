@@ -567,3 +567,12 @@ test("le client sans compte retrouve sa réservation et demande l'annulation, l'
   assert.equal((await api('/api/client/reservations')).status, 401);
   assert.equal((await api('/api/client/reservations', { headers: { Authorization: `Bearer ${jetonAdmin}` } })).status, 401, 'jeton admin ≠ jeton client');
 });
+
+test('une origine non autorisée ne reçoit pas les en-têtes CORS (sans erreur serveur)', async () => {
+  const res = await fetch(`${baseUrl}/api/residences`, { headers: { Origin: 'https://site-inconnu.vercel.app' } });
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get('access-control-allow-origin'), null, 'le navigateur bloquera la réponse');
+
+  const ok = await fetch(`${baseUrl}/api/residences`, { headers: { Origin: 'http://localhost:3001' } });
+  assert.equal(ok.headers.get('access-control-allow-origin'), 'http://localhost:3001');
+});
