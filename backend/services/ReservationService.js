@@ -217,7 +217,8 @@ class ReservationService {
     if (!r?.acompte?.paye || r.statut !== 'annulee') throw new ErreurClient('Aucun acompte à rembourser pour cette réservation', 404);
     if (r.acompte.remboursement?.statut === 'rembourse') throw new ErreurClient('Acompte déjà remboursé');
     await this.collection.updateOne({ id: String(id) }, { $set: { 'acompte.remboursement.statut': 'a_rembourser' } });
-    return RefundService.rembourser(id);
+    // Relance par l'admin : y compris un acompte non remboursable (geste commercial)
+    return RefundService.rembourser(id, { ignorerPolitique: true });
   }
 
   // L'admin indique que l'acompte a été remboursé hors PI-SPI (après un échec)

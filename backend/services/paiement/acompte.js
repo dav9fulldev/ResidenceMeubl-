@@ -6,6 +6,10 @@
  *                        Par défaut : « pispi » si PI-SPI est configuré, sinon « desactive ».
  *                        « simulation » est réservé aux démonstrations : tout le monde peut « payer ».
  *   ACOMPTE_POURCENTAGE  pourcentage du séjour à régler (défaut 30)
+ *   ACOMPTE_REMBOURSABLE_APRES_PAIEMENT_JOURS  délai (jours) après le paiement pendant lequel
+ *                        une annulation est remboursée (défaut 5)
+ *   ACOMPTE_NON_REMBOURSABLE_AVANT_ARRIVEE_JOURS  plus de remboursement à moins de N jours
+ *                        de l'arrivée (défaut 3)
  *   PISPI_APP_URL        lien « Ouvrir l'application » montré après l'envoi d'une demande
  *                        (sandbox : https://client.simulateurs.pi-bceao.com). Vide = pas de bouton.
  */
@@ -25,6 +29,37 @@ function mode() {
 function pourcentage() {
   const p = Number(process.env.ACOMPTE_POURCENTAGE);
   return Number.isFinite(p) && p >= 1 && p <= 100 ? p : 30;
+}
+
+const JOUR = 24 * 60 * 60 * 1000;
+const entier = (nom, defaut) => {
+  const v = parseInt(process.env[nom], 10);
+  return Number.isInteger(v) && v >= 0 ? v : defaut;
+};
+
+/**
+ * Politique de remboursement de l'acompte (100 % ou rien, le retour PI-SPI étant intégral) :
+ * remboursable si l'annulation est demandée à la fois
+ *  - dans les N jours suivant le paiement (défaut 5)
+ *  - et au moins M jours avant l'arrivée (défaut 3)
+ * @param r réservation ; @param date date de la demande d'annulation (défaut : maintenant)
+ */
+function politiqueRemboursement(r, date = new Date()) {
+  if (!r?.acompte?.paye || !r.acompte.payeLe) return null;
+  const apresPaiement = entier('ACOMPTE_REMBOURSABLE_APRES_PAIEMENT_JOURS', 5);
+  const avantArrivee = entier('ACOMPTE_NON_REMBOURSABLE_AVANT_ARRIVEE_JOURS', 3);
+  const limitePaiement = new Date(new Date(r.acompte.payeLe).getTime() + apresPaiement * JOUR);
+  const limiteArrivee = new Date(Date.parse(`${r.dates.arrivee}T00:00:00Z`) - avantArrivee * JOUR);
+  const limite = limitePaiement < limiteArrivee ? limitePaiement : limiteArrivee;
+  const remboursable = new Date(date) < limite;
+  return {
+    remboursable,
+    limite,
+    regle: `Acompte remboursable si l'annulation est demandée dans les ${apresPaiement} jours suivant le paiement et au moins ${avantArrivee} jours avant l'arrivée.`,
+    raison: remboursable ? null : (limite === limiteArrivee
+      ? `Annulation demandée moins de ${avantArrivee} jours avant l'arrivée`
+      : `Annulation demandée plus de ${apresPaiement} jours après le paiement de l'acompte`),
+  };
 }
 
 const montantAcompte = (prixTotal) => Math.ceil((Number(prixTotal) || 0) * pourcentage() / 100);
@@ -57,6 +92,9 @@ function etatAcompte(r) {
     payeLe: paye ? r.acompte.payeLe : null,
     methode: paye ? r.acompte.methode : null,
     possible,
+    // Évaluée à la date de la demande d'annulation en cours, sinon à aujourd'hui
+    politique: politiqueRemboursement(r, r.demandeAnnulation?.statut === 'en_attente' ? r.demandeAnnulation.dateDemande : new Date()),
+    conditions: `Acompte remboursable si l'annulation est demandée dans les ${entier('ACOMPTE_REMBOURSABLE_APRES_PAIEMENT_JOURS', 5)} jours suivant le paiement et au moins ${entier('ACOMPTE_NON_REMBOURSABLE_AVANT_ARRIVEE_JOURS', 3)} jours avant l'arrivée.`,
     appUrl: /^https:\/\//.test((process.env.PISPI_APP_URL || '').trim()) ? process.env.PISPI_APP_URL.trim() : null,
     enCours: enCours ? { txId: enCours.txId, methode: enCours.methode, expireLe: enCours.expireLe } : null,
     doublons: (r.paiements || []).filter(p => p.statut === 'doublon').map(p => ({ txId: p.txId, montant: p.montant, payeLe: p.payeLe })),
@@ -70,6 +108,7 @@ function genererTxId() {
 }
 
 module.exports = {
+  politiqueRemboursement,
   mode, pourcentage, montantAcompte, etatAcompte, paiementEnCours, genererTxId,
   DUREE_QR_MS, DUREE_DEMANDE_MS, MARGE_VERIFICATION_MS,
 };

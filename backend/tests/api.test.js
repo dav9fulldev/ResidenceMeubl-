@@ -1027,3 +1027,43 @@ test('remboursement automatique PI-SPI : retour de fonds, rejet, relance, délai
   assert.equal(r.acompte.remboursement.statut, 'echec');
   assert.match(r.acompte.remboursement.raison, /90 jours/);
 });
+
+test('politique de remboursement : 5 jours après paiement, 3 jours avant l\'arrivée', async (t) => {
+  configurerPiSpi(t, { PAIEMENT_MODE: 'pispi' });
+  const es = ReservationService.emailService;
+  es.sendRemboursementEffectue = async () => {};
+  const { politiqueRemboursement } = require('../services/paiement/acompte');
+  const J = 86400000;
+  const jour = (n) => new Date(Date.now() + n * J);
+  const resa = (payeIlYa, arriveeDans) => ({
+    acompte: { paye: true, payeLe: jour(-payeIlYa) },
+    dates: { arrivee: jourDansNJours(arriveeDans) },
+  });
+  assert.equal(politiqueRemboursement(resa(1, 30)).remboursable, true, 'payé hier, arrivée dans 30 j');
+  assert.equal(politiqueRemboursement(resa(6, 30)).remboursable, false, 'payé il y a 6 j');
+  assert.match(politiqueRemboursement(resa(6, 30)).raison, /5 jours après le paiement/);
+  assert.equal(politiqueRemboursement(resa(1, 2)).remboursable, false, 'arrivée dans 2 j');
+  assert.match(politiqueRemboursement(resa(1, 2)).raison, /3 jours avant l'arrivée/);
+  process.env.ACOMPTE_REMBOURSABLE_APRES_PAIEMENT_JOURS = '3';
+  t.after(() => { delete process.env.ACOMPTE_REMBOURSABLE_APRES_PAIEMENT_JOURS; });
+  assert.equal(politiqueRemboursement(resa(4, 30)).remboursable, false, 'délai réglable');
+
+  // Annulation acceptée hors délai : pas de retour PI-SPI, acompte conservé ; l'admin peut rembourser quand même
+  const PiSpiLocal = require('../services/paiement/PiSpiClient');
+  const retours = [];
+  t.mock.method(PiSpiLocal, 'retournerFonds', async (e2e) => { retours.push(e2e); return { end2endId: e2e, retourStatut: 'IRREVOCABLE' }; });
+  const { id, headersAdmin, headersClient } = await reservationConfirmee(1, 400, 403, 'politique@example.com');
+  await api(`/api/reservations/${id}/status`, { method: 'PUT', headers: headersAdmin, body: { statut: 'confirmee' } });
+  await db.collection('reservations').updateOne({ id }, { $set: { acompte: { paye: true, montant: 40500, payeLe: jour(-10), txId: 'TXP', end2endId: 'E2E-P', methode: 'qr' } } });
+  const vueClient = (await api('/api/client/reservations', { headers: headersClient })).body.data[0];
+  assert.equal(vueClient.acompte.politique.remboursable, false);
+  await api(`/api/client/reservations/${id}/annulation`, { method: 'POST', headers: headersClient, body: {} });
+  await api(`/api/reservations/${id}/annulation`, { method: 'PUT', headers: headersAdmin, body: { decision: 'accepter' } });
+  let r = await db.collection('reservations').findOne({ id });
+  assert.equal(r.statut, 'annulee');
+  assert.equal(r.acompte.remboursement.statut, 'non_remboursable');
+  assert.deepEqual(retours, []);
+  const geste = await api(`/api/reservations/${id}/remboursement/relancer`, { method: 'POST', headers: headersAdmin });
+  assert.equal(geste.body.data.remboursement.statut, 'rembourse');
+  assert.deepEqual(retours, ['E2E-P']);
+});
