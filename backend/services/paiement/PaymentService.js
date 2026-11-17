@@ -25,6 +25,15 @@ const RAISONS = {
 };
 const messageRaison = (code) => RAISONS[code] || (code ? `Paiement refusé (code ${code}).` : 'Paiement refusé.');
 
+
+// Nettoie une adresse de paiement saisie ou collée : espaces, tirets typographiques (iOS),
+// majuscules ; accepte aussi 32 caractères sans tirets.
+const normaliserAlias = (valeur) => {
+  const brut = String(valeur || '').toLowerCase().replace(/[‐-―−﹘﹣－]/g, '-').replace(/[^0-9a-f-]/g, '');
+  const hex = brut.replace(/-/g, '');
+  return hex.length === 32 ? `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}` : brut;
+};
+
 class ErreurPaiement extends Error {
   constructor(message, status = 400) {
     super(message);
@@ -69,7 +78,7 @@ class PaymentService {
 
     let alias = null;
     if (methode === 'demande') {
-      alias = String(payeurAlias || '').trim().toLowerCase();
+      alias = normaliserAlias(payeurAlias);
       if (!PiSpi.UUID_V4.test(alias)) {
         throw new ErreurPaiement('Adresse de paiement invalide : copiez-la depuis l\'application de votre banque (format xxxxxxxx-xxxx-4xxx-xxxx-xxxxxxxxxxxx).');
       }
@@ -295,4 +304,5 @@ class PaymentService {
 const service = new PaymentService();
 service.ErreurPaiement = ErreurPaiement;
 service.messageRaison = messageRaison;
+service.normaliserAlias = normaliserAlias;
 module.exports = service;
