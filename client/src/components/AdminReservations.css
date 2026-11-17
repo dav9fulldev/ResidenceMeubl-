@@ -142,3 +142,13 @@
 .reservation-card:has(.reservation-demande) {
   border-left-color: #ea580c;
 }
+
+.reservation-acompte {
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 0.85rem;
+}
+
+.reservation-acompte.paye { background: #d1fae5; color: #065f46 !important; }
+.reservation-acompte.attente { background: #fef3c7; color: #92400e !important; }
+.reservation-acompte.doublon { background: #fee2e2; color: #991b1b !important; font-weight: 600; }

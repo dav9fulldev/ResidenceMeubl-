@@ -10,7 +10,8 @@
 const PiSpi = require('./PiSpiClient');
 
 const DUREE_QR_MS = 15 * 60 * 1000;      // durée de validité d'un QR affiché
-const DUREE_DEMANDE_MS = 5 * 60 * 1000;  // délai laissé au client pour valider dans sa banque
+// La banque garde la demande valable ~3 mois (sandbox) : on la suit pendant 7 jours
+const DUREE_DEMANDE_MS = 7 * 24 * 60 * 60 * 1000;
 const MARGE_VERIFICATION_MS = 3 * 60 * 1000; // on vérifie encore un peu après l'expiration
 
 function mode() {
@@ -55,6 +56,7 @@ function etatAcompte(r) {
     methode: paye ? r.acompte.methode : null,
     possible,
     enCours: enCours ? { txId: enCours.txId, methode: enCours.methode, expireLe: enCours.expireLe } : null,
+    doublons: (r.paiements || []).filter(p => p.statut === 'doublon').map(p => ({ txId: p.txId, montant: p.montant, payeLe: p.payeLe })),
   };
 }
 

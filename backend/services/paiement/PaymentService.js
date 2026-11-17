@@ -61,6 +61,12 @@ class PaymentService {
       throw new ErreurPaiement('Le paiement de l\'acompte est possible une fois la réservation confirmée');
     }
 
+    // Une demande déjà envoyée et toujours valable est réutilisée (évite un double paiement)
+    const enCours = acompte.paiementEnCours(r);
+    if (enCours && enCours.methode === 'demande' && methode === 'demande') {
+      return { txId: enCours.txId, methode: 'demande', montant: enCours.montant, expireLe: enCours.expireLe, dejaEnvoyee: true };
+    }
+
     let alias = null;
     if (methode === 'demande') {
       alias = String(payeurAlias || '').trim().toLowerCase();
@@ -117,7 +123,8 @@ class PaymentService {
     const r = await this.collection.findOne({ 'paiements.txId': txId }, { projection: { _id: 0 } });
     if (!r) return null;
     const p = r.paiements.find(x => x.txId === txId);
-    if (p.statut !== 'en_attente' || acompte.mode() !== 'pispi') return p;
+    // « expire » reste vérifiable : un client peut payer une demande après notre délai
+    if (!['en_attente', 'expire'].includes(p.statut) || acompte.mode() !== 'pispi') return p;
 
     const dernier = derniereVerification.get(txId) || 0;
     if (!forcer && Date.now() - dernier < 3000) return p;
@@ -138,7 +145,7 @@ class PaymentService {
       console.error(`⚠️ Vérification PI-SPI impossible (${txId}) :`, error.message);
     }
 
-    if (Date.now() > new Date(p.expireLe).getTime() + acompte.MARGE_VERIFICATION_MS) {
+    if (p.statut === 'en_attente' && Date.now() > new Date(p.expireLe).getTime() + acompte.MARGE_VERIFICATION_MS) {
       return this.cloturer(r.id, txId, 'expire', 'Délai dépassé');
     }
     return p;
@@ -160,8 +167,18 @@ class PaymentService {
     const avant = await this.collection.findOne({ id: reservationId }, { projection: { _id: 0 } });
     const p = avant.paiements.find(x => x.txId === txId);
     const maintenant = new Date();
+    // Acompte déjà réglé par un autre paiement : doublon à rembourser, signalé à l'admin
+    if (avant.acompte?.paye && avant.acompte.txId !== txId) {
+      await this.collection.updateOne(
+        { id: reservationId, 'paiements.txId': txId },
+        { $set: { 'paiements.$.statut': 'doublon', 'paiements.$.payeLe': maintenant, 'paiements.$.end2endId': end2endId, 'paiements.$.raison': 'Acompte déjà réglé : à rembourser' } }
+      );
+      console.error(`⚠️ Paiement en double sur ${reservationId} (${txId}) : à rembourser`);
+      const maj = await this.collection.findOne({ id: reservationId }, { projection: { _id: 0 } });
+      return maj.paiements.find(x => x.txId === txId);
+    }
     const resultat = await this.collection.updateOne(
-      { id: reservationId, 'acompte.paye': { $ne: true }, paiements: { $elemMatch: { txId, statut: 'en_attente' } } },
+      { id: reservationId, 'acompte.paye': { $ne: true }, paiements: { $elemMatch: { txId, statut: { $in: ['en_attente', 'expire'] } } } },
       {
         $set: {
           'paiements.$.statut': 'paye',
@@ -251,8 +268,10 @@ class PaymentService {
     const reservations = await this.collection
       .find({ paiements: { $elemMatch: { statut: 'en_attente', expireLe: { $gt: limite } } } }, { projection: { paiements: 1 } })
       .toArray();
+    // Suivi rapproché pendant 15 min ; ensuite webhook + vérification à l'ouverture de la page
+    const recent = Date.now() - 15 * 60 * 1000;
     for (const r of reservations) {
-      for (const p of r.paiements.filter(x => x.statut === 'en_attente')) {
+      for (const p of r.paiements.filter(x => x.statut === 'en_attente' && new Date(x.creeLe).getTime() > recent)) {
         await this.verifier(p.txId);
       }
     }

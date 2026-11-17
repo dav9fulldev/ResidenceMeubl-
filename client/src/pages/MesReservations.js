@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { FaSearch, FaEnvelope, FaSignOutAlt } from 'react-icons/fa';
 import { API_ENDPOINTS, apiRequest, getClientToken, setClientToken } from '../config/api';
+import PaiementAcompte from '../components/PaiementAcompte';
 import './MesReservations.css';
 
 const STATUTS = {
@@ -34,6 +35,7 @@ const MesReservations = () => {
   const [cancelId, setCancelId] = useState(null);
   const [motif, setMotif] = useState('');
   const [sending, setSending] = useState(false);
+  const [paiementPour, setPaiementPour] = useState(null); // réservation dont on paie l'acompte
 
   // Lien reçu par email : ?acces=<jeton> → mémoriser puis retirer de l'adresse
   useEffect(() => {
@@ -211,6 +213,20 @@ const MesReservations = () => {
                   <p><strong>Du {formatDate(r.dates.arrivee)} au {formatDate(r.dates.depart)}</strong> · {r.nombrePersonnes} pers.</p>
                   <p>{Number(r.prixTotal).toLocaleString('fr-FR')} FCFA · Réf. {r.id}</p>
 
+                  {r.acompte?.paye && (
+                    <p className="demande-info acceptee">💰 Acompte de {Number(r.acompte.montant).toLocaleString('fr-FR')} FCFA reçu le {formatDate(r.acompte.payeLe)}.</p>
+                  )}
+                  {r.acompte?.possible && (
+                    <div className="acompte-bloc">
+                      <p>
+                        Garantissez votre séjour : acompte de <strong>{Number(r.acompte.montant).toLocaleString('fr-FR')} FCFA</strong> ({r.acompte.pourcentage} %).
+                      </p>
+                      <button type="button" className="btn btn-primary btn-sm" onClick={() => setPaiementPour(r)}>
+                        Payer l'acompte avec PI-SPI
+                      </button>
+                    </div>
+                  )}
+
                   {demande?.statut === 'en_attente' && (
                     <p className="demande-info attente">⏳ Demande d'annulation envoyée le {formatDate(demande.dateDemande)} : en attente de réponse.</p>
                   )}
@@ -252,6 +268,15 @@ const MesReservations = () => {
             );
           })}
         </div>
+
+        {paiementPour && (
+          <PaiementAcompte
+            reservation={paiementPour}
+            token={token}
+            onPaye={() => charger()}
+            onFermer={() => { setPaiementPour(null); charger(); }}
+          />
+        )}
 
         <p className="mes-reservations-footer">
           <Link to="/residences">Réserver un nouveau séjour</Link>

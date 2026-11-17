@@ -860,3 +860,37 @@ test('client PI-SPI : jeton OAuth2 en cache, x-api-key, nouvel essai sur 401, 40
   assert.equal(corps.dateLimitePaiement, undefined, 'refusé par le sandbox pour la catégorie 521');
   assert.equal(demande.url.startsWith('https://participant.exemple.test/piz/v1/'), true);
 });
+
+test('acompte : demande réutilisée, paiement tardif accepté, doublon signalé', async (t) => {
+  configurerPiSpi(t, { PAIEMENT_MODE: 'pispi' });
+  ReservationService.emailService.sendAcompteRecu = async () => {};
+  ReservationService.emailService.sendAcompteRecuAdmin = async () => {};
+  const { id, headersAdmin, headersClient } = await reservationConfirmee(1, 150, 153, 'doublon@example.com');
+  await api(`/api/reservations/${id}/status`, { method: 'PUT', headers: headersAdmin, body: { statut: 'confirmee' } });
+  let envoyees = 0;
+  t.mock.method(PiSpi, 'creerDemandePaiement', async (a) => { envoyees += 1; return { txId: a.txId, statut: 'ENVOYE' }; });
+  t.mock.method(PiSpi, 'lireDemandePaiement', async () => ({ statut: 'ENVOYE' }));
+  const payes = new Set();
+  t.mock.method(PiSpi, 'lirePaiementRecu', async (txId) => (payes.has(txId) ? { txId, statut: 'IRREVOCABLE', montant: 999999, end2endId: 'E2E-' + txId } : null));
+
+  const d1 = await api(`/api/client/reservations/${id}/acompte`, { method: 'POST', headers: headersClient, body: { methode: 'demande', payeurAlias: ALIAS_CLIENT } });
+  const d2 = await api(`/api/client/reservations/${id}/acompte`, { method: 'POST', headers: headersClient, body: { methode: 'demande', payeurAlias: ALIAS_CLIENT } });
+  assert.equal(d2.body.data.txId, d1.body.data.txId, 'même demande réutilisée');
+  assert.equal(d2.body.data.dejaEnvoyee, true);
+  assert.equal(envoyees, 1);
+
+  // Le client génère aussi un QR, puis paie les deux
+  const qr = await api(`/api/client/reservations/${id}/acompte`, { method: 'POST', headers: headersClient, body: { methode: 'qr' } });
+  // La demande a expiré de notre côté mais est payée plus tard : acceptée
+  await db.collection('reservations').updateOne({ id, 'paiements.txId': d1.body.data.txId }, { $set: { 'paiements.$.statut': 'expire' } });
+  payes.add(d1.body.data.txId);
+  await PaymentService.verifier(d1.body.data.txId, { forcer: true });
+  let vue = (await api('/api/reservations', { headers: headersAdmin })).body.data.find(r => r.id === id);
+  assert.equal(vue.acompte.paye, true);
+
+  payes.add(qr.body.data.txId);
+  await PaymentService.verifier(qr.body.data.txId, { forcer: true });
+  vue = (await api('/api/reservations', { headers: headersAdmin })).body.data.find(r => r.id === id);
+  assert.equal(vue.acompte.doublons.length, 1, 'doublon à rembourser signalé');
+  assert.equal(vue.acompte.doublons[0].txId, qr.body.data.txId);
+});

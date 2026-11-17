@@ -37,3 +37,22 @@ services:
         sync: false
       - key: VOYAGE_API_KEY
         sync: false
+      # Paiement de l'acompte PI-SPI
+      - key: PISPI_BASE_URL
+        sync: false
+      - key: PISPI_TOKEN_URL
+        sync: false
+      - key: PISPI_PARTICIPANT_CODE
+        sync: false
+      - key: PISPI_CLIENT_ID
+        sync: false
+      - key: PISPI_CLIENT_SECRET
+        sync: false
+      - key: PISPI_API_KEY
+        sync: false
+      - key: PISPI_SCOPES
+        sync: false
+      - key: PISPI_PAYEE_ALIAS
+        sync: false
+      - key: PISPI_WEBHOOK_SECRET
+        sync: false

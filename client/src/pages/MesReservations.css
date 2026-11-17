@@ -209,3 +209,19 @@
     padding: 0 16px 16px;
   }
 }
+
+.acompte-bloc {
+  margin-top: 10px;
+  padding: 12px;
+  border-radius: 10px;
+  background: rgba(212, 175, 55, 0.12);
+  border: 1px solid rgba(212, 175, 55, 0.4);
+}
+
+.acompte-bloc p {
+  margin: 0 0 8px !important;
+}
+
+.acompte-bloc .btn {
+  margin-top: 0 !important;
+}
