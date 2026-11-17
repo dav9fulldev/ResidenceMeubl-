@@ -1,109 +1,96 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
-import { FaSignOutAlt, FaCog, FaUsers, FaHome, FaCalendarAlt, FaCheckCircle } from 'react-icons/fa';
+import { Link } from 'react-router-dom';
+import { FaHome, FaCheckCircle, FaUsers, FaCalendarAlt, FaCog, FaArrowRight, FaUndo, FaHourglassHalf } from 'react-icons/fa';
 import { useResidences } from '../context/ResidencesContext';
-import AdminPanel from '../components/AdminPanel';
-import AdminReservations from '../components/AdminReservations';
+import useAdminReservations from '../hooks/useAdminReservations';
 import './AdminDashboard.css';
 
+const formatDate = (d) => (d ? new Date(d).toLocaleDateString('fr-FR') : '—');
+
+/**
+ * Vue d'ensemble du back-office : chiffres clés et éléments à traiter.
+ */
 const AdminDashboard = () => {
-  const navigate = useNavigate();
-  const { logoutAdmin, residences } = useResidences();
+  const { residences } = useResidences();
+  const { reservations, demandes, enAttente, loading } = useAdminReservations();
 
-  const handleLogout = () => {
-    logoutAdmin();
-    navigate('/admin/login');
-  };
+  const compte = (statut) => residences.filter(r => r.availability.status === statut).length;
+  const cartes = [
+    { cle: 'total', icone: <FaHome />, nombre: residences.length, libelle: 'Résidences' },
+    { cle: 'available', icone: <FaCheckCircle />, nombre: compte('disponible'), libelle: 'Disponibles' },
+    { cle: 'occupied', icone: <FaUsers />, nombre: compte('occupé'), libelle: 'Occupées' },
+    { cle: 'reserved', icone: <FaCalendarAlt />, nombre: compte('réservé'), libelle: 'Réservées' },
+    { cle: 'maintenance', icone: <FaCog />, nombre: compte('maintenance'), libelle: 'Maintenance' },
+  ];
 
-  // Statistiques
-  const totalResidences = residences.length;
-  const availableResidences = residences.filter(r => r.availability.status === 'disponible').length;
-  const occupiedResidences = residences.filter(r => r.availability.status === 'occupé').length;
-  const reservedResidences = residences.filter(r => r.availability.status === 'réservé').length;
-  const maintenanceResidences = residences.filter(r => r.availability.status === 'maintenance').length;
+  const confirmees = reservations.filter(r => r.statut === 'confirmee');
+  const chiffreAffaires = confirmees.reduce((total, r) => total + (Number(r.prixTotal) || 0), 0);
+  const aTraiter = [
+    ...demandes.map(r => ({ r, type: 'demande' })),
+    ...enAttente.filter(r => r.demandeAnnulation?.statut !== 'en_attente').map(r => ({ r, type: 'attente' })),
+  ];
 
   return (
-    <div className="admin-dashboard">
-      {/* Header du dashboard */}
-      <header className="admin-dashboard-header">
-        <div className="admin-dashboard-title">
-          <h1>🛠️ Dashboard Administrateur</h1>
-          <p>Gestion des résidences Sankofart</p>
+    <div className="admin-overview">
+      <div className="admin-page-header">
+        <div>
+          <h1>Vue d'ensemble</h1>
+          <p>Bonjour 👋 Voici l'état de vos résidences aujourd'hui.</p>
         </div>
-        
-        <div className="admin-dashboard-actions">
-          <button className="btn btn-outline btn-header" onClick={() => navigate('/')}>
-            <FaHome />
-            Voir le site
-          </button>
-          <button className="btn btn-secondary btn-header" onClick={handleLogout}>
-            <FaSignOutAlt />
-            Déconnexion
-          </button>
-        </div>
-      </header>
+      </div>
 
-      {/* Statistiques rapides */}
-      <section className="admin-stats-overview">
-        <div className="stat-card-overview total">
-          <div className="stat-icon total">
-            <FaHome />
+      <section className="overview-stats" aria-label="Résidences">
+        {cartes.map(c => (
+          <div key={c.cle} className={`overview-stat ${c.cle}`}>
+            <span className="overview-stat-icon">{c.icone}</span>
+            <span className="overview-stat-number">{c.nombre}</span>
+            <span className="overview-stat-label">{c.libelle}</span>
           </div>
-          <div className="stat-content">
-            <span className="stat-number">{totalResidences}</span>
-            <span className="stat-label">Total Résidences</span>
-          </div>
-        </div>
-
-        <div className="stat-card-overview available">
-          <div className="stat-icon available">
-            <FaCheckCircle />
-          </div>
-          <div className="stat-content">
-            <span className="stat-number">{availableResidences}</span>
-            <span className="stat-label">Disponibles</span>
-          </div>
-        </div>
-
-        <div className="stat-card-overview occupied">
-          <div className="stat-icon occupied">
-            <FaUsers />
-          </div>
-          <div className="stat-content">
-            <span className="stat-number">{occupiedResidences}</span>
-            <span className="stat-label">Occupées</span>
-          </div>
-          <span className="stat-subtitle">En cours</span>
-        </div>
-
-        <div className="stat-card-overview reserved">
-          <div className="stat-icon reserved">
-            <FaCalendarAlt />
-          </div>
-          <div className="stat-content">
-            <span className="stat-number">{reservedResidences}</span>
-            <span className="stat-label">Réservées</span>
-          </div>
-          <span className="stat-subtitle">À venir</span>
-        </div>
-
-        <div className="stat-card-overview maintenance">
-          <div className="stat-icon maintenance">
-            <FaCog />
-          </div>
-          <div className="stat-content">
-            <span className="stat-number">{maintenanceResidences}</span>
-            <span className="stat-label">Maintenance</span>
-          </div>
-          <span className="stat-subtitle">En cours</span>
-        </div>
+        ))}
       </section>
 
-      {/* Réservations reçues */}
-      <AdminReservations />
+      <div className="overview-grid">
+        <section className="overview-card">
+          <div className="overview-card-header">
+            <h2>À traiter</h2>
+            <Link to="/admin/reservations">Tout voir <FaArrowRight /></Link>
+          </div>
+          {loading ? (
+            <p className="overview-empty">Chargement…</p>
+          ) : aTraiter.length === 0 ? (
+            <p className="overview-empty">✅ Rien à traiter pour le moment.</p>
+          ) : (
+            <ul className="todo-list">
+              {aTraiter.slice(0, 6).map(({ r, type }) => (
+                <li key={`${type}-${r.id}`}>
+                  <Link to="/admin/reservations" className={`todo-item ${type}`}>
+                    <span className="todo-icon">{type === 'demande' ? <FaUndo /> : <FaHourglassHalf />}</span>
+                    <span className="todo-text">
+                      <strong>{r.client.prenom} {r.client.nom}</strong>
+                      <span>
+                        {type === 'demande' ? 'Demande d\'annulation' : 'Réservation à confirmer'} · {r.residence?.nom} · {formatDate(r.dates.arrivee)}
+                      </span>
+                    </span>
+                    <FaArrowRight className="todo-arrow" />
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
 
-      {/* Panel de gestion principal */}
-      <AdminPanel />
+        <section className="overview-card">
+          <div className="overview-card-header">
+            <h2>Réservations</h2>
+          </div>
+          <dl className="overview-figures">
+            <div><dt>En attente</dt><dd>{enAttente.length}</dd></div>
+            <div><dt>Confirmées</dt><dd>{confirmees.length}</dd></div>
+            <div><dt>Demandes d'annulation</dt><dd>{demandes.length}</dd></div>
+            <div><dt>Montant confirmé</dt><dd>{chiffreAffaires.toLocaleString('fr-FR')} <small>FCFA</small></dd></div>
+          </dl>
+        </section>
+      </div>
     </div>
   );
 };

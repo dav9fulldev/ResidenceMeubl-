@@ -34,9 +34,10 @@ export const API_ENDPOINTS = {
 
 const TOKEN_KEY = 'adminToken';
 
+// localStorage : l'admin reste connecté dans l'application installée (le jeton expire après 8 h)
 export const getAdminToken = () => {
   try {
-    return sessionStorage.getItem(TOKEN_KEY);
+    return localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY);
   } catch {
     return null;
   }
@@ -44,8 +45,9 @@ export const getAdminToken = () => {
 
 export const setAdminToken = (token) => {
   try {
-    if (token) sessionStorage.setItem(TOKEN_KEY, token);
-    else sessionStorage.removeItem(TOKEN_KEY);
+    if (token) localStorage.setItem(TOKEN_KEY, token);
+    else localStorage.removeItem(TOKEN_KEY);
+    sessionStorage.removeItem(TOKEN_KEY); // ancien emplacement
   } catch {
     // stockage indisponible (navigation privée) : la session ne survivra pas au rechargement
   }

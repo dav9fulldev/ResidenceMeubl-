@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FaLock, FaUser, FaEye, FaEyeSlash } from 'react-icons/fa';
 import { useResidences } from '../context/ResidencesContext';
@@ -6,7 +6,12 @@ import './AdminLogin.css';
 
 const AdminLogin = () => {
   const navigate = useNavigate();
-  const { loginAdmin } = useResidences();
+  const { loginAdmin, isAdmin } = useResidences();
+
+  // Déjà connecté (application installée rouverte) : aller directement au back-office
+  useEffect(() => {
+    if (isAdmin) navigate('/admin/dashboard', { replace: true });
+  }, [isAdmin, navigate]);
   const [credentials, setCredentials] = useState({
     username: '',
     password: ''
