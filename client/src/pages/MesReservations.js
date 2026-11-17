@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { FaSearch, FaEnvelope, FaSignOutAlt } from 'react-icons/fa';
 import { API_ENDPOINTS, apiRequest, getClientToken, setClientToken } from '../config/api';
-import PaiementAcompte from '../components/PaiementAcompte';
+import PaiementAcompte, { preparerPaiementDirect } from '../components/PaiementAcompte';
 import './MesReservations.css';
 
 const STATUTS = {
@@ -36,6 +36,12 @@ const MesReservations = () => {
   const [motif, setMotif] = useState('');
   const [sending, setSending] = useState(false);
   const [paiementPour, setPaiementPour] = useState(null); // réservation dont on paie l'acompte
+  const [paiementDirect, setPaiementDirect] = useState(null);
+
+  const ouvrirPaiement = (r) => {
+    setPaiementDirect(preparerPaiementDirect(r)); // à faire pendant le geste (ouverture d'onglet)
+    setPaiementPour(r);
+  };
 
   // Lien reçu par email : ?acces=<jeton> → mémoriser puis retirer de l'adresse
   useEffect(() => {
@@ -221,7 +227,7 @@ const MesReservations = () => {
                       <p>
                         Garantissez votre séjour : acompte de <strong>{Number(r.acompte.montant).toLocaleString('fr-FR')} FCFA</strong> ({r.acompte.pourcentage} %).
                       </p>
-                      <button type="button" className="btn btn-primary btn-sm" onClick={() => setPaiementPour(r)}>
+                      <button type="button" className="btn btn-primary btn-sm" onClick={() => ouvrirPaiement(r)}>
                         Payer l'acompte avec PI-SPI
                       </button>
                     </div>
@@ -272,9 +278,10 @@ const MesReservations = () => {
         {paiementPour && (
           <PaiementAcompte
             reservation={paiementPour}
+            direct={paiementDirect}
             token={token}
             onPaye={() => charger()}
-            onFermer={() => { setPaiementPour(null); charger(); }}
+            onFermer={() => { setPaiementPour(null); setPaiementDirect(null); charger(); }}
           />
         )}
 

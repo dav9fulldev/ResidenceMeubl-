@@ -24,7 +24,20 @@ const fcfa = (n) => `${Number(n || 0).toLocaleString('fr-FR')} FCFA`;
  * Paiement de l'acompte par PI-SPI : QR Code dynamique ou demande vers l'adresse de paiement.
  * Le statut est suivi jusqu'à confirmation (IRREVOCABLE côté serveur).
  */
-const PaiementAcompte = ({ reservation, token, onPaye, onFermer }) => {
+/**
+ * Paiement en un geste sur téléphone : si l'adresse est mémorisée et qu'une application de paiement
+ * est configurée, on ouvre l'onglet tout de suite (pendant le geste, sinon le navigateur bloque),
+ * puis on envoie la demande et on y charge l'application.
+ */
+export const preparerPaiementDirect = (reservation) => {
+  const alias = lireAliasMemorise();
+  const mobile = window.matchMedia?.('(max-width: 768px)').matches;
+  if (!mobile || !UUID_V4.test(alias) || !reservation.acompte?.appUrl) return null;
+  const fenetre = window.open('', '_blank');
+  return { alias, fenetre };
+};
+
+const PaiementAcompte = ({ reservation, token, onPaye, onFermer, direct = null }) => {
   const a = reservation.acompte;
   const mobile = typeof window !== 'undefined' && window.matchMedia?.('(max-width: 768px)').matches;
   const [methode, setMethode] = useState(mobile ? 'demande' : 'qr');
@@ -72,6 +85,19 @@ const PaiementAcompte = ({ reservation, token, onPaye, onFermer }) => {
       document.removeEventListener('visibilitychange', auRetour);
     };
   }, [paiement, statut, urlAcompte, token, onPaye]);
+
+  // Paiement en un geste : envoi immédiat puis ouverture de l'application de paiement
+  useEffect(() => {
+    if (!direct) return;
+    (async () => {
+      const ok = await demarrer(direct.alias);
+      if (direct.fenetre && !direct.fenetre.closed) {
+        if (ok) direct.fenetre.location.href = a.appUrl;
+        else direct.fenetre.close();
+      }
+      if (ok && !direct.fenetre) window.location.href = a.appUrl;
+    })();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Adresse trouvée (QR scanné, image importée ou collée)
   const utiliserTexte = (texte) => {
@@ -144,10 +170,10 @@ const PaiementAcompte = ({ reservation, token, onPaye, onFermer }) => {
     setErreur('');
     setMessage('');
     const aliasPropre = normaliserAlias(aliasForce ?? alias);
-    if (methode === 'demande' && !UUID_V4.test(aliasPropre)) {
+    if ((aliasForce || methode === 'demande') && !UUID_V4.test(aliasPropre)) {
       const n = aliasPropre.replace(/-/g, '').length;
       setErreur(`Adresse de paiement incomplète ou incorrecte (${n} caractères sur 32). Le plus simple : copiez-la depuis l'application de votre banque et collez-la ici.`);
-      return;
+      return false;
     }
     setEnvoi(true);
     try {
@@ -158,8 +184,10 @@ const PaiementAcompte = ({ reservation, token, onPaye, onFermer }) => {
       setPaiement(r.data);
       setStatut('en_attente');
       if (aliasForce || methode === 'demande') memoriserAlias(memoriser ? aliasPropre : '');
+      return true;
     } catch (err) {
       setErreur(err.message);
+      return false;
     } finally {
       setEnvoi(false);
     }
