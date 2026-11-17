@@ -56,3 +56,5 @@ services:
         sync: false
       - key: PISPI_WEBHOOK_SECRET
         sync: false
+      - key: PISPI_APP_URL
+        sync: false

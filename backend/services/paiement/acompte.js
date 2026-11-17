@@ -6,6 +6,8 @@
  *                        Par défaut : « pispi » si PI-SPI est configuré, sinon « desactive ».
  *                        « simulation » est réservé aux démonstrations : tout le monde peut « payer ».
  *   ACOMPTE_POURCENTAGE  pourcentage du séjour à régler (défaut 30)
+ *   PISPI_APP_URL        lien « Ouvrir l'application » montré après l'envoi d'une demande
+ *                        (sandbox : https://client.simulateurs.pi-bceao.com). Vide = pas de bouton.
  */
 const PiSpi = require('./PiSpiClient');
 
@@ -55,6 +57,7 @@ function etatAcompte(r) {
     payeLe: paye ? r.acompte.payeLe : null,
     methode: paye ? r.acompte.methode : null,
     possible,
+    appUrl: /^https:\/\//.test((process.env.PISPI_APP_URL || '').trim()) ? process.env.PISPI_APP_URL.trim() : null,
     enCours: enCours ? { txId: enCours.txId, methode: enCours.methode, expireLe: enCours.expireLe } : null,
     doublons: (r.paiements || []).filter(p => p.statut === 'doublon').map(p => ({ txId: p.txId, montant: p.montant, payeLe: p.payeLe })),
   };

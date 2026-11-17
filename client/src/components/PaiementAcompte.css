@@ -282,3 +282,42 @@
     padding: 20px 16px calc(16px + env(safe-area-inset-bottom));
   }
 }
+
+.acompte-rapide {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.acompte-rapide .lien {
+  border: none;
+  background: none;
+  padding: 0;
+  color: #b8941f;
+  text-decoration: underline;
+  cursor: pointer;
+  font: inherit;
+}
+
+.acompte-separateur {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  margin: 4px 0;
+}
+
+.acompte-separateur::before,
+.acompte-separateur::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.acompte-ouvrir-app {
+  justify-content: center;
+  text-align: center;
+  text-decoration: none;
+}

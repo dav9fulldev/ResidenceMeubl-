@@ -29,6 +29,7 @@ const PaiementAcompte = ({ reservation, token, onPaye, onFermer }) => {
   const mobile = typeof window !== 'undefined' && window.matchMedia?.('(max-width: 768px)').matches;
   const [methode, setMethode] = useState(mobile ? 'demande' : 'qr');
   const [alias, setAlias] = useState(lireAliasMemorise);
+  const [aliasMemorise, setAliasMemorise] = useState(lireAliasMemorise);
   const [memoriser, setMemoriser] = useState(true);
   const [scan, setScan] = useState(false);
   const [lecture, setLecture] = useState(false);
@@ -139,10 +140,10 @@ const PaiementAcompte = ({ reservation, token, onPaye, onFermer }) => {
     };
   }, [scan]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const demarrer = async () => {
+  const demarrer = async (aliasForce) => {
     setErreur('');
     setMessage('');
-    const aliasPropre = normaliserAlias(alias);
+    const aliasPropre = normaliserAlias(aliasForce ?? alias);
     if (methode === 'demande' && !UUID_V4.test(aliasPropre)) {
       const n = aliasPropre.replace(/-/g, '').length;
       setErreur(`Adresse de paiement incomplète ou incorrecte (${n} caractères sur 32). Le plus simple : copiez-la depuis l'application de votre banque et collez-la ici.`);
@@ -152,11 +153,11 @@ const PaiementAcompte = ({ reservation, token, onPaye, onFermer }) => {
     try {
       const r = await apiRequest(urlAcompte, {
         method: 'POST', token,
-        body: methode === 'demande' ? { methode, payeurAlias: aliasPropre } : { methode },
+        body: (aliasForce || methode === 'demande') ? { methode: 'demande', payeurAlias: aliasPropre } : { methode },
       });
       setPaiement(r.data);
       setStatut('en_attente');
-      if (methode === 'demande') memoriserAlias(memoriser ? aliasPropre : '');
+      if (aliasForce || methode === 'demande') memoriserAlias(memoriser ? aliasPropre : '');
     } catch (err) {
       setErreur(err.message);
     } finally {
@@ -198,6 +199,15 @@ const PaiementAcompte = ({ reservation, token, onPaye, onFermer }) => {
           </div>
         ) : !paiement ? (
           <>
+            {aliasMemorise && UUID_V4.test(aliasMemorise) && (
+              <div className="acompte-rapide">
+                <button type="button" className="btn btn-primary acompte-valider" onClick={() => demarrer(aliasMemorise)} disabled={envoi}>
+                  {envoi ? 'Envoi…' : `Payer ${fcfa(a.montant)} avec mon adresse enregistrée`}
+                </button>
+                <p className="acompte-astuce">Adresse : …{aliasMemorise.slice(-6)} · <button type="button" className="lien" onClick={() => { memoriserAlias(''); setAliasMemorise(''); setAlias(''); }}>en utiliser une autre</button></p>
+                <div className="acompte-separateur"><span>ou</span></div>
+              </div>
+            )}
             <div className="acompte-methodes" role="tablist">
               {mobile ? (<><button type="button" role="tab" aria-selected={methode === 'demande'} className={methode === 'demande' ? 'active' : ''} onClick={() => setMethode('demande')}>
                 <FaMobileAlt /> {mobile ? 'Sur ce téléphone' : 'Demande dans mon appli'}
@@ -263,7 +273,7 @@ const PaiementAcompte = ({ reservation, token, onPaye, onFermer }) => {
             )}
 
             {erreur && <div className="error-message" role="alert">{erreur}</div>}
-            <button type="button" className="btn btn-primary acompte-valider" onClick={demarrer} disabled={envoi}>
+            <button type="button" className="btn btn-primary acompte-valider" onClick={() => demarrer()} disabled={envoi}>
               {envoi ? 'Patientez…' : methode === 'qr' ? 'Afficher le QR Code' : 'Envoyer la demande'}
             </button>
           </>
@@ -278,6 +288,7 @@ const PaiementAcompte = ({ reservation, token, onPaye, onFermer }) => {
                 <p>Scannez ce QR Code avec l'application de votre banque, puis validez le paiement de <strong>{fcfa(paiement.montant)}</strong>.</p>
               </div>
             ) : (
+              <>
               <div className="acompte-envoyee">
                 <FaMobileAlt />
                 <p>
@@ -287,6 +298,12 @@ const PaiementAcompte = ({ reservation, token, onPaye, onFermer }) => {
                   Revenez ensuite sur cette page : elle se met à jour toute seule.
                 </p>
               </div>
+              {a.appUrl && (
+                <a className="btn btn-primary acompte-ouvrir-app" href={a.appUrl} target="_blank" rel="noopener noreferrer">
+                  Ouvrir l'application PI-SPI pour payer
+                </a>
+              )}
+              </>
             )}
 
             {statut === 'en_attente' && (
