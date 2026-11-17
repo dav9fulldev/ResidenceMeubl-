@@ -1,2 +1,0 @@
-# URL de l'API backend (sur Vercel : à définir dans Settings > Environment Variables)
-REACT_APP_API_URL=http://localhost:5001/api
