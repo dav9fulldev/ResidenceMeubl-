@@ -1,5 +1,5 @@
 import React from 'react';
-import { FaCalendarAlt, FaClock, FaCheckCircle, FaExclamationTriangle, FaInfoCircle } from 'react-icons/fa';
+import { FaCalendarAlt, FaClock, FaCheckCircle, FaExclamationTriangle, FaInfoCircle, FaUser } from 'react-icons/fa';
 import './AvailabilityStatus.css';
 
 const AvailabilityStatus = ({ availability, onReserve }) => {

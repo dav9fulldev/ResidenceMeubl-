@@ -1,0 +1,39 @@
+.not-found {
+  min-height: 60vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 16px;
+}
+
+.not-found-carte {
+  max-width: 480px;
+  text-align: center;
+}
+
+.not-found .not-found-code {
+  margin: 0;
+  font-size: 4.5rem;
+  font-weight: 800;
+  line-height: 1;
+  color: #d4af37;
+}
+
+.not-found h1 {
+  margin: 12px 0 8px;
+  font-size: 1.6rem;
+  color: var(--text);
+}
+
+.not-found p {
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+.not-found-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 20px;
+}

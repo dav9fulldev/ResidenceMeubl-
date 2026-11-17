@@ -103,6 +103,17 @@ body {
   --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
 }
 
+/* Conteneur commun : largeur maximale et marges latérales */
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
+@media (max-width: 640px) {
+  .container { padding: 0 16px; }
+}
+
 /* Styles des boutons globaux */
 .btn {
   display: inline-flex;
@@ -134,45 +145,52 @@ body {
 }
 
 .btn-secondary {
-  background: linear-gradient(135deg, var(--secondary-color), var(--secondary-dark));
-  color: white;
-  box-shadow: var(--shadow-md);
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm, 0 1px 2px rgba(0, 0, 0, 0.06));
 }
 
 .btn-secondary:hover {
-  background: linear-gradient(135deg, var(--secondary-dark), var(--secondary-color));
+  border-color: #d4af37;
   transform: translateY(-2px);
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--shadow-md);
 }
 
 .btn-outline {
   background: transparent;
-  color: var(--primary-color);
-  border: 2px solid var(--primary-color);
-  position: relative;
-  z-index: 1;
-}
-
-.btn-outline::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 0;
-  height: 100%;
-  background: var(--primary-color);
-  transition: width 0.3s ease;
-  z-index: -1;
-}
-
-.btn-outline:hover::before {
-  width: 100%;
+  color: #b8941f;
+  border: 2px solid #d4af37;
 }
 
 .btn-outline:hover {
-  color: white;
+  background: #d4af37;
+  color: #1a1a1a;
   transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
+}
+
+:root[data-theme="dark"] .btn-outline {
+  color: #f5d77a;
+}
+
+:root[data-theme="dark"] .btn-outline:hover {
+  color: #1a1a1a;
+}
+
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.btn:focus-visible {
+  outline: 3px solid rgba(212, 175, 55, 0.75);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn, .btn:hover { transition: none; transform: none; }
 }
 
 .btn-large {
@@ -276,4 +294,26 @@ svg {
     padding: 12px 24px;
     font-size: 14px;
   }
+}
+
+/* Lien d'évitement (clavier / lecteur d'écran) */
+.lien-evitement {
+  position: absolute;
+  left: 12px;
+  top: -60px;
+  z-index: 2000;
+  padding: 10px 16px;
+  border-radius: 8px;
+  background: #d4af37;
+  color: #1a1a1a;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.lien-evitement:focus {
+  top: 12px;
+}
+
+main:focus {
+  outline: none;
 }

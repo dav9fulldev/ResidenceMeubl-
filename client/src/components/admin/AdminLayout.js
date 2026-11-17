@@ -5,6 +5,7 @@ import {
   FaMoon, FaSun, FaDownload, FaTimes, FaCog,
 } from 'react-icons/fa';
 import { useResidences } from '../../context/ResidencesContext';
+import ErrorBoundary from '../ErrorBoundary';
 import useTheme from '../../hooks/useTheme';
 import useInstallPrompt from '../../hooks/useInstallPrompt';
 import useAdminReservations from '../../hooks/useAdminReservations';
@@ -53,7 +54,7 @@ const AdminLayout = () => {
   );
 
   const liens = [
-    { to: '/admin/dashboard', icone: <FaChartPie />, texte: 'Vue d\'ensemble' },
+    { to: '/admin/dashboard', icone: <FaChartPie />, texte: 'Vue d\'ensemble', court: 'Aperçu' },
     { to: '/admin/reservations', icone: <FaCalendarAlt />, texte: 'Réservations', badge: aTraiter },
     { to: '/admin/residences', icone: <FaHome />, texte: 'Résidences' },
     { to: '/admin/statistiques', icone: <FaChartLine />, texte: 'Statistiques' },
@@ -117,7 +118,9 @@ const AdminLayout = () => {
       </header>
 
       <main className="admin-main">
-        <Outlet />
+        <ErrorBoundary cle={location.pathname}>
+          <Outlet />
+        </ErrorBoundary>
       </main>
 
       {/* Onglets du bas (téléphone) */}
@@ -128,7 +131,7 @@ const AdminLayout = () => {
               {l.icone}
               {l.badge > 0 && <span className="admin-badge small">{l.badge}</span>}
             </span>
-            <span>{l.texte}</span>
+            <span>{l.court || l.texte}</span>
           </NavLink>
         ))}
       </nav>

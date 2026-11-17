@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { FaStar, FaBed, FaBath, FaUsers, FaArrowRight, FaMapMarkerAlt } from 'react-icons/fa';
+import { FaArrowRight } from 'react-icons/fa';
 import { useResidences } from '../context/ResidencesContext';
+import ResidenceCard from '../components/ResidenceCard';
 import './Home.css';
 
 // Vidéo légère sur téléphone (720p, ~1 Mo), plus nette sur ordinateur (1080p, ~2,4 Mo), sans son
@@ -149,74 +150,12 @@ const Home = () => {
             <p>Découvrez une sélection de nos meilleures résidences</p>
           </div>
           
-          <div className="residences-grid">
+          <div className="rc-grille featured-grid">
             {featuredResidences.map((residence) => (
-              <div key={residence.id} className="residence-card">
-                <div className="residence-image">
-                  <img 
-                    src={residence.images[0]} 
-                    alt={residence.name}
-                    className="residence-img"
-                  />
-                  
-                  {/* Badge de disponibilité */}
-                  <div className={`availability-badge ${residence.availability.status}`}>
-                    {residence.availability.status === 'disponible' && <span>✓ Disponible</span>}
-                    {residence.availability.status === 'occupé' && <span>👤 Occupé</span>}
-                    {residence.availability.status === 'réservé' && <span>⏰ Réservé</span>}
-                    {residence.availability.status === 'maintenance' && <span>🔧 Maintenance</span>}
-                  </div>
-                  
-                  <div className="residence-badge">
-                    <FaStar />
-                    <span>{residence.rating}</span>
-                  </div>
-                </div>
-                
-                <div className="residence-content">
-                  <h3>{residence.name}</h3>
-                  <p className="residence-location">
-                    <FaMapMarkerAlt />
-                    {residence.location}
-                  </p>
-                  
-                  <div className="residence-details">
-                    <span><FaBed /> {residence.bedrooms} chambres</span>
-                    <span><FaBath /> {residence.bathrooms} sdb</span>
-                    <span><FaUsers /> {residence.maxGuests} pers.</span>
-                  </div>
-                  
-                  <p className="residence-description">
-                    {residence.description.substring(0, 100)}...
-                  </p>
-                  
-                  <div className="residence-footer">
-                    <div className="residence-price">
-                      <span className="price">{residence.price.toLocaleString()}</span>
-                      <span className="currency">{residence.currency}</span>
-                      <span className="period">/{residence.period}</span>
-                    </div>
-                    
-                    <div className="residence-actions">
-                      <Link 
-                        to={`/residence/${residence.id}`}
-                        className="btn btn-outline"
-                      >
-                        Voir détails
-                      </Link>
-                      <Link 
-                        to={`/reservation?residence=${residence.id}`}
-                        className="btn btn-primary"
-                      >
-                        Réserver
-                      </Link>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <ResidenceCard key={residence.id} residence={residence} />
             ))}
           </div>
-          
+
           <div className="view-all-container">
             <Link to="/residences" className="btn btn-secondary btn-large">
               Voir toutes nos résidences

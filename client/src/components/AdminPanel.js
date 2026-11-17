@@ -273,6 +273,7 @@ const AdminPanel = () => {
                         onClick={() => handleDelete(residence)}
                         disabled={saving}
                         title="Supprimer la résidence"
+                        aria-label={`Supprimer ${residence.name}`}
                       >
                         <FaTrash />
                       </button>

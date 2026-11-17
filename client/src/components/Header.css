@@ -323,3 +323,19 @@
   -webkit-background-clip: text;
   background-clip: text;
 }
+
+/* Boutons d'icônes : zone tactile de 44 px */
+.theme-toggle,
+.search-toggle,
+.mobile-menu-toggle {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+}
+
+.theme-toggle:focus-visible,
+.search-toggle:focus-visible,
+.mobile-menu-toggle:focus-visible {
+  outline: 3px solid rgba(212, 175, 55, 0.7);
+  outline-offset: 2px;
+}

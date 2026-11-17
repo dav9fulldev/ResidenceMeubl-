@@ -1,508 +1,370 @@
+/* Fiche d'une résidence — styles rattachés à .residence-detail-page */
 .residence-detail-page {
-  padding: 40px 0;
-  min-height: 100vh;
+  padding: 24px 0 64px;
   background: var(--bg-soft);
+  min-height: 100vh;
 }
 
-.container {
+.residence-detail-page .container {
   max-width: 1200px;
   margin: 0 auto;
   padding: 0 20px;
 }
 
-/* Bouton retour */
-.back-button {
-  margin-bottom: 30px;
-}
-
-.btn {
+.residence-detail-page .rd-retour {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 12px 24px;
-  border-radius: 8px;
+  min-height: 44px;
+  color: var(--text-muted);
   text-decoration: none;
   font-weight: 600;
-  font-size: 14px;
-  transition: all 0.3s ease;
-  border: none;
+  font-size: 0.95rem;
+}
+
+.residence-detail-page .rd-retour:hover { color: var(--text); }
+
+/* En-tête */
+.residence-detail-page .rd-entete {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 8px 0 20px;
+}
+
+.residence-detail-page .rd-entete h1 {
+  margin: 0 0 8px;
+  font-size: clamp(1.6rem, 3vw, 2.2rem);
+  color: var(--text);
+}
+
+.residence-detail-page .rd-sous-titre {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 16px;
+  color: var(--text-muted);
+  font-size: 0.95rem;
+}
+
+.residence-detail-page .rd-sous-titre span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.residence-detail-page .rd-sous-titre svg { color: #d4af37; }
+.residence-detail-page .rd-note { color: var(--text); font-weight: 700; }
+.residence-detail-page .rd-ref { font-size: 0.85rem; }
+
+.residence-detail-page .rd-favori {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 10px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 600;
   cursor: pointer;
 }
 
-.btn-outline {
-  background: transparent;
-  color: #d4af37;
-  border: 2px solid #d4af37;
+.residence-detail-page .rd-favori svg { color: #9ca3af; }
+.residence-detail-page .rd-favori.actif svg { color: #e11d48; }
+
+/* Galerie */
+.residence-detail-page .rd-galerie { margin-bottom: 28px; }
+
+.residence-detail-page .rd-photo {
+  position: relative;
+  border-radius: 20px;
+  overflow: hidden;
+  aspect-ratio: 16 / 9;
+  max-height: 560px;
+  background: var(--surface-2);
 }
 
-.btn-outline:hover {
-  background: #d4af37;
-  color: white;
+.residence-detail-page .rd-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
-.btn-primary {
-  background: #d4af37;
-  color: white;
+.residence-detail-page .rd-fleche {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 44px;
+  height: 44px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.92);
+  color: #1a1a1a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
 }
 
-.btn-primary:hover {
-  background: #b8941f;
-  transform: translateY(-2px);
+.residence-detail-page .rd-fleche.gauche { left: 12px; }
+.residence-detail-page .rd-fleche.droite { right: 12px; }
+
+.residence-detail-page .rd-compteur {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 600;
 }
 
-.btn-large {
-  padding: 16px 32px;
-  font-size: 16px;
+.residence-detail-page .rd-vignettes {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+  overflow-x: auto;
 }
 
-/* En-tête de la résidence */
-.residence-header {
+.residence-detail-page .rd-vignette {
+  flex: 0 0 auto;
+  width: 96px;
+  height: 68px;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 10px;
+  overflow: hidden;
+  background: none;
+  cursor: pointer;
+  opacity: 0.7;
+}
+
+.residence-detail-page .rd-vignette.active {
+  border-color: #d4af37;
+  opacity: 1;
+}
+
+.residence-detail-page .rd-vignette img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Deux colonnes */
+.residence-detail-page .rd-colonnes {
   display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 40px;
-  margin-bottom: 40px;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 32px;
   align-items: start;
 }
 
-.residence-title h1 {
-  font-size: 36px;
-  font-weight: 700;
-  color: var(--text);
-  margin-bottom: 12px;
-  line-height: 1.2;
-}
-
-.residence-reference {
-  color: #d4af37;
-  font-size: 16px;
-  font-weight: 500;
-  margin-bottom: 20px;
-}
-
-.residence-meta {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  flex-wrap: wrap;
-}
-
-.residence-rating {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--text);
-  font-weight: 600;
-}
-
-.residence-rating svg {
-  color: #d4af37;
-}
-
-.reviews {
-  color: var(--text-muted);
-  font-weight: 400;
-}
-
-.favorite-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 48px;
-  height: 48px;
-  background: var(--surface);
-  border: 2px solid var(--border);
-  border-radius: 50%;
-  color: #cccccc;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-}
-
-.favorite-btn:hover {
-  border-color: #d4af37;
-  color: #d4af37;
-  transform: scale(1.1);
-  box-shadow: 0 6px 20px rgba(212, 175, 55, 0.3);
-}
-
-.favorite-btn.active {
-  border-color: #d4af37;
-  color: #d4af37;
-  background: #fef9e7;
-  box-shadow: 0 6px 20px rgba(212, 175, 55, 0.3);
-}
-
-.favorite-btn svg {
-  font-size: 20px;
-}
-
-.residence-price-card {
-  background: var(--surface);
-  padding: 24px;
-  border-radius: 16px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
-  text-align: center;
-  min-width: 280px;
-}
-
-.price-info {
-  margin-bottom: 20px;
-}
-
-.price {
-  font-size: 32px;
-  font-weight: 700;
-  color: #d4af37;
-}
-
-.currency {
-  font-size: 20px;
-  font-weight: 600;
-  color: #d4af37;
-}
-
-.period {
-  font-size: 16px;
-  color: var(--text-muted);
-}
-
-.price-note {
-  font-size: 12px;
-  color: #999999;
-  margin-top: 12px;
-}
-
-/* Galerie d'images */
-.residence-gallery {
-  margin-bottom: 40px;
-}
-
-.main-image {
-  margin-bottom: 20px;
-  border-radius: 16px;
-  overflow: hidden;
-}
-
-.main-image-img {
-  width: 100%;
-  height: 400px;
-  object-fit: cover;
-  transition: transform 0.3s ease;
-}
-
-.main-image:hover .main-image-img {
-  transform: scale(1.02);
-}
-
-.thumbnail-images {
-  display: flex;
-  gap: 12px;
-  overflow-x: auto;
-  padding-bottom: 10px;
-}
-
-.thumbnail {
-  flex-shrink: 0;
-  cursor: pointer;
-  border-radius: 8px;
-  overflow: hidden;
-  border: 3px solid transparent;
-  transition: all 0.3s ease;
-}
-
-.thumbnail.active {
-  border-color: #d4af37;
-}
-
-.thumbnail-img {
-  width: 100px;
-  height: 70px;
-  object-fit: cover;
-  transition: transform 0.3s ease;
-}
-
-.thumbnail:hover .thumbnail-img {
-  transform: scale(1.1);
-}
-
-/* Informations principales */
-.residence-main-info {
+.residence-detail-page .rd-specs {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 40px;
-  margin-bottom: 40px;
-}
-
-.residence-location h3 {
-  display: flex;
-  align-items: center;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 12px;
-  font-size: 24px;
-  font-weight: 600;
-  color: var(--text);
-  margin-bottom: 16px;
 }
 
-.residence-location h3 svg {
-  color: #d4af37;
-}
-
-.residence-location p {
-  color: var(--text-muted);
-  margin-bottom: 8px;
-  font-size: 16px;
-}
-
-.neighborhood {
-  color: #999999;
-  font-size: 14px;
-}
-
-.residence-specs {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 20px;
-}
-
-.spec-item {
+.residence-detail-page .rd-specs li {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.residence-detail-page .rd-specs svg,
+.residence-detail-page .rd-m2 {
+  color: #d4af37;
+  font-size: 1.2rem;
+  font-weight: 800;
+}
+
+.residence-detail-page .rd-specs strong {
+  color: var(--text);
+  font-size: 1.1rem;
+}
+
+.residence-detail-page .rd-section {
+  padding: 24px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.residence-detail-page .rd-section:last-child { border-bottom: none; }
+
+.residence-detail-page .rd-section h2 {
+  margin: 0 0 12px;
+  font-size: 1.25rem;
+  color: var(--text);
+}
+
+.residence-detail-page .rd-section p {
+  margin: 0;
+  color: var(--text-muted);
+  line-height: 1.7;
+}
+
+.residence-detail-page .rd-equipements {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 10px 20px;
+}
+
+.residence-detail-page .rd-equipements li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text);
+}
+
+.residence-detail-page .rd-equipements svg { color: #10b981; flex-shrink: 0; }
+
+.residence-detail-page .rd-lieu svg { color: #d4af37; margin-right: 6px; }
+.residence-detail-page .rd-lieu span { font-size: 0.9rem; }
+
+/* Carte de réservation */
+.residence-detail-page .rd-reservation {
+  position: sticky;
+  top: 96px;
   padding: 20px;
+  border-radius: 18px;
   background: var(--surface);
-  border-radius: 12px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  border: 1px solid var(--border);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.08);
 }
 
-.spec-item svg {
-  font-size: 24px;
-  color: #d4af37;
-}
-
-.area-icon {
-  width: 40px;
-  height: 40px;
-  background: #d4af37;
-  color: white;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 600;
-  font-size: 14px;
-}
-
-.spec-value {
-  display: block;
-  font-size: 24px;
-  font-weight: 700;
-  color: var(--text);
-}
-
-.spec-label {
-  display: block;
-  font-size: 14px;
+.residence-detail-page .rd-prix {
+  margin: 0;
   color: var(--text-muted);
 }
 
-/* Description */
-.residence-description {
-  background: var(--surface);
-  padding: 32px;
-  border-radius: 16px;
-  margin-bottom: 40px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-}
-
-.residence-description h3 {
-  font-size: 24px;
-  font-weight: 600;
+.residence-detail-page .rd-prix strong {
   color: var(--text);
-  margin-bottom: 20px;
+  font-size: 1.6rem;
 }
 
-.residence-description p {
+.residence-detail-page .rd-prix-note {
+  margin: 2px 0 16px;
   color: var(--text-muted);
-  line-height: 1.8;
-  font-size: 16px;
+  font-size: 0.8rem;
 }
 
-/* Équipements */
-.residence-amenities {
-  background: var(--surface);
-  padding: 32px;
+.residence-detail-page .rd-reservation .availability-status {
+  padding: 0;
+  margin: 0;
+  box-shadow: none;
+  border: none;
+  background: transparent;
+}
+
+.residence-detail-page .rd-reservation .btn-availability {
+  width: 100%;
+  min-height: 48px;
+}
+
+/* Barre fixe : téléphone seulement */
+.residence-detail-page .rd-barre { display: none; }
+
+/* Chargement */
+.residence-detail-page .rd-squelette {
   border-radius: 16px;
-  margin-bottom: 40px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  background: linear-gradient(90deg, var(--surface-2), var(--border), var(--surface-2));
+  background-size: 200% 100%;
+  animation: rd-reflet 1.4s ease-in-out infinite;
 }
 
-.residence-amenities h3 {
-  font-size: 24px;
-  font-weight: 600;
-  color: var(--text);
-  margin-bottom: 24px;
+.residence-detail-page .rd-squelette-titre { height: 40px; width: 50%; margin: 52px 0 20px; }
+.residence-detail-page .rd-squelette-photo { aspect-ratio: 16 / 9; max-height: 520px; }
+.residence-detail-page .rd-chargement { color: var(--text-muted); }
+
+@keyframes rd-reflet {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
 }
 
-.amenities-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 16px;
+@media (prefers-reduced-motion: reduce) {
+  .residence-detail-page .rd-squelette { animation: none; }
 }
 
-.amenity-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 16px;
-  background: var(--bg-soft);
-  border-radius: 8px;
-  color: var(--text);
-  font-weight: 500;
+@media (max-width: 900px) {
+  .residence-detail-page .rd-colonnes { grid-template-columns: 1fr; gap: 8px; }
+  .residence-detail-page .rd-reservation { position: static; }
 }
 
-.amenity-item svg {
-  color: #d4af37;
-  font-size: 14px;
-}
+@media (max-width: 640px) {
+  .residence-detail-page { padding: 8px 0 104px; }
+  .residence-detail-page .container { padding: 0 16px; }
+  .residence-detail-page .rd-entete { flex-direction: column; align-items: stretch; margin-bottom: 14px; }
+  .residence-detail-page .rd-favori { align-self: flex-start; }
 
-/* CTA Réservation */
-.reservation-cta {
-  background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
-  color: white;
-  padding: 60px 40px;
-  border-radius: 16px;
-  text-align: center;
-}
+  /* Photo pleine largeur */
+  .residence-detail-page .rd-galerie { margin: 0 -16px 20px; }
+  .residence-detail-page .rd-photo { border-radius: 0; aspect-ratio: 4 / 3; }
+  .residence-detail-page .rd-vignettes { padding: 0 16px; }
+  .residence-detail-page .rd-vignette { width: 72px; height: 54px; }
 
-.cta-content h3 {
-  font-size: 32px;
-  font-weight: 700;
-  margin-bottom: 20px;
-}
-
-.cta-content p {
-  font-size: 18px;
-  color: #cccccc;
-  margin-bottom: 40px;
-  line-height: 1.6;
-}
-
-.cta-actions {
-  display: flex;
-  gap: 20px;
-  justify-content: center;
-  flex-wrap: wrap;
-}
-
-/* Section de disponibilité */
-.availability-section {
-  margin-bottom: 40px;
-}
-
-.availability-section h3 {
-  font-size: 24px;
-  font-weight: 600;
-  color: var(--text);
-  margin-bottom: 20px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.availability-section h3::before {
-  content: '';
-  width: 4px;
-  height: 24px;
-  background: linear-gradient(135deg, #d4af37, #f59e0b);
-  border-radius: 2px;
-}
-
-/* Responsive */
-@media (max-width: 768px) {
-  .residence-detail-page {
-    padding: 20px 0;
-  }
-
-  .residence-header {
-    grid-template-columns: 1fr;
-    gap: 30px;
-  }
-
-  .residence-title h1 {
-    font-size: 28px;
-  }
-
-  .residence-meta {
+  .residence-detail-page .rd-specs { grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .residence-detail-page .rd-specs li {
     flex-direction: column;
-    align-items: stretch;
-    gap: 16px;
+    align-items: flex-start;
+    gap: 4px;
+    padding: 10px 12px;
+    font-size: 0.8rem;
   }
 
-  .residence-price-card {
-    min-width: auto;
-  }
+  /* Le prix est dans la barre fixe */
+  .residence-detail-page .rd-prix,
+  .residence-detail-page .rd-prix-note { display: none; }
+  .residence-detail-page .rd-reservation { padding: 16px; box-shadow: none; }
 
-  .image-placeholder.large {
-    height: 300px;
-  }
-
-  .residence-main-info {
-    grid-template-columns: 1fr;
-    gap: 30px;
-  }
-
-  .residence-specs {
-    grid-template-columns: 1fr;
-  }
-
-  .cta-actions {
-    flex-direction: column;
+  .residence-detail-page .rd-barre {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 900;
+    display: flex;
     align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -6px 20px rgba(0, 0, 0, 0.08);
   }
 
-  .reservation-cta {
-    padding: 40px 20px;
+  .residence-detail-page .rd-barre p {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 0.85rem;
   }
 
-  .cta-content h3 {
-    font-size: 24px;
-  }
-}
-
-@media (max-width: 480px) {
-  .container {
-    padding: 0 15px;
+  .residence-detail-page .rd-barre strong {
+    color: var(--text);
+    font-size: 1.1rem;
   }
 
-  .residence-title h1 {
-    font-size: 24px;
-  }
-
-  .residence-price-card {
-    padding: 20px;
-  }
-
-  .price {
-    font-size: 28px;
-  }
-
-  .image-placeholder.large {
-    height: 250px;
-  }
-
-  .residence-description,
-  .residence-amenities {
-    padding: 24px;
-  }
-
-  .amenities-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-/* Responsive pour la section disponibilité */
-@media (max-width: 768px) {
-  .availability-section h3 {
-    font-size: 20px;
+  .residence-detail-page .rd-barre .btn {
+    min-height: 48px;
+    padding: 12px 28px;
   }
 }
