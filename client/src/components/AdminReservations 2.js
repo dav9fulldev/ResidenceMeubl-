@@ -1,0 +1,145 @@
+import React, { useCallback, useEffect, useState } from 'react';
+import { FaCheck, FaTimes, FaSyncAlt } from 'react-icons/fa';
+import { useResidences } from '../context/ResidencesContext';
+import './AdminReservations.css';
+
+const STATUTS = {
+  en_attente: 'En attente',
+  confirmee: 'Confirmée',
+  annulee: 'Annulée',
+};
+
+const formatDate = (value) => (value ? new Date(value).toLocaleDateString('fr-FR') : '—');
+
+const AdminReservations = () => {
+  const { getReservations, updateReservationStatus, reloadResidences } = useResidences();
+  const [reservations, setReservations] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [filter, setFilter] = useState('en_attente');
+  const [busyId, setBusyId] = useState(null);
+  const [notice, setNotice] = useState('');
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const data = await getReservations();
+      // Les plus récentes en premier
+      setReservations([...data].sort((a, b) => new Date(b.dateCreation) - new Date(a.dateCreation)));
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [getReservations]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const changeStatus = async (reservation, statut) => {
+    if (statut === 'annulee' && !window.confirm(`Annuler la réservation ${reservation.id} ?`)) return;
+    setBusyId(reservation.id);
+    setError('');
+    setNotice('');
+    try {
+      const result = await updateReservationStatus(reservation.id, statut);
+      setReservations(prev => prev.map(r => (r.id === reservation.id ? { ...r, statut } : r)));
+      // Le statut des résidences (réservé / occupé) dépend des réservations confirmées
+      reloadResidences();
+      const action = statut === 'confirmee' ? 'confirmée' : 'annulée';
+      if (result?.emailEnvoye) {
+        setNotice(`Réservation ${action}. Un email a été envoyé à ${reservation.client.email}.`);
+      } else {
+        setError(`Réservation ${action}, mais l'email au client n'a pas pu être envoyé. Prévenez-le par téléphone (${reservation.client.telephone}).`);
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const visibles = filter ? reservations.filter(r => r.statut === filter) : reservations;
+  const count = (statut) => reservations.filter(r => r.statut === statut).length;
+
+  return (
+    <section className="admin-reservations">
+      <div className="admin-reservations-header">
+        <h3>📅 Réservations</h3>
+        <button className="btn btn-outline btn-sm" onClick={load} disabled={loading}>
+          <FaSyncAlt /> Actualiser
+        </button>
+      </div>
+
+      <div className="admin-reservations-filters" role="tablist">
+        {[['en_attente', 'En attente'], ['confirmee', 'Confirmées'], ['annulee', 'Annulées'], ['', 'Toutes']].map(([value, label]) => (
+          <button
+            key={value || 'all'}
+            role="tab"
+            aria-selected={filter === value}
+            className={`filter-chip ${filter === value ? 'active' : ''}`}
+            onClick={() => setFilter(value)}
+          >
+            {label} ({value ? count(value) : reservations.length})
+          </button>
+        ))}
+      </div>
+
+      {error && <div className="error-message" role="alert">{error}</div>}
+      {notice && <div className="success-notice" role="status">{notice}</div>}
+
+      {loading ? (
+        <p className="admin-reservations-empty">Chargement…</p>
+      ) : visibles.length === 0 ? (
+        <p className="admin-reservations-empty">Aucune réservation.</p>
+      ) : (
+        <div className="admin-reservations-list">
+          {visibles.map((r) => (
+            <article key={r.id} className={`reservation-card statut-${r.statut}`}>
+              <div className="reservation-card-main">
+                <div className="reservation-card-title">
+                  <strong>{r.client.prenom} {r.client.nom}</strong>
+                  <span className={`reservation-badge statut-${r.statut}`}>{STATUTS[r.statut] || r.statut}</span>
+                </div>
+                <p>{r.residence?.nom} · {formatDate(r.dates.arrivee)} → {formatDate(r.dates.depart)}</p>
+                <p>
+                  {r.details?.nombrePersonnes} pers. · {Number(r.prixTotal).toLocaleString('fr-FR')} FCFA
+                </p>
+                <p className="reservation-contact">
+                  <a href={`mailto:${r.client.email}`}>{r.client.email}</a> · <a href={`tel:${r.client.telephone}`}>{r.client.telephone}</a>
+                </p>
+                {r.notes && <p className="reservation-notes">« {r.notes} »</p>}
+                <p className="reservation-ref">Réf. {r.id} · reçue le {formatDate(r.dateCreation)}</p>
+              </div>
+
+              <div className="reservation-card-actions">
+                {r.statut !== 'confirmee' && r.statut !== 'annulee' && (
+                  <button
+                    className="btn btn-primary btn-sm"
+                    onClick={() => changeStatus(r, 'confirmee')}
+                    disabled={busyId === r.id}
+                  >
+                    <FaCheck /> Confirmer
+                  </button>
+                )}
+                {r.statut !== 'annulee' && (
+                  <button
+                    className="btn btn-danger btn-sm"
+                    onClick={() => changeStatus(r, 'annulee')}
+                    disabled={busyId === r.id}
+                  >
+                    <FaTimes /> Annuler
+                  </button>
+                )}
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+};
+
+export default AdminReservations;

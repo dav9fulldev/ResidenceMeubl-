@@ -144,7 +144,9 @@ if (require.main === module) {
       app.listen(PORT, () => {
         console.log('🏠 Sankofart Résidence API');
         console.log(`🚀 Serveur démarré sur http://localhost:${PORT}`);
-        console.log(`📧 Email configuré: ${process.env.EMAIL_USER ? '✅' : '❌'}`);
+        console.log(process.env.BREVO_API_KEY
+          ? `📧 Emails : API Brevo (expéditeur ${process.env.EMAIL_FROM || process.env.EMAIL_USER || '❌ non défini'})`
+          : `📧 Emails : SMTP Gmail ${process.env.EMAIL_USER ? '✅' : '❌'} (bloqué sur Render gratuit : utiliser BREVO_API_KEY)`);
         console.log(`🌐 CORS autorisé pour: ${allowedOrigins.join(', ')}`);
         console.log(`⏰ ${new Date().toLocaleString('fr-FR')}`);
       });
