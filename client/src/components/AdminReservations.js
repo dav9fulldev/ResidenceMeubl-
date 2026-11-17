@@ -45,7 +45,7 @@ const AdminReservations = () => {
   }, [load, residences]);
 
   const changeStatus = async (reservation, statut) => {
-    if (statut === 'annulee' && !window.confirm(`Annuler la réservation ${reservation.id} ?`)) return;
+    if (statut === 'annulee' && !window.confirm(`Refuser la réservation de ${reservation.client.prenom} ${reservation.client.nom} ? Le client sera prévenu par email.`)) return;
     setBusyId(reservation.id);
     setError('');
     setNotice('');
@@ -54,7 +54,7 @@ const AdminReservations = () => {
       setReservations(prev => prev.map(r => (r.id === reservation.id ? { ...r, statut } : r)));
       // Le statut des résidences (réservé / occupé) dépend des réservations confirmées
       reloadResidences();
-      const action = statut === 'confirmee' ? 'confirmée' : 'annulée';
+      const action = statut === 'confirmee' ? 'confirmée' : 'refusée';
       if (result?.emailEnvoye) {
         setNotice(`Réservation ${action}. Un email a été envoyé à ${reservation.client.email}.`);
       } else {
@@ -202,14 +202,17 @@ const AdminReservations = () => {
                     <FaCheck /> Confirmer
                   </button>
                 )}
-                {r.statut !== 'annulee' && (
+                {r.statut === 'en_attente' && (
                   <button
                     className="btn btn-danger btn-sm"
                     onClick={() => changeStatus(r, 'annulee')}
                     disabled={busyId === r.id}
                   >
-                    <FaTimes /> Annuler
+                    <FaTimes /> Refuser
                   </button>
+                )}
+                {r.statut === 'confirmee' && (
+                  <p className="reservation-ref">Annulation possible uniquement sur demande du client.</p>
                 )}
                 </>
                 )}

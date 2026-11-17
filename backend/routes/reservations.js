@@ -201,6 +201,9 @@ router.put('/:id/status', requireAdmin, async (req, res) => {
       }
     });
   } catch (error) {
+    if (error instanceof ReservationService.ErreurClient) {
+      return res.status(error.status).json({ success: false, message: error.message });
+    }
     console.error('Erreur lors de la mise à jour du statut:', error);
     res.status(error.message === 'Statut invalide' ? 400 : 500).json({
       success: false,

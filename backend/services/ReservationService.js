@@ -253,7 +253,7 @@ class ReservationService {
 
     if (decision === 'accepter') {
       // Annule, libère les dates et envoie l'email d'annulation (avec le message éventuel)
-      const resultat = await this.updateReservationStatus(reservation.id, 'annulee', { message: reponse });
+      const resultat = await this.updateReservationStatus(reservation.id, 'annulee', { message: reponse, surDemandeClient: true });
       return resultat;
     }
 
@@ -270,9 +270,22 @@ class ReservationService {
 
   // Mettre à jour le statut d'une réservation et prévenir le client.
   // Retourne null si introuvable, sinon { reservation, emailEnvoye }.
-  async updateReservationStatus(id, nouveauStatut, { message = null } = {}) {
+  async updateReservationStatus(id, nouveauStatut, { message = null, surDemandeClient = false } = {}) {
     if (!STATUTS_VALIDES.includes(nouveauStatut)) {
       throw new Error('Statut invalide');
+    }
+
+    // Une réservation confirmée ne s'annule que sur demande du client
+    if (nouveauStatut === 'annulee' && !surDemandeClient) {
+      const actuelle = await this.collection.findOne({ id: String(id) }, { projection: { _id: 0, statut: 1, demandeAnnulation: 1 } });
+      if (actuelle?.statut === 'confirmee') {
+        throw new ErreurClient(
+          actuelle.demandeAnnulation?.statut === 'en_attente'
+            ? 'Le client a demandé l\'annulation : utilisez « Accepter l\'annulation ».'
+            : 'Une réservation confirmée ne peut être annulée que si le client en fait la demande depuis « Mes réservations ».',
+          409
+        );
+      }
     }
 
     const avant = await this.collection.findOneAndUpdate(
