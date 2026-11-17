@@ -13,6 +13,7 @@ import AdminLogin from './pages/AdminLogin';
 import AdminDashboard from './pages/AdminDashboard';
 import AdminReservationsPage from './pages/AdminReservationsPage';
 import AdminResidencesPage from './pages/AdminResidencesPage';
+import AdminStatsPage from './pages/AdminStatsPage';
 import AdminLayout from './components/admin/AdminLayout';
 import ProtectedRoute from './components/ProtectedRoute';
 import ConnectionBanner from './components/ConnectionBanner';
@@ -62,6 +63,7 @@ function App() {
               <Route path="dashboard" element={<AdminDashboard />} />
               <Route path="reservations" element={<AdminReservationsPage />} />
               <Route path="residences" element={<AdminResidencesPage />} />
+              <Route path="statistiques" element={<AdminStatsPage />} />
               <Route path="*" element={<Navigate to="dashboard" replace />} />
             </Route>
           </Routes>

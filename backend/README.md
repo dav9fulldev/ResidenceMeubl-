@@ -81,6 +81,8 @@ Toutes les réponses ont la forme `{ success, data?, message? }`. 🔒 = en-têt
 | POST | `/api/admin/login` | `{ username, password }` → `{ token }` (8 h, 10 tentatives / 15 min) |
 | GET / POST 🔒 | `/api/admin/residences` | Lister (avec occupants) / créer |
 | PUT / DELETE 🔒 | `/api/admin/residences/:id` | Modifier / supprimer |
+| GET 🔒 | `/api/admin/statistiques?annee=2026` | Revenus par mois (répartis nuit par nuit), cumul, réservations par mois d'arrivée, occupation, classement des résidences |
+| GET 🔒 | `/api/admin/export/reservations.csv?annee=2026` | Export CSV pour Excel (`;`, BOM UTF-8, formules neutralisées). Sans année : tout |
 | PUT 🔒 | `/api/admin/residences/:id/status` | `{ statut, details }` — statut posé à la main (prioritaire sur le calcul automatique) |
 
 ### Divers

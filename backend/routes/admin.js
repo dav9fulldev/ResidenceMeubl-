@@ -6,6 +6,7 @@ const AuthService = require('../services/AuthService');
 const ResidenceService = require('../services/ResidenceService');
 const requireAdmin = require('../middleware/requireAdmin');
 const SmartSearchService = require('../services/SmartSearchService');
+const StatsService = require('../services/StatsService');
 
 // Limiter les tentatives de connexion (anti force brute)
 const loginLimiter = rateLimit({
@@ -120,6 +121,42 @@ router.delete('/residences/:id', async (req, res) => {
     res.json({ success: true, message: 'Résidence supprimée' });
   } catch (error) {
     gererErreur(res, error, 'lors de la suppression de la résidence');
+  }
+});
+
+/**
+ * @route   GET /api/admin/statistiques?annee=2026
+ * @desc    Revenus par mois, cumul, réservations, occupation, classement des résidences
+ */
+router.get('/statistiques', async (req, res) => {
+  try {
+    const annee = req.query.annee ? parseInt(req.query.annee, 10) : new Date().getUTCFullYear();
+    if (!Number.isInteger(annee) || annee < 2000 || annee > 2100) {
+      return res.status(400).json({ success: false, message: 'Année invalide' });
+    }
+    res.json({ success: true, data: await StatsService.calculer(annee) });
+  } catch (error) {
+    gererErreur(res, error, 'lors du calcul des statistiques');
+  }
+});
+
+/**
+ * @route   GET /api/admin/export/reservations.csv?annee=2026
+ * @desc    Export des réservations (CSV pour Excel). Sans année : toutes.
+ */
+router.get('/export/reservations.csv', async (req, res) => {
+  try {
+    const annee = req.query.annee ? parseInt(req.query.annee, 10) : null;
+    if (annee !== null && (!Number.isInteger(annee) || annee < 2000 || annee > 2100)) {
+      return res.status(400).json({ success: false, message: 'Année invalide' });
+    }
+    const csv = await StatsService.exporterCsv(annee);
+    const nom = `reservations-sankofart${annee ? `-${annee}` : ''}.csv`;
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${nom}"`);
+    res.send(csv);
+  } catch (error) {
+    gererErreur(res, error, 'lors de l\'export');
   }
 });
 

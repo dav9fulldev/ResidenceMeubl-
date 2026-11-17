@@ -28,6 +28,7 @@ Plateforme de réservation de résidences meublées à Abidjan : site vitrine, r
 ### Pour l'administrateur (`/admin/login`)
 - Connexion vérifiée par le serveur (jeton signé valable 8 h, tentatives limitées).
 - **Réservations** : liste filtrable, confirmation ou annulation → email automatique au client.
+- **Statistiques** : chiffre d'affaires de l'année et du mois (avec évolution), revenus par mois, chiffre d'affaires cumulé, réservations par mois, taux d'occupation, panier moyen, classement des résidences ; **export Excel (CSV)**.
 - **Demandes d'annulation** des clients : acceptation (dates libérées) ou refus avec message, email au client dans les deux cas.
 - **Résidences** : ajout, modification, suppression, mise en maintenance.
 - Le statut « Réservé » / « Occupé » se met à jour **automatiquement** à partir des réservations confirmées.

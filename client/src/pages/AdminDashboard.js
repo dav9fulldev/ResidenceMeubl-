@@ -82,6 +82,7 @@ const AdminDashboard = () => {
         <section className="overview-card">
           <div className="overview-card-header">
             <h2>Réservations</h2>
+            <Link to="/admin/statistiques">Statistiques <FaArrowRight /></Link>
           </div>
           <dl className="overview-figures">
             <div><dt>En attente</dt><dd>{enAttente.length}</dd></div>

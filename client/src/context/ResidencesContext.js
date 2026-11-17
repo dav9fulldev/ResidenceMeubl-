@@ -203,6 +203,33 @@ export const ResidencesProvider = ({ children }) => {
     return response.data;
   }, [adminRequest]);
 
+  const getStats = useCallback(async (annee) => {
+    const response = await adminRequest(API_ENDPOINTS.admin.stats(annee));
+    return response.data;
+  }, [adminRequest]);
+
+  // Télécharge l'export CSV (ouvrable dans Excel)
+  const downloadReservationsCsv = useCallback(async (annee) => {
+    const response = await fetch(API_ENDPOINTS.admin.exportCsv(annee), {
+      headers: { Authorization: `Bearer ${getAdminToken()}` },
+    });
+    if (response.status === 401) {
+      setAdminToken(null);
+      setIsAdmin(false);
+      throw new Error('Session expirée, reconnectez-vous.');
+    }
+    if (!response.ok) throw new Error(`Export impossible (${response.status})`);
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const lien = document.createElement('a');
+    lien.href = url;
+    lien.download = `reservations-sankofart${annee ? `-${annee}` : ''}.csv`;
+    document.body.appendChild(lien);
+    lien.click();
+    lien.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }, []);
+
   const value = useMemo(() => ({
     residences,
     loading,
@@ -223,10 +250,12 @@ export const ResidencesProvider = ({ children }) => {
     getReservations,
     updateReservationStatus,
     decideCancellation,
+    getStats,
+    downloadReservationsCsv,
   }), [
     residences, loading, offline, isAdmin, loadResidences, getResidenceById, searchResidences,
     createReservation, smartSearch, getSimilarResidences, loginAdmin, logoutAdmin, updateResidenceStatus, addResidence,
-    updateResidence, deleteResidence, getReservations, updateReservationStatus, decideCancellation,
+    updateResidence, deleteResidence, getReservations, updateReservationStatus, decideCancellation, getStats, downloadReservationsCsv,
   ]);
 
   return (
