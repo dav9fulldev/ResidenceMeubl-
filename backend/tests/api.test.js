@@ -5,10 +5,14 @@
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 
-// Configuration de test (avant de charger l'application)
+// Configuration de test (avant de charger l'application).
+// Identifiants générés au hasard à chaque lancement : aucun mot de passe écrit en dur.
+const { randomBytes } = require('node:crypto');
+const ADMIN_TEST = { username: 'admin-test', password: randomBytes(12).toString('hex') };
+const MAUVAIS_MDP = randomBytes(12).toString('hex');
 process.env.NODE_ENV = 'test';
-process.env.ADMIN_USERNAME = 'admin-test';
-process.env.ADMIN_PASSWORD = 'mot-de-passe-test';
+process.env.ADMIN_USERNAME = ADMIN_TEST.username;
+process.env.ADMIN_PASSWORD = ADMIN_TEST.password;
 
 const { MongoMemoryServer } = require('mongodb-memory-server');
 const db = require('../db');
@@ -48,7 +52,7 @@ const connexionAdmin = async () => {
   if (!jetonAdmin) {
     const res = await api('/api/admin/login', {
       method: 'POST',
-      body: { username: 'admin-test', password: 'mot-de-passe-test' },
+      body: ADMIN_TEST,
     });
     jetonAdmin = res.body.data.token;
   }
@@ -176,7 +180,7 @@ test('les routes admin refusent les requêtes sans jeton valide', async () => {
 
   const mauvaisMdp = await api('/api/admin/login', {
     method: 'POST',
-    body: { username: 'admin-test', password: 'mauvais' },
+    body: { username: ADMIN_TEST.username, password: MAUVAIS_MDP },
   });
   assert.equal(mauvaisMdp.status, 401);
   assert.equal(mauvaisMdp.body.data, undefined);
