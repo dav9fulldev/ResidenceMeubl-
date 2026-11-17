@@ -16,7 +16,7 @@
 
 /* Modal principal */
 .add-residence-modal {
-  background: white;
+  background: var(--surface);
   border-radius: 20px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
   max-width: 800px;
@@ -43,7 +43,7 @@
   justify-content: space-between;
   align-items: center;
   padding: 25px 30px;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--border);
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   border-radius: 20px 20px 0 0;
 }
@@ -99,7 +99,7 @@
 
 .form-group label {
   font-weight: 600;
-  color: #374151;
+  color: var(--text);
   margin-bottom: 8px;
   font-size: 0.9rem;
 }
@@ -108,11 +108,11 @@
 .form-group select,
 .form-group textarea {
   padding: 12px 16px;
-  border: 2px solid #e5e7eb;
+  border: 2px solid var(--border);
   border-radius: 10px;
   font-size: 0.95rem;
   transition: all 0.3s ease;
-  background: #f9fafb;
+  background: var(--surface-2);
 }
 
 .form-group input:focus,
@@ -120,7 +120,7 @@
 .form-group textarea:focus {
   outline: none;
   border-color: #667eea;
-  background: white;
+  background: var(--surface);
   box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
 }
 
@@ -150,16 +150,16 @@
   align-items: center;
   gap: 10px;
   padding: 12px 16px;
-  border: 2px dashed #d1d5db;
+  border: 2px dashed var(--border);
   border-radius: 10px;
-  background: #f9fafb;
-  color: #6b7280;
+  background: var(--surface-2);
+  color: var(--text-muted);
   transition: all 0.3s ease;
 }
 
 .image-input:hover {
   border-color: #667eea;
-  background: #f3f4f6;
+  background: var(--surface-2);
 }
 
 .upload-icon {
@@ -168,7 +168,7 @@
 }
 
 .form-group small {
-  color: #6b7280;
+  color: var(--text-muted);
   font-size: 0.8rem;
   margin-top: 5px;
 }
@@ -176,18 +176,18 @@
 /* Styles pour les équipements */
 .amenities-select {
   padding: 12px 16px;
-  border: 2px solid #e5e7eb;
+  border: 2px solid var(--border);
   border-radius: 10px;
   font-size: 0.95rem;
   transition: all 0.3s ease;
-  background: #f9fafb;
+  background: var(--surface-2);
   width: 100%;
 }
 
 .amenities-select:focus {
   outline: none;
   border-color: #667eea;
-  background: white;
+  background: var(--surface);
   box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
 }
 
@@ -197,7 +197,7 @@
 
 .selected-amenities label {
   font-weight: 600;
-  color: #374151;
+  color: var(--text);
   margin-bottom: 10px;
   display: block;
   font-size: 0.9rem;
@@ -251,13 +251,13 @@
 
 /* Styles pour l'upload d'images */
 .image-upload-area {
-  border: 2px dashed #d1d5db;
+  border: 2px dashed var(--border);
   border-radius: 12px;
   padding: 40px 20px;
   text-align: center;
   cursor: pointer;
   transition: all 0.3s ease;
-  background: #f9fafb;
+  background: var(--surface-2);
   position: relative;
 }
 
@@ -278,12 +278,12 @@
   display: block;
   font-size: 1.1rem;
   font-weight: 600;
-  color: #374151;
+  color: var(--text);
   margin-bottom: 8px;
 }
 
 .image-upload-area small {
-  color: #6b7280;
+  color: var(--text-muted);
   font-size: 0.9rem;
 }
 
@@ -293,7 +293,7 @@
 
 .selected-images label {
   font-weight: 600;
-  color: #374151;
+  color: var(--text);
   margin-bottom: 12px;
   display: block;
   font-size: 0.95rem;
@@ -356,7 +356,7 @@
   justify-content: flex-end;
   margin-top: 30px;
   padding-top: 25px;
-  border-top: 1px solid #e5e7eb;
+  border-top: 1px solid var(--border);
 }
 
 .btn-primary,
@@ -384,9 +384,9 @@
 }
 
 .btn-secondary {
-  background: #f3f4f6;
-  color: #374151;
-  border: 2px solid #e5e7eb;
+  background: var(--surface-2);
+  color: var(--text);
+  border: 2px solid var(--border);
 }
 
 .btn-secondary:hover {

@@ -1,7 +1,7 @@
 .residence-detail-page {
   padding: 40px 0;
   min-height: 100vh;
-  background: #f8f9fa;
+  background: var(--bg-soft);
 }
 
 .container {
@@ -67,7 +67,7 @@
 .residence-title h1 {
   font-size: 36px;
   font-weight: 700;
-  color: #1a1a1a;
+  color: var(--text);
   margin-bottom: 12px;
   line-height: 1.2;
 }
@@ -90,7 +90,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #1a1a1a;
+  color: var(--text);
   font-weight: 600;
 }
 
@@ -99,7 +99,7 @@
 }
 
 .reviews {
-  color: #666666;
+  color: var(--text-muted);
   font-weight: 400;
 }
 
@@ -109,8 +109,8 @@
   justify-content: center;
   width: 48px;
   height: 48px;
-  background: white;
-  border: 2px solid #e9ecef;
+  background: var(--surface);
+  border: 2px solid var(--border);
   border-radius: 50%;
   color: #cccccc;
   cursor: pointer;
@@ -137,7 +137,7 @@
 }
 
 .residence-price-card {
-  background: white;
+  background: var(--surface);
   padding: 24px;
   border-radius: 16px;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
@@ -163,7 +163,7 @@
 
 .period {
   font-size: 16px;
-  color: #666666;
+  color: var(--text-muted);
 }
 
 .price-note {
@@ -239,7 +239,7 @@
   gap: 12px;
   font-size: 24px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--text);
   margin-bottom: 16px;
 }
 
@@ -248,7 +248,7 @@
 }
 
 .residence-location p {
-  color: #666666;
+  color: var(--text-muted);
   margin-bottom: 8px;
   font-size: 16px;
 }
@@ -269,7 +269,7 @@
   align-items: center;
   gap: 16px;
   padding: 20px;
-  background: white;
+  background: var(--surface);
   border-radius: 12px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
 }
@@ -296,18 +296,18 @@
   display: block;
   font-size: 24px;
   font-weight: 700;
-  color: #1a1a1a;
+  color: var(--text);
 }
 
 .spec-label {
   display: block;
   font-size: 14px;
-  color: #666666;
+  color: var(--text-muted);
 }
 
 /* Description */
 .residence-description {
-  background: white;
+  background: var(--surface);
   padding: 32px;
   border-radius: 16px;
   margin-bottom: 40px;
@@ -317,19 +317,19 @@
 .residence-description h3 {
   font-size: 24px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--text);
   margin-bottom: 20px;
 }
 
 .residence-description p {
-  color: #666666;
+  color: var(--text-muted);
   line-height: 1.8;
   font-size: 16px;
 }
 
 /* Équipements */
 .residence-amenities {
-  background: white;
+  background: var(--surface);
   padding: 32px;
   border-radius: 16px;
   margin-bottom: 40px;
@@ -339,7 +339,7 @@
 .residence-amenities h3 {
   font-size: 24px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--text);
   margin-bottom: 24px;
 }
 
@@ -354,9 +354,9 @@
   align-items: center;
   gap: 12px;
   padding: 12px 16px;
-  background: #f8f9fa;
+  background: var(--bg-soft);
   border-radius: 8px;
-  color: #1a1a1a;
+  color: var(--text);
   font-weight: 500;
 }
 
@@ -402,7 +402,7 @@
 .availability-section h3 {
   font-size: 24px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--text);
   margin-bottom: 20px;
   display: flex;
   align-items: center;

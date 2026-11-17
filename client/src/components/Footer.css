@@ -58,7 +58,7 @@
 }
 
 .social-links a:hover {
-  background: #ffffff;
+  background: var(--surface);
   transform: translateY(-2px);
 }
 
@@ -138,7 +138,7 @@
 }
 
 .footer-bottom-content p {
-  color: #6b7280;
+  color: var(--text-muted);
   margin: 0;
 }
 
@@ -149,7 +149,7 @@
 }
 
 .footer-bottom-links a {
-  color: #6b7280;
+  color: var(--text-muted);
   text-decoration: none;
   font-size: 14px;
   transition: color 0.3s ease;

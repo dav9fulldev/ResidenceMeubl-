@@ -1,8 +1,8 @@
 .admin-reservations {
-  background: white;
+  background: var(--surface);
   border-radius: 16px;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--border);
   margin: 20px 0;
   padding: 24px;
 }
@@ -27,9 +27,9 @@
 }
 
 .filter-chip {
-  border: 1px solid #d1d5db;
-  background: #f9fafb;
-  color: #374151;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
   border-radius: 999px;
   padding: 6px 14px;
   font-size: 0.875rem;
@@ -43,7 +43,7 @@
 }
 
 .admin-reservations-empty {
-  color: #6b7280;
+  color: var(--text-muted);
   padding: 16px 0;
 }
 
@@ -57,7 +57,7 @@
   justify-content: space-between;
   gap: 16px;
   padding: 16px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--border);
   border-left: 4px solid #f59e0b;
   border-radius: 12px;
 }
@@ -67,7 +67,7 @@
 
 .reservation-card-main p {
   margin: 4px 0;
-  color: #374151;
+  color: var(--text);
 }
 
 .reservation-card-title {
@@ -100,7 +100,7 @@
 
 .reservation-ref {
   font-size: 0.8rem;
-  color: #6b7280 !important;
+  color: var(--text-muted) !important;
 }
 
 .reservation-card-actions {

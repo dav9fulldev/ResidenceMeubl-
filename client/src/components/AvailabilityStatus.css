@@ -1,9 +1,9 @@
 .availability-status {
-  background: white;
+  background: var(--surface);
   border-radius: 16px;
   padding: 24px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--border);
 }
 
 /* Badge de statut principal */
@@ -29,7 +29,7 @@
 
 /* Description du statut */
 .status-description {
-  color: #6b7280;
+  color: var(--text-muted);
   font-size: 14px;
   margin-bottom: 20px;
   line-height: 1.5;
@@ -39,11 +39,11 @@
 .occupancy-details,
 .reservation-details,
 .availability-details {
-  background: #f9fafb;
+  background: var(--surface-2);
   border-radius: 12px;
   padding: 20px;
   margin-bottom: 20px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--border);
 }
 
 .detail-item {
@@ -52,7 +52,7 @@
   gap: 12px;
   margin-bottom: 12px;
   font-size: 14px;
-  color: #374151;
+  color: var(--text);
 }
 
 .detail-item:last-child {
@@ -60,13 +60,13 @@
 }
 
 .detail-icon {
-  color: #6b7280;
+  color: var(--text-muted);
   font-size: 16px;
   min-width: 16px;
 }
 
 .detail-item strong {
-  color: #111827;
+  color: var(--text);
   font-weight: 600;
 }
 

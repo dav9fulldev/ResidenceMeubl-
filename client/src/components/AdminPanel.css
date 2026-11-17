@@ -19,12 +19,12 @@
 
 /* Panel Administrateur */
 .admin-panel {
-  background: white;
+  background: var(--surface);
   border-radius: 16px;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
   margin: 20px 0;
   overflow: hidden;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--border);
 }
 
 .admin-header {
@@ -109,11 +109,11 @@
 }
 
 .stat-card {
-  background: #f9fafb;
+  background: var(--surface-2);
   border-radius: 12px;
   padding: 20px;
   text-align: center;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--border);
   transition: all 0.3s ease;
 }
 
@@ -132,7 +132,7 @@
 
 .stat-label {
   font-size: 14px;
-  color: #6b7280;
+  color: var(--text-muted);
   font-weight: 500;
 }
 
@@ -140,10 +140,10 @@
 .residences-management h4 {
   font-size: 18px;
   font-weight: 600;
-  color: #1f2937;
+  color: var(--text);
   margin-bottom: 20px;
   padding-bottom: 12px;
-  border-bottom: 2px solid #e5e7eb;
+  border-bottom: 2px solid var(--border);
 }
 
 .residences-list {
@@ -153,10 +153,10 @@
 }
 
 .residence-admin-card {
-  background: #f9fafb;
+  background: var(--surface-2);
   border-radius: 12px;
   padding: 20px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--border);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -182,7 +182,7 @@
   margin: 0;
   font-size: 16px;
   font-weight: 600;
-  color: #1f2937;
+  color: var(--text);
 }
 
 .status-indicator {
@@ -202,7 +202,7 @@
 }
 
 .residence-location {
-  color: #6b7280;
+  color: var(--text-muted);
   font-size: 14px;
   margin: 0;
 }
@@ -224,7 +224,7 @@
 .form-select,
 .form-input {
   padding: 8px 12px;
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--border);
   border-radius: 8px;
   font-size: 14px;
   transition: border-color 0.3s ease;
