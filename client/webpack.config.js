@@ -54,7 +54,14 @@ module.exports = (env, argv) => {
         },
         {
           test: /\.css$/,
-          use: ['style-loader', 'css-loader']
+          use: [
+            'style-loader',
+            {
+              loader: 'css-loader',
+              // Les adresses « /images/… » pointent vers public/ (copié tel quel) : ne pas les embarquer
+              options: { url: { filter: (url) => !url.startsWith('/') } },
+            },
+          ]
         },
         {
           test: /\.(png|svg|jpg|jpeg|gif|mp4)$/i,
