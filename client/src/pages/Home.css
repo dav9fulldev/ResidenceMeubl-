@@ -29,6 +29,24 @@
   z-index: 1;
 }
 
+/* Lecture automatique refusée : image fixe, sans bouton ▶ */
+.hero {
+  background: #000 url('/images/hero-poster.jpg') center / cover no-repeat;
+}
+
+.hero-video--poster {
+  visibility: hidden;
+}
+
+/* Aucun contrôle natif (bouton ▶ d'iOS compris) sur la vidéo d'ambiance */
+.hero-video::-webkit-media-controls,
+.hero-video::-webkit-media-controls-panel,
+.hero-video::-webkit-media-controls-play-button,
+.hero-video::-webkit-media-controls-start-playback-button {
+  display: none !important;
+  -webkit-appearance: none;
+}
+
 .hero-overlay {
   position: absolute;
   top: 0;
