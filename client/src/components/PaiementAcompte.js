@@ -1,6 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { FaQrcode, FaMobileAlt, FaCheckCircle, FaTimes } from 'react-icons/fa';
+import { FaQrcode, FaMobileAlt, FaCheckCircle, FaTimes, FaCamera, FaImage, FaPaste } from 'react-icons/fa';
 import { API_ENDPOINTS, apiRequest } from '../config/api';
+import { aliasDepuisQr, lireQrDepuisFichier, lireQrDepuisVideo, cameraDisponible } from '../utils/pispiQr';
+
+// Adresse de paiement mémorisée sur cet appareil (choix du client)
+const CLE_ALIAS = 'pispiAlias';
+const lireAliasMemorise = () => { try { return localStorage.getItem(CLE_ALIAS) || ''; } catch { return ''; } };
+const memoriserAlias = (v) => { try { if (v) localStorage.setItem(CLE_ALIAS, v); else localStorage.removeItem(CLE_ALIAS); } catch { /* indisponible */ } };
 import './PaiementAcompte.css';
 
 const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -22,7 +28,13 @@ const PaiementAcompte = ({ reservation, token, onPaye, onFermer }) => {
   const a = reservation.acompte;
   const mobile = typeof window !== 'undefined' && window.matchMedia?.('(max-width: 768px)').matches;
   const [methode, setMethode] = useState(mobile ? 'demande' : 'qr');
-  const [alias, setAlias] = useState('');
+  const [alias, setAlias] = useState(lireAliasMemorise);
+  const [memoriser, setMemoriser] = useState(true);
+  const [scan, setScan] = useState(false);
+  const [lecture, setLecture] = useState(false);
+  const videoRef = useRef(null);
+  const fichierRef = useRef(null);
+  const peutColler = typeof navigator !== 'undefined' && Boolean(navigator.clipboard?.readText);
   const [paiement, setPaiement] = useState(null); // réponse du démarrage
   const [statut, setStatut] = useState(null);     // en_attente | paye | refuse | expire
   const [message, setMessage] = useState('');
@@ -51,8 +63,81 @@ const PaiementAcompte = ({ reservation, token, onPaye, onFermer }) => {
       }
     };
     minuterie.current = setInterval(suivre, 4000);
-    return () => clearInterval(minuterie.current);
+    // Retour depuis l'application bancaire : vérifier tout de suite
+    const auRetour = () => { if (document.visibilityState === 'visible') suivre(); };
+    document.addEventListener('visibilitychange', auRetour);
+    return () => {
+      clearInterval(minuterie.current);
+      document.removeEventListener('visibilitychange', auRetour);
+    };
   }, [paiement, statut, urlAcompte, token, onPaye]);
+
+  // Adresse trouvée (QR scanné, image importée ou collée)
+  const utiliserTexte = (texte) => {
+    const trouve = aliasDepuisQr(texte);
+    if (trouve) {
+      setAlias(trouve);
+      setErreur('');
+      return true;
+    }
+    setErreur('Aucune adresse de paiement PI-SPI trouvée. Utilisez le QR « Recevoir / Mon QR » de votre application bancaire.');
+    return false;
+  };
+
+  const importer = async (e) => {
+    const fichier = e.target.files?.[0];
+    e.target.value = '';
+    if (!fichier) return;
+    setLecture(true);
+    try {
+      utiliserTexte(await lireQrDepuisFichier(fichier));
+    } catch {
+      setErreur('Image illisible. Réessayez avec une capture d\'écran nette de votre QR.');
+    } finally {
+      setLecture(false);
+    }
+  };
+
+  const coller = async () => {
+    try {
+      const texte = await navigator.clipboard.readText();
+      if (!utiliserTexte(texte)) setAlias(texte);
+    } catch {
+      setErreur('Collage refusé par le navigateur : appuyez longuement dans le champ puis « Coller ».');
+    }
+  };
+
+  // Scan caméra : lecture d'une image toutes les 300 ms jusqu'à trouver un QR PI-SPI
+  useEffect(() => {
+    if (!scan) return undefined;
+    let flux = null;
+    let actif = true;
+    (async () => {
+      try {
+        flux = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+        if (!actif) return;
+        const video = videoRef.current;
+        video.srcObject = flux;
+        await video.play();
+        while (actif) {
+          const texte = await lireQrDepuisVideo(video).catch(() => null);
+          if (texte && aliasDepuisQr(texte)) {
+            utiliserTexte(texte);
+            setScan(false);
+            break;
+          }
+          await new Promise(r => setTimeout(r, 300));
+        }
+      } catch {
+        setErreur('Caméra indisponible. Importez plutôt une capture d\'écran de votre QR.');
+        setScan(false);
+      }
+    })();
+    return () => {
+      actif = false;
+      flux?.getTracks().forEach(t => t.stop());
+    };
+  }, [scan]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const demarrer = async () => {
     setErreur('');
@@ -71,6 +156,7 @@ const PaiementAcompte = ({ reservation, token, onPaye, onFermer }) => {
       });
       setPaiement(r.data);
       setStatut('en_attente');
+      if (methode === 'demande') memoriserAlias(memoriser ? aliasPropre : '');
     } catch (err) {
       setErreur(err.message);
     } finally {
@@ -113,18 +199,53 @@ const PaiementAcompte = ({ reservation, token, onPaye, onFermer }) => {
         ) : !paiement ? (
           <>
             <div className="acompte-methodes" role="tablist">
+              {mobile ? (<><button type="button" role="tab" aria-selected={methode === 'demande'} className={methode === 'demande' ? 'active' : ''} onClick={() => setMethode('demande')}>
+                <FaMobileAlt /> {mobile ? 'Sur ce téléphone' : 'Demande dans mon appli'}
+              </button>
               <button type="button" role="tab" aria-selected={methode === 'qr'} className={methode === 'qr' ? 'active' : ''} onClick={() => setMethode('qr')}>
-                <FaQrcode /> QR Code
+                <FaQrcode /> {mobile ? 'QR (autre appareil)' : 'QR Code'}
+              </button></>) : (<><button type="button" role="tab" aria-selected={methode === 'qr'} className={methode === 'qr' ? 'active' : ''} onClick={() => setMethode('qr')}>
+                <FaQrcode /> {mobile ? 'QR (autre appareil)' : 'QR Code'}
               </button>
               <button type="button" role="tab" aria-selected={methode === 'demande'} className={methode === 'demande' ? 'active' : ''} onClick={() => setMethode('demande')}>
-                <FaMobileAlt /> Demande dans mon appli
-              </button>
+                <FaMobileAlt /> {mobile ? 'Sur ce téléphone' : 'Demande dans mon appli'}
+              </button></>)}
             </div>
 
             {methode === 'qr' ? (
-              <p className="acompte-aide">Un QR Code va s'afficher : scannez-le avec l'application de votre banque ou de votre wallet compatible PI-SPI.</p>
+              <p className="acompte-aide">
+                Un QR Code va s'afficher : scannez-le avec l'application de votre banque.
+                {mobile && ' Pratique si vous payez depuis un autre appareil (ordinateur, tablette).'}
+              </p>
             ) : (
               <>
+                <p className="acompte-aide acompte-etapes">
+                  <b>1.</b> Indiquez votre adresse de paiement PI-SPI · <b>2.</b> validez la demande dans l'application de votre banque.
+                </p>
+                <div className="acompte-sources">
+                  <button type="button" onClick={() => fichierRef.current?.click()} disabled={lecture}>
+                    <FaImage /> {lecture ? 'Lecture…' : 'Importer mon QR'}
+                  </button>
+                  {cameraDisponible() && (
+                    <button type="button" onClick={() => { setErreur(''); setScan(true); }}>
+                      <FaCamera /> Scanner mon QR
+                    </button>
+                  )}
+                  {peutColler && (
+                    <button type="button" onClick={coller}><FaPaste /> Coller</button>
+                  )}
+                </div>
+                <input ref={fichierRef} type="file" accept="image/*" hidden onChange={importer} />
+                <p className="acompte-astuce">
+                  Astuce : dans l'application de votre banque, ouvrez « Recevoir / Mon QR PI-SPI », faites une capture d'écran,
+                  puis « Importer mon QR ».
+                </p>
+                {scan && (
+                  <div className="acompte-camera">
+                    <video ref={videoRef} playsInline muted />
+                    <button type="button" className="btn btn-outline btn-sm" onClick={() => setScan(false)}>Arrêter</button>
+                  </div>
+                )}
                 <label htmlFor="acompte-alias">Votre adresse de paiement PI-SPI</label>
                 <input id="acompte-alias" value={alias} onChange={(e) => setAlias(e.target.value)}
                   placeholder="Collez votre adresse de paiement" autoComplete="off" autoCorrect="off"
@@ -134,7 +255,10 @@ const PaiementAcompte = ({ reservation, token, onPaye, onFermer }) => {
                     {UUID_V4.test(normaliserAlias(alias)) ? '✓ Adresse au bon format' : `${normaliserAlias(alias).replace(/-/g, '').length} / 32 caractères`}
                   </p>
                 )}
-                <p className="acompte-aide">Elle figure dans l'application de votre banque (rubrique PI-SPI / adresse de paiement). Vous recevrez la demande dans cette application.</p>
+                <label className="acompte-memoriser">
+                  <input type="checkbox" checked={memoriser} onChange={(e) => setMemoriser(e.target.checked)} />
+                  Mémoriser sur cet appareil pour mes prochains paiements
+                </label>
               </>
             )}
 
@@ -154,10 +278,15 @@ const PaiementAcompte = ({ reservation, token, onPaye, onFermer }) => {
                 <p>Scannez ce QR Code avec l'application de votre banque, puis validez le paiement de <strong>{fcfa(paiement.montant)}</strong>.</p>
               </div>
             ) : (
-              <p className="acompte-aide">
-                {paiement.dejaEnvoyee ? 'Une demande vous a déjà été envoyée. ' : 'Demande envoyée ! '}
-                Ouvrez l'application de votre banque et validez le paiement de <strong>{fcfa(paiement.montant)}</strong> demandé par Sankofart.
-              </p>
+              <div className="acompte-envoyee">
+                <FaMobileAlt />
+                <p>
+                  {paiement.dejaEnvoyee ? 'Une demande vous a déjà été envoyée.' : 'Demande envoyée !'}
+                  <br />
+                  <strong>Ouvrez l'application de votre banque</strong>, puis validez le paiement de <strong>{fcfa(paiement.montant)}</strong>.
+                  Revenez ensuite sur cette page : elle se met à jour toute seule.
+                </p>
+              </div>
             )}
 
             {statut === 'en_attente' && (
