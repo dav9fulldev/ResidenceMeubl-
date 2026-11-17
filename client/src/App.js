@@ -11,6 +11,7 @@ import Favorites from './pages/Favorites';
 import AdminLogin from './pages/AdminLogin';
 import AdminDashboard from './pages/AdminDashboard';
 import ProtectedRoute from './components/ProtectedRoute';
+import ConnectionBanner from './components/ConnectionBanner';
 import { FavoritesProvider } from './context/FavoritesContext';
 import { ResidencesProvider } from './context/ResidencesContext';
 
@@ -21,6 +22,7 @@ function App() {
         <Router>
           <div className="App">
             <Header />
+            <ConnectionBanner />
             <main>
               <Routes>
                 <Route path="/" element={<Home />} />

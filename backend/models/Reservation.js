@@ -97,6 +97,7 @@ class Reservation {
       dates: this.dates,
       details: this.details,
       prixTotal: this.prixTotal,
+      statut: this.getStatutFrancais(),
       dateCreation: this.dateCreation
     };
   }

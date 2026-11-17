@@ -7,16 +7,22 @@ const rateLimit = require('express-rate-limit');
 // Import des routes
 const residencesRoutes = require('./routes/residences');
 const reservationsRoutes = require('./routes/reservations');
+const adminRoutes = require('./routes/admin');
 
 const app = express();
 
 // ✅ Logger toutes les requêtes
-app.use(morgan('combined'));
+if (process.env.NODE_ENV !== 'test') {
+  app.use(morgan('combined'));
+}
 
 // ✅ Configuration CORS
 const allowedOrigins = [
-  process.env.FRONTEND_URL || 'https://sankofart-residence.vercel.app',
+  // FRONTEND_URL peut contenir plusieurs adresses séparées par des virgules
+  ...(process.env.FRONTEND_URL || 'https://sankofart-residence.vercel.app')
+    .split(',').map(url => url.trim().replace(/\/$/, '')).filter(Boolean),
   'http://localhost:3000', // Pour le développement
+  'http://localhost:3001', // Développement (3000 parfois occupé)
   'http://localhost:5173'  // Pour Vite
 ];
 
@@ -40,6 +46,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // ✅ Limiter les requêtes globales pour protéger contre le spam
 const globalLimiter = rateLimit({
+  skip: () => process.env.NODE_ENV === 'test', // pas de limite pendant les tests
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // max 100 requêtes par IP
   message: { 
@@ -53,6 +60,7 @@ app.use('/api/', globalLimiter);
 // ✅ Routes de l'API
 app.use('/api/residences', residencesRoutes);
 app.use('/api/reservations', reservationsRoutes);
+app.use('/api/admin', adminRoutes);
 
 // ✅ Route de santé
 app.get('/health', (req, res) => {
@@ -72,6 +80,7 @@ app.get('/', (req, res) => {
     endpoints: {
       residences: '/api/residences',
       reservations: '/api/reservations',
+      admin: '/api/admin',
       health: '/health'
     },
     documentation: 'Consultez la documentation pour plus d\'informations'
@@ -108,11 +117,31 @@ app.use((error, req, res, next) => {
 // ✅ Port dynamique
 const PORT = process.env.PORT || 5001;
 
-// ✅ Démarrer le serveur
-app.listen(PORT, () => {
-  console.log('🏠 Sankofart Résidence API');
-  console.log(`🚀 Serveur démarré sur http://localhost:${PORT}`);
-  console.log(`📧 Email configuré: ${process.env.EMAIL_USER ? '✅' : '❌'}`);
-  console.log(`🌐 CORS autorisé pour: ${allowedOrigins.join(', ')}`);
-  console.log(`⏰ ${new Date().toLocaleString('fr-FR')}`);
-});
+// ✅ Démarrer le serveur (sauf quand le fichier est importé par les tests)
+if (require.main === module) {
+  const db = require('./db');
+  db.connect()
+    .then(() => {
+      console.log('🗄️  Connecté à MongoDB');
+      const AIService = require('./services/AIService');
+      if (AIService.estActive()) {
+        console.log(`🧠 Recherche intelligente : Voyage AI (${AIService.model})`);
+        require('./services/SmartSearchService').synchroniserEnFond();
+      } else {
+        console.log('🔎 Recherche intelligente : mode mots-clés (VOYAGE_API_KEY non définie)');
+      }
+      app.listen(PORT, () => {
+        console.log('🏠 Sankofart Résidence API');
+        console.log(`🚀 Serveur démarré sur http://localhost:${PORT}`);
+        console.log(`📧 Email configuré: ${process.env.EMAIL_USER ? '✅' : '❌'}`);
+        console.log(`🌐 CORS autorisé pour: ${allowedOrigins.join(', ')}`);
+        console.log(`⏰ ${new Date().toLocaleString('fr-FR')}`);
+      });
+    })
+    .catch((error) => {
+      console.error('❌ Impossible de se connecter à MongoDB :', error.message);
+      process.exit(1);
+    });
+}
+
+module.exports = app;

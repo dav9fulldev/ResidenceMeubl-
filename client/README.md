@@ -1,113 +1,77 @@
-# 🏠 Sankofart Résidence - Frontend Application
+# 🏠 Sankofart Résidence — Frontend
 
-## 📋 ÉTAT DU COMPOSANT : ✅ 100% OPÉRATIONNEL
-Statut : **Terminé - Prêt pour intégration et déploiement**  
-Charte graphique : **Luxe & Prestige (Blanc, Noir, Doré `#d4af37`)**
+Site React de Sankofart Résidence : vitrine, recherche intelligente (texte et voix), réservation et espace d'administration. Charte graphique : blanc, noir et doré `#d4af37`.
 
----
-
-## 🎯 Présentation et Fonctionnalités
-
-Cette application React.js constitue l'interface vitrine et le tunnel de réservation complet pour **Sankofart Résidence**. Elle offre une expérience utilisateur fluide et immersive, adaptée à tous les types d'écrans.
-
-### 👥 Côté Utilisateur & Visiteur
-- **Catalogue Immersif** : Présentation haut de gamme de **10 résidences** avec galeries photos, équipements et localisation.
-- **Vidéo d'ambiance** : Page d'accueil dynamique avec arrière-plan vidéo fluide (`video_script.mp4`).
-- **Recherche & Filtres Avancés** : Recherche textuelle instantanée (nom, ville, quartier) croisée avec des filtres par prix et nombre de chambres.
-- **Espace Favoris** : Sauvegarde locale et persistance des appartements préférés via `localStorage`.
-- **Tunnel de Réservation Strict** : Formulaire intelligent avec pré-remplissage automatique des données de la résidence sélectionnée et module d'upload de pièce d'identité.
-
-### 🛠️ Fonctionnalités Techniques & Administration
-- **Système Hybride Intelligent** : L'application peut fonctionner de manière autonome en **Mode LOCAL** (via données statiques de secours) ou en **Mode API** connecté au serveur backend.
-- **Dashboard Admin Intégré** : Espace sécurisé permettant de piloter l'état des logements et de suivre les statistiques d'occupation en temps réel.
+Déploiement : voir [../DEPLOIEMENT.md](../DEPLOIEMENT.md) (Vercel).
 
 ---
 
-## 📁 Structure du Dossier Frontend
+## ⚙️ Configuration
 
-```text
-client/
-├── public/
-│   ├── images/               # 10 photos officielles des résidences + logos
-│   ├── video_script.mp4      # Vidéo de fond de la page d'accueil
-│   └── index.html            # Point d'entrée HTML principal
-├── src/
-│   ├── components/           # --- COMPOSANTS RÉUTILISABLES ---
-│   │   ├── Header.js         # Barre de navigation principale
-│   │   ├── Footer.js         # Pied de page (inclut le lien Admin)
-│   │   ├── AdminPanel.js     # Panneau de gestion des données
-│   │   ├── AvailabilityStatus.js # Indicateurs de disponibilité
-│   │   └── ProtectedRoute.js # Sécurisation des accès sensibles
-│   ├── pages/                # --- PAGES PRINCIPALES ---
-│   │   ├── Home.js           # Accueil avec résidences vedettes
-│   │   ├── Residences.js     # Liste complète avec filtres avancés
-│   │   ├── ResidenceDetail.js# Fiche détaillée de l'appartement
-│   │   ├── Reservation.js    # Formulaire de réservation et validation
-│   │   ├── Favorites.js      # Gestionnaire des résidences sauvegardées
-│   │   ├── AdminLogin.js     # Formulaire de connexion de l'administrateur
-│   │   └── AdminDashboard.js # Tableau de bord de suivi d'activité
-│   ├── context/              # --- GESTION DES ÉTATS (Context API) ---
-│   │   ├── FavoritesContext.js   # État global des favoris utilisateurs
-│   │   ├── ResidencesContext.js  # Gestionnaire du Mode LOCAL (Statique)
-│   │   └── ResidencesContextAPI.js # Gestionnaire du Mode BACKEND (API)
-│   ├── config/
-│   │   └── api.js            # Configuration des URLs d'appels Axios
-│   └── data/
-│       └── residences.js     # Fichier source des 10 résidences de secours
-├── package.json              # Dépendances et configurations scripts
-└── webpack.config.js         # Serveur de développement universel pour Mac
+Copier [`.env.example`](.env.example) en `.env` :
+
+```env
+REACT_APP_API_URL=http://localhost:5001/api
+```
+
+La variable est intégrée **au moment du build** par Webpack : après l'avoir modifiée sur Vercel, il faut redéployer.
+
+```bash
+npm install
+npm start          # http://localhost:3001 (autre port : PORT=3002 npm start)
+npm run build      # production → dist/
 ```
 
 ---
 
-## 🔧 Installation et Lancement Local (Mac)
+## 🧭 Pages
 
-1. Ouvrez votre terminal et placez-vous dans le répertoire du client :
-   ```bash
-   cd client
-   ```
-
-2. Installez proprement l'ensemble des modules en contournant les éventuels conflits d'architecture :
-   ```bash
-   npm install --legacy-peer-deps
-   ```
-
-3. Démarrez l'application sur votre serveur de développement Webpack :
-   ```bash
-   npm start
-   ```
-
-4. L'application s'ouvrira automatiquement à l'adresse suivante : **`http://localhost:3000`**
+| Route | Page |
+|---|---|
+| `/` | Accueil (vidéo d'ambiance, résidences mises en avant) |
+| `/residences` | Catalogue, filtres classiques et **recherche intelligente** (texte + micro) |
+| `/residence/:id` | Fiche : galerie, statut, équipements, « Vous aimerez aussi » |
+| `/reservation?residence=:id` | Formulaire de réservation |
+| `/favorites` | Favoris (enregistrés dans le navigateur) |
+| `/admin/login` → `/admin/dashboard` | Espace admin : réservations (confirmer / annuler) et gestion des résidences |
 
 ---
 
-## 🔐 Accès Espace Administration
+## 🧩 Fichiers clés
 
-Pour accéder à l'interface de gestion durant vos tests, cliquez sur le lien **"🛠️ Administration"** situé tout en bas dans le pied de page (Footer).
+```text
+client/
+├── vercel.json                     # Build Vercel + redirection des routes vers index.html
+├── webpack.config.js               # Lit .env, injecte REACT_APP_API_URL, copie public/ au build
+└── src/
+    ├── config/
+    │   ├── api.js                  # Adresses de l'API, requêtes, jeton admin (sessionStorage)
+    │   └── mappers.js              # Conversion format API (français) ↔ composants
+    ├── context/
+    │   ├── ResidencesContext.js    # Données, réservation, recherche IA, actions admin
+    │   └── FavoritesContext.js
+    ├── hooks/useVoiceInput.js      # Dictée vocale (Web Speech API)
+    ├── components/
+    │   ├── SmartSearch.js          # Recherche intelligente + micro
+    │   ├── SimilarResidences.js    # « Vous aimerez aussi »
+    │   ├── AvailabilityStatus.js   # Statut d'une résidence (sans nom d'occupant)
+    │   ├── AdminReservations.js    # Réservations dans le tableau de bord
+    │   └── AdminPanel.js           # Gestion des résidences
+    ├── pages/                      # Home, Residences, ResidenceDetail, Reservation, Favorites, Admin…
+    └── data/residences.js          # Catalogue de secours si l'API est injoignable
+```
 
-- **Nom d'utilisateur** : `admin`
-- **Mot de passe** : `sankofart2024`
+---
 
-### 📊 Grille des codes couleur de disponibilité :
+## 🔌 Comportement si l'API est injoignable
 
-
-| Statut | Description | Couleur de l'indicateur |
-|--------|-------------|-------------------------|
-| 🟢 **Disponible** | Logement libre immédiatement | Vert |
-| 🔴 **Occupé** | Résidence actuellement occupée | Rouge |
-| 🟡 **Réservé** | Réservation planifiée et validée | Jaune |
-| 🔵 **Maintenance** | Logement indisponible (Travaux / Ménage) | Bleu |
+Le site affiche le catalogue de secours (`src/data/residences.js`) en lecture seule : la navigation reste possible, mais la réservation, la recherche intelligente et l'administration sont désactivées avec un message explicite. Sur Render (offre gratuite), cela peut arriver pendant les 30 à 60 secondes de réveil du serveur.
 
 ---
 
-## 🔒 Sécurité & Robustesse de l'Interface
-- **Validation Stricte** : Formulaires propulsés par `React Hook Form` empêchant l'envoi de requêtes incomplètes ou de dates inversées.
-- **Contrôle des fichiers** : Vérification stricte de l'extension et du poids des pièces d'identité chargées.
-- **Routes Privées** : Protection logicielle empêchant l'accès direct aux URLs admin sans token d'authentification valide.
+## 🎙️ Recherche vocale
 
-## 📞 Support technique & Contacts
-- **Email de l'entreprise** : `contact@sankofartresidence.com`
-- **Assistance Téléphonique** : `+225 27 22 49 28 90`
-
----
-**Développé avec ❤️ pour Sankofart Résidence.**
+Le bouton micro utilise la reconnaissance vocale du navigateur (gratuite, sans clé) :
+- disponible sur Chrome, Edge et Safari ; masqué automatiquement ailleurs (Firefox) ;
+- nécessite **HTTPS** en ligne (fourni par Vercel) ; `localhost` est autorisé en développement ;
+- sur Chrome, la voix est transcrite par les serveurs de Google (indiqué dans l'infobulle du bouton).

@@ -174,8 +174,8 @@ const AddResidenceForm = ({ onAddResidence, onClose }) => {
         availability: formData.availability
       };
 
+      // Le parent ferme le formulaire une fois la résidence enregistrée
       onAddResidence(newResidence);
-      onClose();
     }
   };
 

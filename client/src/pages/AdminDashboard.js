@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { FaSignOutAlt, FaCog, FaUsers, FaHome, FaCalendarAlt, FaCheckCircle } from 'react-icons/fa';
 import { useResidences } from '../context/ResidencesContext';
 import AdminPanel from '../components/AdminPanel';
+import AdminReservations from '../components/AdminReservations';
 import './AdminDashboard.css';
 
 const AdminDashboard = () => {
@@ -97,6 +98,9 @@ const AdminDashboard = () => {
           <span className="stat-subtitle">En cours</span>
         </div>
       </section>
+
+      {/* Réservations reçues */}
+      <AdminReservations />
 
       {/* Panel de gestion principal */}
       <AdminPanel />

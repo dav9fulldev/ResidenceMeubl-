@@ -1,0 +1,33 @@
+# Configuration Render (Blueprint) — backend Sankofart Résidence
+# Render > New > Blueprint > choisir ce dépôt : le service est créé automatiquement.
+services:
+  - type: web
+    name: sankofart-api
+    runtime: node
+    rootDir: backend
+    plan: free
+    region: frankfurt
+    # --omit=dev : n'installe pas les outils de test (évite le téléchargement de MongoDB en mémoire)
+    buildCommand: npm ci --omit=dev
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: ADMIN_TOKEN_SECRET
+        generateValue: true
+      # Valeurs à saisir dans le tableau de bord Render (jamais dans Git)
+      - key: MONGODB_URI
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: EMAIL_USER
+        sync: false
+      - key: EMAIL_PASS
+        sync: false
+      - key: ADMIN_USERNAME
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: VOYAGE_API_KEY
+        sync: false
