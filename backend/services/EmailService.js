@@ -1,5 +1,17 @@
 const nodemailer = require('nodemailer');
 
+// Adresse publique du site (première valeur de FRONTEND_URL), pour les liens et images des emails
+const urlSite = () => (process.env.FRONTEND_URL || '').split(',')[0].trim().replace(/\/$/, '');
+const urlAbsolue = (chemin) => (/^https?:\/\//.test(chemin) ? chemin : `${urlSite()}${chemin}`);
+
+// Échapper les données saisies par le client avant de les insérer dans le HTML
+const esc = (value) => String(value ?? '')
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#39;');
+
 /**
  * Service de gestion des emails
  */
@@ -107,7 +119,7 @@ class EmailService {
               </div>
             </div>
             ${info.residence.photos && info.residence.photos.length > 0 ? 
-              `<img src="${info.residence.photos[0]}" alt="Photo de la résidence" class="residence-photo">` : ''}
+              `<img src="${esc(urlAbsolue(info.residence.photos[0]))}" alt="Photo de la résidence" class="residence-photo">` : ''}
           </div>
 
           <div class="section">
@@ -115,19 +127,19 @@ class EmailService {
             <div class="info-grid">
               <div class="info-item">
                 <div class="label">Nom Complet</div>
-                <div class="value">${info.client.prenom} ${info.client.nom}</div>
+                <div class="value">${esc(info.client.prenom)} ${esc(info.client.nom)}</div>
               </div>
               <div class="info-item">
                 <div class="label">Email</div>
-                <div class="value">${info.client.email}</div>
+                <div class="value">${esc(info.client.email)}</div>
               </div>
               <div class="info-item">
                 <div class="label">Téléphone</div>
-                <div class="value">${info.client.telephone}</div>
+                <div class="value">${esc(info.client.telephone)}</div>
               </div>
               <div class="info-item">
                 <div class="label">Nombre de Personnes</div>
-                <div class="value">${info.details.nombrePersonnes}</div>
+                <div class="value">${esc(info.details.nombrePersonnes)}</div>
               </div>
             </div>
           </div>
@@ -157,8 +169,8 @@ class EmailService {
           <div class="section">
             <h2>📝 Actions Requises</h2>
             <p>Veuillez traiter cette réservation et contacter le client pour confirmer la disponibilité.</p>
-            <p><strong>Email du client:</strong> ${info.client.email}</p>
-            <p><strong>Téléphone:</strong> ${info.client.telephone}</p>
+            <p><strong>Email du client:</strong> ${esc(info.client.email)}</p>
+            <p><strong>Téléphone:</strong> ${esc(info.client.telephone)}</p>
           </div>
         </div>
       </body>
@@ -194,7 +206,7 @@ class EmailService {
         </div>
         
         <div class="content">
-          <p>Bonjour ${info.client.prenom},</p>
+          <p>Bonjour ${esc(info.client.prenom)},</p>
           
           <p>Nous avons bien reçu votre réservation. Voici un récapitulatif :</p>
 
@@ -229,7 +241,7 @@ class EmailService {
               </div>
             </div>
             ${info.residence.photos && info.residence.photos.length > 0 ? 
-              `<img src="${info.residence.photos[0]}" alt="Photo de la résidence" class="residence-photo">` : ''}
+              `<img src="${esc(urlAbsolue(info.residence.photos[0]))}" alt="Photo de la résidence" class="residence-photo">` : ''}
           </div>
 
           <div class="section">
@@ -245,7 +257,7 @@ class EmailService {
               </div>
               <div class="info-item">
                 <div class="label">Nombre de Personnes</div>
-                <div class="value">${info.details.nombrePersonnes}</div>
+                <div class="value">${esc(info.details.nombrePersonnes)}</div>
               </div>
             </div>
           </div>
@@ -259,6 +271,84 @@ class EmailService {
             <p><strong>Contact Sankofart Résidence</strong></p>
             <p>📧 ${process.env.EMAIL_USER}</p>
             <p>Merci de votre confiance !</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+  }
+
+  // Informer le client d'un changement de statut (confirmée ou annulée)
+  async sendStatusEmail(reservation) {
+    if (!this.transporter) {
+      throw new Error('Transporteur email non initialisé');
+    }
+    const confirmee = reservation.statut === 'confirmee';
+    const nomResidence = reservation.residenceInfo?.nom || 'votre résidence';
+
+    await this.transporter.sendMail({
+      from: `"Sankofart Résidence" <${process.env.EMAIL_USER}>`,
+      to: reservation.client.email,
+      replyTo: process.env.EMAIL_USER,
+      subject: confirmee
+        ? `✅ Réservation confirmée - ${nomResidence}`
+        : `❌ Réservation annulée - ${nomResidence}`,
+      html: this.generateStatusEmailHTML(reservation),
+    });
+  }
+
+  generateStatusEmailHTML(reservation) {
+    const confirmee = reservation.statut === 'confirmee';
+    const couleur = confirmee ? '#2e7d32' : '#c62828';
+    const date = (d) => new Date(d).toLocaleDateString('fr-FR');
+    const residence = reservation.residenceInfo || {};
+    const photo = residence.photos && residence.photos[0];
+
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .header { background: ${couleur}; color: white; padding: 20px; text-align: center; }
+          .content { padding: 20px; }
+          .section { margin: 20px 0; padding: 15px; border-left: 4px solid ${couleur}; background: #f9f9f9; }
+          .label { font-weight: bold; color: #1e3c72; }
+          .residence-photo { max-width: 200px; border-radius: 8px; margin: 10px 0; }
+          .footer { text-align: center; margin-top: 30px; padding: 20px; background: #f5f5f5; border-radius: 8px; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>${confirmee ? '✅ Réservation confirmée' : '❌ Réservation annulée'}</h1>
+          <p>Sankofart Résidence</p>
+        </div>
+
+        <div class="content">
+          <p>Bonjour ${esc(reservation.client.prenom)},</p>
+
+          ${confirmee
+            ? `<p>Bonne nouvelle : votre réservation est <strong>confirmée</strong>. Nous avons hâte de vous accueillir !</p>`
+            : `<p>Nous sommes désolés : votre réservation a été <strong>annulée</strong>. N'hésitez pas à nous contacter ou à choisir d'autres dates.</p>`}
+
+          <div class="section">
+            <p><span class="label">Référence :</span> ${esc(reservation.id)}</p>
+            <p><span class="label">Résidence :</span> ${esc(residence.nom)} — ${esc(residence.localisation)}</p>
+            <p><span class="label">Arrivée :</span> ${date(reservation.dates.arrivee)}</p>
+            <p><span class="label">Départ :</span> ${date(reservation.dates.depart)}</p>
+            <p><span class="label">Personnes :</span> ${esc(reservation.details?.nombrePersonnes)}</p>
+            <p><span class="label">Montant :</span> ${Number(reservation.prixTotal).toLocaleString('fr-FR')} FCFA</p>
+            ${photo ? `<img src="${esc(urlAbsolue(photo))}" alt="Photo de la résidence" class="residence-photo">` : ''}
+          </div>
+
+          ${confirmee
+            ? `<div class="section"><p>Pour toute question avant votre arrivée, répondez simplement à cet email.</p></div>`
+            : ''}
+
+          <div class="footer">
+            <p><strong>Contact Sankofart Résidence</strong></p>
+            <p>📧 ${process.env.EMAIL_USER}</p>
           </div>
         </div>
       </body>

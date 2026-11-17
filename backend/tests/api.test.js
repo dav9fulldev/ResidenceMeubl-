@@ -1,0 +1,309 @@
+/**
+ * Tests de l'API — exécuter avec : npm test
+ * Utilise le lanceur de tests intégré à Node (node:test), sans dépendance supplémentaire.
+ */
+const { test, before, after } = require('node:test');
+const assert = require('node:assert/strict');
+
+// Configuration de test (avant de charger l'application)
+process.env.NODE_ENV = 'test';
+process.env.ADMIN_USERNAME = 'admin-test';
+process.env.ADMIN_PASSWORD = 'mot-de-passe-test';
+
+const { MongoMemoryServer } = require('mongodb-memory-server');
+const db = require('../db');
+const app = require('../server');
+const ReservationService = require('../services/ReservationService');
+
+// Pas d'envoi d'email réel pendant les tests : on note les emails « envoyés »
+const emailsStatut = [];
+ReservationService.emailService.sendReservationEmail = async () => true;
+ReservationService.emailService.sendStatusEmail = async (reservation) => {
+  emailsStatut.push({ id: reservation.id, statut: reservation.statut, to: reservation.client.email });
+};
+
+let server;
+let baseUrl;
+
+let mongo;
+
+before(async () => {
+  // Vraie base MongoDB lancée en mémoire pour les tests
+  mongo = await MongoMemoryServer.create();
+  await db.connect(mongo.getUri(), 'sankofart-test');
+
+  server = app.listen(0);
+  await new Promise(resolve => server.once('listening', resolve));
+  baseUrl = `http://localhost:${server.address().port}`;
+});
+
+after(async () => {
+  server.close();
+  await db.close();
+  await mongo.stop();
+});
+
+let jetonAdmin;
+const connexionAdmin = async () => {
+  if (!jetonAdmin) {
+    const res = await api('/api/admin/login', {
+      method: 'POST',
+      body: { username: 'admin-test', password: 'mot-de-passe-test' },
+    });
+    jetonAdmin = res.body.data.token;
+  }
+  return { Authorization: `Bearer ${jetonAdmin}` };
+};
+
+const jourDansNJours = (n) => {
+  const d = new Date();
+  d.setDate(d.getDate() + n);
+  return d.toISOString().slice(0, 10);
+};
+
+const api = async (path, options = {}) => {
+  const res = await fetch(baseUrl + path, {
+    ...options,
+    headers: { 'Content-Type': 'application/json', ...options.headers },
+    body: options.body ? JSON.stringify(options.body) : undefined,
+  });
+  return { status: res.status, body: await res.json() };
+};
+
+const nouvelleReservation = (overrides = {}) => ({
+  residenceId: 1,
+  nom: 'Kouassi',
+  prenom: 'Awa',
+  email: 'awa@example.com',
+  telephone: '0700000000',
+  dateArrivee: jourDansNJours(10),
+  dateDepart: jourDansNJours(13),
+  nombrePersonnes: 2,
+  ...overrides,
+});
+
+test('GET /api/residences/types et /villes ne sont plus capturées par /:id', async () => {
+  const types = await api('/api/residences/types');
+  assert.equal(types.status, 200);
+  assert.ok(types.body.data.includes('Villa Prestige'));
+
+  const villes = await api('/api/residences/villes');
+  assert.equal(villes.status, 200);
+  assert.ok(villes.body.data.includes('Abidjan'));
+});
+
+test('GET /api/residences/:id fonctionne toujours', async () => {
+  const res = await api('/api/residences/1');
+  assert.equal(res.status, 200);
+  assert.equal(res.body.data.id, 1);
+});
+
+test('cycle de réservation : prix, chevauchement, annulation', async () => {
+  // 1. Création : 3 nuits à 45 000 FCFA
+  const creation = await api('/api/reservations', { method: 'POST', body: nouvelleReservation() });
+  assert.equal(creation.status, 201, JSON.stringify(creation.body));
+  const id = creation.body.data.id;
+
+  const detail = await api(`/api/reservations/${id}`);
+  assert.equal(detail.body.data.prixTotal, 135000);
+
+  // 2. Les mêmes dates ne sont plus disponibles
+  const doublon = await api('/api/reservations', {
+    method: 'POST',
+    body: nouvelleReservation({ dateArrivee: jourDansNJours(11), dateDepart: jourDansNJours(12) }),
+  });
+  assert.equal(doublon.status, 400);
+  assert.match(doublon.body.message, /pas disponible/);
+
+  const dispo = await api('/api/residences/check-disponibilite', {
+    method: 'POST',
+    body: { residenceId: 1, dateArrivee: jourDansNJours(12), dateDepart: jourDansNJours(14) },
+  });
+  assert.equal(dispo.body.data.disponible, false);
+
+  // Arriver le jour du départ précédent est autorisé
+  const enchaine = await api('/api/residences/check-disponibilite', {
+    method: 'POST',
+    body: { residenceId: 1, dateArrivee: jourDansNJours(13), dateDepart: jourDansNJours(15) },
+  });
+  assert.equal(enchaine.body.data.disponible, true);
+
+  // 3. Après annulation, les dates se libèrent
+  const annulation = await api(`/api/reservations/${id}/status`, {
+    method: 'PUT',
+    headers: await connexionAdmin(),
+    body: { statut: 'annulee' },
+  });
+  assert.equal(annulation.status, 200);
+  assert.equal(annulation.body.data.emailEnvoye, true);
+  assert.deepEqual(emailsStatut.at(-1), { id, statut: 'annulee', to: 'awa@example.com' });
+
+  // Remettre le même statut ne renvoie pas d'email
+  const nbEmails = emailsStatut.length;
+  const memeStatut = await api(`/api/reservations/${id}/status`, {
+    method: 'PUT',
+    headers: await connexionAdmin(),
+    body: { statut: 'annulee' },
+  });
+  assert.equal(memeStatut.body.data.emailEnvoye, false);
+  assert.equal(emailsStatut.length, nbEmails);
+
+  const rebook = await api('/api/reservations', { method: 'POST', body: nouvelleReservation() });
+  assert.equal(rebook.status, 201, JSON.stringify(rebook.body));
+});
+
+test('capacité et durée de séjour sont vérifiées', async () => {
+  const tropDeMonde = await api('/api/reservations', {
+    method: 'POST',
+    body: nouvelleReservation({ residenceId: 1, nombrePersonnes: 9, dateArrivee: jourDansNJours(40), dateDepart: jourDansNJours(42) }),
+  });
+  assert.equal(tropDeMonde.status, 400);
+  assert.match(tropDeMonde.body.message, /maximum 4 personnes/);
+
+  const tropLong = await api('/api/reservations', {
+    method: 'POST',
+    body: nouvelleReservation({ dateArrivee: jourDansNJours(50), dateDepart: jourDansNJours(90) }),
+  });
+  assert.equal(tropLong.status, 400);
+  assert.match(tropLong.body.message, /durée du séjour/);
+});
+
+test('les routes admin refusent les requêtes sans jeton valide', async () => {
+  assert.equal((await api('/api/reservations')).status, 401);
+  assert.equal((await api('/api/reservations/stats')).status, 401);
+  assert.equal((await api('/api/admin/residences')).status, 401);
+  assert.equal((await api('/api/admin/residences', { headers: { Authorization: 'Bearer faux.jeton' } })).status, 401);
+
+  const mauvaisMdp = await api('/api/admin/login', {
+    method: 'POST',
+    body: { username: 'admin-test', password: 'mauvais' },
+  });
+  assert.equal(mauvaisMdp.status, 401);
+  assert.equal(mauvaisMdp.body.data, undefined);
+});
+
+test('un admin connecté voit les réservations et gère les résidences', async () => {
+  const headers = await connexionAdmin();
+
+  const liste = await api('/api/reservations', { headers });
+  assert.equal(liste.status, 200);
+  assert.ok(Array.isArray(liste.body.data));
+
+  // Création
+  const creation = await api('/api/admin/residences', {
+    method: 'POST',
+    headers,
+    body: {
+      nom: 'Résidence Test', reference: 'TEST-001', typeAppartement: 'Studio',
+      localisation: 'Rue test, Bingerville', ville: 'Bingerville', quartier: 'Centre',
+      prix: 20000, nombreChambres: 1, capacite: 2,
+    },
+  });
+  assert.equal(creation.status, 201, JSON.stringify(creation.body));
+  const id = creation.body.data.id;
+
+  // Données invalides
+  const invalide = await api('/api/admin/residences', { method: 'POST', headers, body: { nom: 'X' } });
+  assert.equal(invalide.status, 400);
+
+  // Maintenance : la résidence n'est plus réservable
+  const maintenance = await api(`/api/admin/residences/${id}/status`, {
+    method: 'PUT', headers, body: { statut: 'maintenance' },
+  });
+  assert.equal(maintenance.status, 200);
+  assert.equal(maintenance.body.data.disponibilite.statut, 'maintenance');
+
+  const resa = await api('/api/reservations', {
+    method: 'POST',
+    body: nouvelleReservation({ residenceId: id, nombrePersonnes: 1 }),
+  });
+  assert.equal(resa.status, 400);
+
+  // Modification puis suppression
+  const modif = await api(`/api/admin/residences/${id}`, { method: 'PUT', headers, body: { prix: 25000 } });
+  assert.equal(modif.body.data.prix, 25000);
+
+  assert.equal((await api(`/api/admin/residences/${id}`, { method: 'DELETE', headers })).status, 200);
+  assert.equal((await api(`/api/residences/${id}`)).status, 404);
+});
+
+test('les résidences créées sont enregistrées en base avec un identifiant unique', async () => {
+  const headers = await connexionAdmin();
+  const creation = await api('/api/admin/residences', {
+    method: 'POST',
+    headers,
+    body: {
+      nom: 'Résidence Persistante', reference: 'TEST-002', typeAppartement: 'Studio',
+      localisation: 'Rue test', ville: 'Abidjan', quartier: 'Riviera',
+      prix: 30000, nombreChambres: 1, capacite: 2,
+    },
+  });
+  assert.equal(creation.status, 201);
+  assert.ok(creation.body.data.id > 10, 'les identifiants continuent après le catalogue initial');
+
+  // Référence déjà utilisée
+  const doublon = await api('/api/admin/residences', {
+    method: 'POST', headers, body: { ...creation.body.data, id: undefined },
+  });
+  assert.equal(doublon.status, 400);
+  assert.match(doublon.body.message, /référence existe déjà/);
+
+  // Lecture directe en base, indépendante de l'API
+  const enBase = await db.collection('residences').findOne({ reference: 'TEST-002' });
+  assert.equal(enBase.nom, 'Résidence Persistante');
+
+  const stats = await api('/api/reservations/stats', { headers });
+  assert.equal(stats.status, 200);
+  assert.ok(stats.body.data.total >= 2);
+});
+
+test('le statut affiché suit les réservations confirmées', async () => {
+  const headers = await connexionAdmin();
+  const statutDe = async (id) => (await api(`/api/residences/${id}`)).body.data.disponibilite;
+
+  // Résidence 5 : disponible au départ
+  assert.equal((await statutDe(5)).statut, 'disponible');
+
+  // Réservation à venir : en attente → pas de changement
+  const futur = await api('/api/reservations', {
+    method: 'POST',
+    body: nouvelleReservation({ residenceId: 5, dateArrivee: jourDansNJours(20), dateDepart: jourDansNJours(23) }),
+  });
+  assert.equal(futur.status, 201, JSON.stringify(futur.body));
+  assert.equal((await statutDe(5)).statut, 'disponible');
+
+  // Confirmée → « réservé » avec les dates
+  await api(`/api/reservations/${futur.body.data.id}/status`, { method: 'PUT', headers, body: { statut: 'confirmee' } });
+  let dispo = await statutDe(5);
+  assert.equal(dispo.statut, 'réservé');
+  assert.equal(dispo.arrivee, jourDansNJours(20));
+
+  // Le nom du client n'est jamais exposé publiquement…
+  assert.equal(dispo.occupant, undefined);
+  const liste = (await api('/api/residences')).body.data;
+  assert.ok(liste.every(r => r.disponibilite.occupant === undefined));
+  assert.ok(!JSON.stringify(liste).includes('Kouassi'));
+  // …mais l'admin le voit
+  const vueAdmin = (await api('/api/admin/residences', { headers })).body.data.find(r => r.id === 5);
+  assert.equal(vueAdmin.disponibilite.occupant, 'Awa Kouassi');
+
+  // Séjour en cours confirmé → « occupé », prioritaire sur le séjour à venir
+  const enCours = await api('/api/reservations', {
+    method: 'POST',
+    body: nouvelleReservation({ residenceId: 5, dateArrivee: jourDansNJours(0), dateDepart: jourDansNJours(2) }),
+  });
+  assert.equal(enCours.status, 201, JSON.stringify(enCours.body));
+  await api(`/api/reservations/${enCours.body.data.id}/status`, { method: 'PUT', headers, body: { statut: 'confirmee' } });
+  dispo = await statutDe(5);
+  assert.equal(dispo.statut, 'occupé');
+  assert.equal(dispo.prochaineDisponibilite, jourDansNJours(2));
+
+  // Annulations → retour à « disponible »
+  await api(`/api/reservations/${enCours.body.data.id}/status`, { method: 'PUT', headers, body: { statut: 'annulee' } });
+  await api(`/api/reservations/${futur.body.data.id}/status`, { method: 'PUT', headers, body: { statut: 'annulee' } });
+  assert.equal((await statutDe(5)).statut, 'disponible');
+
+  // La maintenance posée à la main reste prioritaire
+  await api('/api/admin/residences/7/status', { method: 'PUT', headers, body: { statut: 'maintenance' } });
+  assert.equal((await api('/api/admin/residences', { headers })).body.data.find(r => r.id === 7).disponibilite.statut, 'maintenance');
+});

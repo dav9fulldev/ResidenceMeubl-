@@ -5,7 +5,7 @@
 
 const axios = require('axios');
 
-const BASE_URL = 'http://localhost:5000';
+const BASE_URL = process.env.API_URL || 'http://localhost:5001';
 
 async function testAPI() {
   console.log('🧪 Test de l\'API Sankofart Résidence\n');

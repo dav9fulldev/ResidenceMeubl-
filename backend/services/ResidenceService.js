@@ -1,184 +1,213 @@
 const Residence = require('../models/Residence');
+const db = require('../db');
+
+// Champs modifiables par l'administrateur
+const CHAMPS_EDITABLES = [
+  'nom', 'reference', 'typeAppartement', 'description', 'localisation', 'ville', 'quartier',
+  'prix', 'nombreChambres', 'nombreSallesDeBain', 'capacite', 'note', 'photos', 'equipements',
+  'disponibilite', 'actif',
+];
+
+const choisirChamps = (data) => {
+  const resultat = {};
+  for (const champ of CHAMPS_EDITABLES) {
+    if (data[champ] !== undefined) resultat[champ] = data[champ];
+  }
+  return resultat;
+};
+
+const SANS_ID_MONGO = { projection: { _id: 0 } };
+const ACTIVES = { actif: { $ne: false } };
+
+class ErreurValidation extends Error {}
+
+// Version publique : jamais le nom de l'occupant (donnée personnelle réservée à l'admin)
+const publique = (residence) => {
+  const { occupant, ...disponibilite } = residence.disponibilite;
+  return { ...residence, disponibilite };
+};
+
+const aujourdhui = () => new Date().toISOString().slice(0, 10);
 
 /**
- * Service de gestion des résidences
+ * Calcule le statut affiché à partir des réservations confirmées :
+ *  - séjour confirmé en cours  → « occupé »
+ *  - séjour confirmé à venir   → « réservé » (le plus proche)
+ * Un statut posé à la main par l'admin (autre que « disponible ») reste prioritaire.
+ */
+const appliquerReservations = (residence, reservationsConfirmees) => {
+  if (residence.disponibilite.statut !== 'disponible') return residence;
+
+  const jour = aujourdhui();
+  const sejours = reservationsConfirmees
+    .filter(r => r.residenceId === residence.id && r.dates.depart > jour)
+    .sort((a, b) => a.dates.arrivee.localeCompare(b.dates.arrivee));
+  if (sejours.length === 0) return residence;
+
+  const enCours = sejours.find(r => r.dates.arrivee <= jour);
+  const sejour = enCours || sejours[0];
+
+  return {
+    ...residence,
+    disponibilite: {
+      ...residence.disponibilite,
+      statut: enCours ? 'occupé' : 'réservé',
+      occupant: `${sejour.client.prenom} ${sejour.client.nom}`,
+      arrivee: sejour.dates.arrivee,
+      depart: sejour.dates.depart,
+      prochaineDisponibilite: sejour.dates.depart,
+      automatique: true, // calculé depuis les réservations, pas posé à la main
+    },
+  };
+};
+
+/**
+ * Service de gestion des résidences (stockage MongoDB, collection « residences »)
  */
 class ResidenceService {
-  constructor() {
-    // Données d'exemple pour les résidences
-    this.residences = [
-      {
-        id: 1,
-        nom: "Appartement Luxe Cocody",
-        reference: "ALC001",
-        localisation: "Cocody, Abidjan",
-        ville: "Abidjan",
-        quartier: "Cocody",
-        prix: 45000,
-        nombreChambres: 2,
-        typeAppartement: "Appartement",
-        description: "Magnifique appartement moderne dans un quartier résidentiel calme de Cocody. Idéal pour les voyageurs d'affaires et les familles.",
-        equipements: ["Climatisation", "WiFi", "Cuisine équipée", "Balcon", "Parking"],
-        photos: [
-           "/images/residence1.png",
-           "/images/residence2.png",
-           "/images/residence3.png"
-        ],
-        amenities: ["Piscine", "Gym", "Sécurité 24/7", "Conciergerie"],
-        surface: 85,
-        capacite: 4,
-        actif: true
-      },
-      {
-        id: 2,
-        nom: "Villa Premium Yopougon",
-        reference: "VPY002",
-        localisation: "Yopougon, Abidjan",
-        ville: "Abidjan",
-        quartier: "Yopougon",
-        prix: 65000,
-        nombreChambres: 3,
-        typeAppartement: "Villa",
-        description: "Superbe villa avec jardin privatif dans le quartier animé de Yopougon. Parfait pour les séjours en famille.",
-        equipements: ["Climatisation", "WiFi", "Cuisine équipée", "Jardin", "Terrasse", "Parking privé"],
-        photos: [
-          "/images/residence4.png",
-          "/images/residence5.png",
-          "/images/residence6.png"
-        ],
-        amenities: ["Jardin privatif", "Terrasse", "Sécurité", "Ménage"],
-        surface: 120,
-        capacite: 6,
-        actif: true
-      },
-      {
-        id: 3,
-        nom: "Studio Moderne Plateau",
-        reference: "SMP003",
-        localisation: "Plateau, Abidjan",
-        ville: "Abidjan",
-        quartier: "Plateau",
-        prix: 28000,
-        nombreChambres: 1,
-        typeAppartement: "Studio",
-        description: "Studio moderne et fonctionnel au cœur du Plateau, à proximité des commerces et des transports.",
-        equipements: ["Climatisation", "WiFi", "Cuisine équipée", "Balcon"],
-        photos: [
-          "/images/residence7.png",
-        ],
-        amenities: ["Sécurité", "Ascenseur", "Ménage"],
-        surface: 45,
-        capacite: 2,
-        actif: true
-      },
-      {
-        id: 4,
-        nom: "Appartement Familial Marcory",
-        reference: "AFM004",
-        localisation: "Marcory, Abidjan",
-        ville: "Abidjan",
-        quartier: "Marcory",
-        prix: 52000,
-        nombreChambres: 3,
-        typeAppartement: "Appartement",
-        description: "Grand appartement familial dans le quartier résidentiel de Marcory. Idéal pour les longs séjours.",
-        equipements: ["Climatisation", "WiFi", "Cuisine équipée", "Balcon", "Parking", "Cave"],
-        photos: [
-          "/images/residence8.png",
-          "/images/residence9.png",
-          "/images/residence10.png"
-        ],
-        amenities: ["Piscine", "Gym", "Sécurité", "Ménage", "Conciergerie"],
-        surface: 110,
-        capacite: 6,
-        actif: true
-      }
-    ];
+  get collection() {
+    return db.collection('residences');
   }
 
-  // Obtenir toutes les résidences actives
-  getAllResidences() {
-    return this.residences
-      .filter(residence => residence.actif)
-      .map(residence => new Residence(residence).getInfoBasique());
+  // Réservations confirmées pas encore terminées
+  async reservationsConfirmees(filtre = {}) {
+    return db.collection('reservations')
+      .find({ ...filtre, statut: 'confirmee', 'dates.depart': { $gt: aujourdhui() } }, SANS_ID_MONGO)
+      .toArray();
   }
 
-  // Obtenir une résidence par ID
-  getResidenceById(id) {
-    const residence = this.residences.find(r => r.id === parseInt(id) && r.actif);
-    return residence ? new Residence(residence).getInfoComplete() : null;
+  async avecStatutReel(docs) {
+    const confirmees = await this.reservationsConfirmees(
+      docs.length === 1 ? { residenceId: docs[0].id } : {}
+    );
+    return docs.map(d => appliquerReservations(new Residence(d).toJSON(), confirmees));
   }
 
-  // Rechercher des résidences
-  searchResidences(criteres) {
-    let resultats = this.residences.filter(residence => residence.actif);
+  // Résidences visibles sur le site public
+  async getAllResidences() {
+    const docs = await this.collection.find(ACTIVES, SANS_ID_MONGO).sort({ id: 1 }).toArray();
+    return (await this.avecStatutReel(docs)).map(publique);
+  }
 
-    // Recherche par nom, ville ou quartier
+  // Toutes les résidences, y compris inactives (admin)
+  async getAllResidencesAdmin() {
+    const docs = await this.collection.find({}, SANS_ID_MONGO).sort({ id: 1 }).toArray();
+    return this.avecStatutReel(docs);
+  }
+
+  // Obtenir une résidence active par ID (version publique)
+  async getResidenceById(id) {
+    const doc = await this.collection.findOne({ id: parseInt(id), ...ACTIVES }, SANS_ID_MONGO);
+    return doc ? publique((await this.avecStatutReel([doc]))[0]) : null;
+  }
+
+  // Rechercher des résidences (filtrage en mémoire : le catalogue est petit)
+  async searchResidences(criteres = {}) {
+    let resultats = await this.getAllResidences();
+
     if (criteres.recherche) {
-      const recherche = criteres.recherche.toLowerCase();
-      resultats = resultats.filter(residence => 
-        residence.nom.toLowerCase().includes(recherche) ||
-        residence.ville.toLowerCase().includes(recherche) ||
-        residence.quartier.toLowerCase().includes(recherche)
+      const recherche = String(criteres.recherche).toLowerCase();
+      resultats = resultats.filter(r =>
+        [r.nom, r.ville, r.quartier, r.localisation, r.typeAppartement]
+          .some(v => v && v.toLowerCase().includes(recherche))
       );
     }
-
-    // Filtre par prix
-    if (criteres.prixMin !== undefined) {
-      resultats = resultats.filter(residence => residence.prix >= criteres.prixMin);
-    }
-    if (criteres.prixMax !== undefined) {
-      resultats = resultats.filter(residence => residence.prix <= criteres.prixMax);
-    }
-
-    // Filtre par nombre de chambres
-    if (criteres.nombreChambres) {
-      resultats = resultats.filter(residence => residence.nombreChambres >= criteres.nombreChambres);
-    }
-
-    // Filtre par type d'appartement
-    if (criteres.typeAppartement) {
-      resultats = resultats.filter(residence => residence.typeAppartement === criteres.typeAppartement);
-    }
-
-    // Filtre par localisation
+    if (criteres.prixMin !== undefined) resultats = resultats.filter(r => r.prix >= Number(criteres.prixMin));
+    if (criteres.prixMax !== undefined) resultats = resultats.filter(r => r.prix <= Number(criteres.prixMax));
+    if (criteres.nombreChambres) resultats = resultats.filter(r => r.nombreChambres >= Number(criteres.nombreChambres));
+    if (criteres.typeAppartement) resultats = resultats.filter(r => r.typeAppartement === criteres.typeAppartement);
     if (criteres.localisation) {
-      resultats = resultats.filter(residence => 
-        residence.ville.toLowerCase().includes(criteres.localisation.toLowerCase()) ||
-        residence.quartier.toLowerCase().includes(criteres.localisation.toLowerCase())
-      );
+      const loc = String(criteres.localisation).toLowerCase();
+      resultats = resultats.filter(r => r.ville.toLowerCase().includes(loc) || r.quartier.toLowerCase().includes(loc));
     }
 
-    return resultats.map(residence => new Residence(residence).getInfoBasique());
+    return resultats;
   }
 
-  // Obtenir les types d'appartements disponibles
-  getTypesAppartements() {
-    const types = [...new Set(this.residences.map(r => r.typeAppartement))];
-    return types;
+  async getTypesAppartements() {
+    return this.collection.distinct('typeAppartement', ACTIVES);
   }
 
-  // Obtenir les villes disponibles
-  getVilles() {
-    const villes = [...new Set(this.residences.map(r => r.ville))];
-    return villes;
+  async getVilles() {
+    return this.collection.distinct('ville', ACTIVES);
   }
 
-  // Obtenir les quartiers par ville
-  getQuartiersByVille(ville) {
-    const quartiers = this.residences
-      .filter(r => r.ville === ville && r.actif)
-      .map(r => r.quartier);
-    return [...new Set(quartiers)];
+  async getQuartiersByVille(ville) {
+    return this.collection.distinct('quartier', { ville: String(ville), ...ACTIVES });
   }
 
-  // Vérifier la disponibilité d'une résidence
-  checkDisponibilite(residenceId, dateArrivee, dateDepart) {
-    const residence = this.getResidenceById(residenceId);
-    if (!residence) return false;
-    
-    return new Residence(residence).estDisponible(dateArrivee, dateDepart);
+  // La résidence existe-t-elle et peut-elle être réservée ? (hors conflits de dates)
+  async checkDisponibilite(residenceId) {
+    const doc = await this.collection.findOne({ id: parseInt(residenceId) }, SANS_ID_MONGO);
+    return Boolean(doc && new Residence(doc).estReservable());
+  }
+
+  // ---------- Administration ----------
+
+  async createResidence(data) {
+    const residence = new Residence({ ...choisirChamps(data), id: 0 });
+
+    const validation = residence.valider();
+    if (!validation.valide) {
+      throw new ErreurValidation(validation.erreurs.join(', '));
+    }
+    if (await this.collection.findOne({ reference: residence.reference })) {
+      throw new ErreurValidation('Cette référence existe déjà');
+    }
+
+    residence.id = await db.nextId('residences');
+    await this.collection.insertOne(residence.toJSON());
+    return residence.toJSON();
+  }
+
+  async updateResidence(id, data) {
+    const doc = await this.collection.findOne({ id: parseInt(id) }, SANS_ID_MONGO);
+    if (!doc) return null;
+
+    const actuelle = new Residence(doc).toJSON();
+    const changements = choisirChamps(data);
+    if (changements.disponibilite) {
+      changements.disponibilite = { ...actuelle.disponibilite, ...changements.disponibilite };
+    }
+
+    const residence = new Residence({ ...actuelle, ...changements, id: actuelle.id });
+    const validation = residence.valider();
+    if (!validation.valide) {
+      throw new ErreurValidation(validation.erreurs.join(', '));
+    }
+    if (residence.reference !== actuelle.reference &&
+        await this.collection.findOne({ reference: residence.reference })) {
+      throw new ErreurValidation('Cette référence existe déjà');
+    }
+
+    await this.collection.replaceOne({ id: actuelle.id }, residence.toJSON());
+    return (await this.avecStatutReel([residence.toJSON()]))[0];
+  }
+
+  // Changer le statut affiché (disponible, occupé, réservé, maintenance)
+  async updateStatut(id, statut, details = {}) {
+    if (!Residence.STATUTS.includes(statut)) {
+      throw new ErreurValidation('Statut invalide');
+    }
+    const libre = statut === 'disponible' || statut === 'maintenance';
+    return this.updateResidence(id, {
+      disponibilite: {
+        statut,
+        occupant: libre ? null : details.occupant || null,
+        arrivee: libre ? null : details.arrivee || null,
+        depart: libre ? null : details.depart || null,
+        prochaineDisponibilite: statut === 'disponible' ? null : details.prochaineDisponibilite || details.depart || null,
+      },
+    });
+  }
+
+  async deleteResidence(id) {
+    const result = await this.collection.deleteOne({ id: parseInt(id) });
+    return result.deletedCount === 1;
   }
 }
 
-module.exports = new ResidenceService();
+const service = new ResidenceService();
+service.ErreurValidation = ErreurValidation;
+
+module.exports = service;
