@@ -272,3 +272,12 @@
   transform: translateY(-2px);
   box-shadow: 0 8px 25px rgba(212, 175, 55, 0.3);
 }
+
+.password-toggle {
+  width: 44px;
+  height: 44px;
+  right: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}

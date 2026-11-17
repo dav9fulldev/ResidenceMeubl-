@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Outlet, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Outlet, Navigate, useLocation } from 'react-router-dom';
 import './App.css';
 import Header from './components/Header';
 import Footer from './components/Footer';
@@ -18,17 +18,23 @@ import AdminSettingsPage from './pages/AdminSettingsPage';
 import AdminLayout from './components/admin/AdminLayout';
 import ProtectedRoute from './components/ProtectedRoute';
 import ConnectionBanner from './components/ConnectionBanner';
+import ErrorBoundary from './components/ErrorBoundary';
+import NotFound from './pages/NotFound';
 import { FavoritesProvider } from './context/FavoritesContext';
 import { ResidencesProvider } from './context/ResidencesContext';
 
 // Site public : en-tête, bandeau de connexion et pied de page
 function PublicLayout() {
+  const { pathname } = useLocation();
   return (
     <div className="App">
+      <a href="#contenu" className="lien-evitement">Aller au contenu</a>
       <Header />
       <ConnectionBanner />
-      <main>
-        <Outlet />
+      <main id="contenu" tabIndex={-1}>
+        <ErrorBoundary cle={pathname}>
+          <Outlet />
+        </ErrorBoundary>
       </main>
       <Footer />
     </div>
@@ -48,6 +54,7 @@ function App() {
               <Route path="/reservation" element={<Reservation />} />
               <Route path="/favorites" element={<Favorites />} />
               <Route path="/mes-reservations" element={<MesReservations />} />
+              <Route path="*" element={<NotFound />} />
             </Route>
 
             {/* Back-office : application à part, sans les onglets du site public */}

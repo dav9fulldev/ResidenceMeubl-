@@ -231,3 +231,10 @@
 .acomptes-recents b {
   white-space: nowrap;
 }
+
+.overview-card-header a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+}

@@ -4,32 +4,32 @@
   background: var(--bg-soft);
 }
 
-.container {
+.residences-page .container {
   max-width: 1200px;
   margin: 0 auto;
   padding: 0 20px;
 }
 
 /* En-tête de la page */
-.page-header {
+.residences-page .page-header {
   text-align: center;
   margin-bottom: 40px;
 }
 
-.page-header h1 {
+.residences-page .page-header h1 {
   font-size: 36px;
   font-weight: 700;
   color: var(--text);
   margin-bottom: 16px;
 }
 
-.page-header p {
+.residences-page .page-header p {
   font-size: 18px;
   color: var(--text-muted);
 }
 
 /* Barre de recherche et filtres */
-.search-filters {
+.residences-page .search-filters {
   display: flex;
   gap: 20px;
   margin-bottom: 30px;
@@ -37,13 +37,13 @@
   flex-wrap: wrap;
 }
 
-.search-bar {
+.residences-page .search-bar {
   flex: 1;
   min-width: 300px;
   position: relative;
 }
 
-.search-icon {
+.residences-page .search-icon {
   position: absolute;
   left: 16px;
   top: 50%;
@@ -52,7 +52,7 @@
   font-size: 16px;
 }
 
-.search-input {
+.residences-page .search-input {
   width: 100%;
   padding: 14px 16px 14px 48px;
   border: 2px solid var(--border);
@@ -62,11 +62,11 @@
   transition: border-color 0.3s ease;
 }
 
-.search-input:focus {
+.residences-page .search-input:focus {
   border-color: #d4af37;
 }
 
-.filter-toggle {
+.residences-page .filter-toggle {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -81,13 +81,13 @@
   white-space: nowrap;
 }
 
-.filter-toggle:hover {
+.residences-page .filter-toggle:hover {
   border-color: #d4af37;
   color: #d4af37;
 }
 
 /* Panneau de filtres */
-.filters-panel {
+.residences-page .filters-panel {
   background: var(--surface);
   border-radius: 12px;
   padding: 24px;
@@ -95,27 +95,27 @@
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
 }
 
-.filters-grid {
+.residences-page .filters-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 20px;
   margin-bottom: 24px;
 }
 
-.filter-group {
+.residences-page .filter-group {
   display: flex;
   flex-direction: column;
 }
 
-.filter-group label {
+.residences-page .filter-group label {
   font-weight: 600;
   color: var(--text);
   margin-bottom: 8px;
   font-size: 14px;
 }
 
-.filter-input,
-.filter-select {
+.residences-page .filter-input,
+.residences-page .filter-select {
   padding: 12px 16px;
   border: 2px solid var(--border);
   border-radius: 8px;
@@ -124,18 +124,18 @@
   transition: border-color 0.3s ease;
 }
 
-.filter-input:focus,
-.filter-select:focus {
+.residences-page .filter-input:focus,
+.residences-page .filter-select:focus {
   border-color: #d4af37;
 }
 
-.filters-actions {
+.residences-page .filters-actions {
   display: flex;
   justify-content: center;
 }
 
 /* Informations sur les résultats */
-.results-info {
+.residences-page .results-info {
   margin-bottom: 30px;
   padding: 16px 24px;
   background: var(--surface);
@@ -143,20 +143,20 @@
   border-left: 4px solid #d4af37;
 }
 
-.results-info p {
+.residences-page .results-info p {
   margin: 0;
   color: var(--text-muted);
   font-weight: 500;
 }
 
 /* Grille des résidences */
-.residences-grid {
+.residences-page .residences-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
   gap: 30px;
 }
 
-.residence-card {
+.residences-page .residence-card {
   background: var(--surface);
   border-radius: 16px;
   overflow: hidden;
@@ -164,12 +164,12 @@
   transition: all 0.3s ease;
 }
 
-.residence-card:hover {
+.residences-page .residence-card:hover {
   transform: translateY(-10px);
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
 }
 
-.residence-image {
+.residences-page .residence-image {
   position: relative;
   height: 250px;
   background: #e9ecef;
@@ -177,18 +177,18 @@
   border-radius: 20px 20px 0 0;
 }
 
-.residence-img {
+.residences-page .residence-img {
   width: 100%;
   height: 100%;
   object-fit: cover;
   transition: transform 0.3s ease;
 }
 
-.residence-card:hover .residence-img {
+.residences-page .residence-card:hover .residence-img {
   transform: scale(1.05);
 }
 
-.residence-badges {
+.residences-page .residence-badges {
   position: absolute;
   top: 16px;
   right: 16px;
@@ -197,7 +197,7 @@
   gap: 12px;
 }
 
-.residence-rating {
+.residences-page .residence-rating {
   background: #d4af37;
   color: white;
   padding: 8px 12px;
@@ -209,7 +209,7 @@
   font-weight: 600;
 }
 
-.favorite-btn {
+.residences-page .favorite-btn {
   background: var(--surface);
   border: none;
   width: 40px;
@@ -224,34 +224,34 @@
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
-.favorite-btn:hover {
+.residences-page .favorite-btn:hover {
   transform: scale(1.1);
 }
 
-.favorite-btn.active {
+.residences-page .favorite-btn.active {
   color: #d4af37;
   background: var(--surface);
 }
 
-.residence-content {
+.residences-page .residence-content {
   padding: 24px;
 }
 
-.residence-content h3 {
+.residences-page .residence-content h3 {
   font-size: 20px;
   font-weight: 600;
   color: var(--text);
   margin-bottom: 8px;
 }
 
-.residence-reference {
+.residences-page .residence-reference {
   color: #d4af37;
   font-size: 14px;
   font-weight: 500;
   margin-bottom: 12px;
 }
 
-.residence-location {
+.residences-page .residence-location {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -260,7 +260,7 @@
   font-size: 14px;
 }
 
-.residence-details {
+.residences-page .residence-details {
   display: flex;
   gap: 20px;
   margin-bottom: 16px;
@@ -268,33 +268,33 @@
   color: var(--text-muted);
 }
 
-.residence-details span {
+.residences-page .residence-details span {
   display: flex;
   align-items: center;
   gap: 6px;
 }
 
-.residence-description {
+.residences-page .residence-description {
   color: var(--text-muted);
   line-height: 1.6;
   margin-bottom: 20px;
 }
 
-.residence-amenities h4 {
+.residences-page .residence-amenities h4 {
   font-size: 16px;
   font-weight: 600;
   color: var(--text);
   margin-bottom: 12px;
 }
 
-.amenities-list {
+.residences-page .amenities-list {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   margin-bottom: 24px;
 }
 
-.amenity-tag {
+.residences-page .amenity-tag {
   background: var(--bg-soft);
   color: var(--text-muted);
   padding: 6px 12px;
@@ -303,7 +303,7 @@
   font-weight: 500;
 }
 
-.amenity-more {
+.residences-page .amenity-more {
   background: #d4af37;
   color: white;
   padding: 6px 12px;
@@ -312,7 +312,7 @@
   font-weight: 600;
 }
 
-.residence-footer {
+.residences-page .residence-footer {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -320,95 +320,49 @@
   gap: 16px;
 }
 
-.residence-price {
+.residences-page .residence-price {
   display: flex;
   align-items: baseline;
   gap: 4px;
 }
 
-.price {
+.residences-page .price {
   font-size: 24px;
   font-weight: 700;
   color: #d4af37;
 }
 
-.currency {
+.residences-page .currency {
   font-size: 16px;
   font-weight: 600;
   color: #d4af37;
 }
 
-.period {
+.residences-page .period {
   font-size: 14px;
   color: var(--text-muted);
 }
 
-.residence-actions {
+.residences-page .residence-actions {
   display: flex;
   gap: 12px;
 }
 
 /* Boutons */
-.btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 12px 24px;
-  border-radius: 8px;
-  text-decoration: none;
-  font-weight: 600;
-  font-size: 14px;
-  transition: all 0.3s ease;
-  border: none;
-  cursor: pointer;
-}
-
-.btn-primary {
-  background: #d4af37;
-  color: white;
-}
-
-.btn-primary:hover {
-  background: #b8941f;
-  transform: translateY(-2px);
-}
-
-.btn-secondary {
-  background: transparent;
-  color: var(--text);
-  border: 2px solid #1a1a1a;
-}
-
-.btn-secondary:hover {
-  background: #1a1a1a;
-  color: white;
-  transform: translateY(-2px);
-}
-
-.btn-outline {
-  background: transparent;
-  color: #d4af37;
-  border: 2px solid #d4af37;
-}
-
-.btn-outline:hover {
-  background: #d4af37;
-  color: white;
-}
 
 /* Aucun résultat */
-.no-results {
+.residences-page .no-results {
   text-align: center;
   padding: 80px 20px;
 }
 
-.no-results-content h3 {
+.residences-page .no-results-content h3 {
   font-size: 24px;
   color: var(--text);
   margin-bottom: 16px;
 }
 
-.no-results-content p {
+.residences-page .no-results-content p {
   color: var(--text-muted);
   margin-bottom: 24px;
   font-size: 16px;
@@ -420,82 +374,82 @@
     padding: 20px 0;
   }
 
-  .page-header h1 {
+  .residences-page .page-header h1 {
     font-size: 28px;
   }
 
-  .page-header p {
+  .residences-page .page-header p {
     font-size: 16px;
   }
 
-  .search-filters {
+  .residences-page .search-filters {
     flex-direction: column;
     align-items: stretch;
   }
 
-  .search-bar {
+  .residences-page .search-bar {
     min-width: auto;
   }
 
-  .filter-toggle {
+  .residences-page .filter-toggle {
     justify-content: center;
   }
 
-  .filters-grid {
+  .residences-page .filters-grid {
     grid-template-columns: 1fr;
     gap: 16px;
   }
 
-  .residences-grid {
+  .residences-page .residences-grid {
     grid-template-columns: 1fr;
     gap: 20px;
   }
 
-  .residence-footer {
+  .residences-page .residence-footer {
     flex-direction: column;
     align-items: stretch;
   }
 
-  .residence-actions {
+  .residences-page .residence-actions {
     justify-content: center;
   }
 }
 
 @media (max-width: 480px) {
-  .container {
+  .residences-page .container {
     padding: 0 15px;
   }
 
-  .page-header h1 {
+  .residences-page .page-header h1 {
     font-size: 24px;
   }
 
-  .search-input {
+  .residences-page .search-input {
     padding: 12px 16px 12px 44px;
     font-size: 14px;
   }
 
-  .filter-toggle {
+  .residences-page .filter-toggle {
     padding: 12px 20px;
     font-size: 14px;
   }
 
-  .filters-panel {
+  .residences-page .filters-panel {
     padding: 20px;
   }
 
-  .residence-content {
+  .residences-page .residence-content {
     padding: 20px;
   }
 
-  .residence-details {
+  .residences-page .residence-details {
     flex-direction: column;
     gap: 12px;
   }
 }
 
 /* Badge de disponibilité */
-.availability-badge {
+.residences-page .availability-badge {
   position: absolute;
   top: 16px;
   left: 16px;
@@ -509,23 +463,23 @@
   border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
-.availability-badge.disponible {
+.residences-page .availability-badge.disponible {
   background: rgba(16, 185, 129, 0.9);
 }
 
-.availability-badge.occupé {
+.residences-page .availability-badge.occupé {
   background: rgba(239, 68, 68, 0.9);
 }
 
-.availability-badge.réservé {
+.residences-page .availability-badge.réservé {
   background: rgba(245, 158, 11, 0.9);
 }
 
-.availability-badge.maintenance {
+.residences-page .availability-badge.maintenance {
   background: rgba(139, 92, 246, 0.9);
 }
 
-.availability-badge span {
+.residences-page .availability-badge span {
   display: flex;
   align-items: center;
   gap: 4px;

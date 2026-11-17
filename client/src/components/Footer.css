@@ -175,3 +175,21 @@
     font-size: 16px;
   }
 }
+
+/* Liens tactiles confortables */
+a.contact-item {
+  text-decoration: none;
+  min-height: 40px;
+}
+
+a.contact-item:hover span {
+  color: #d4af37;
+}
+
+.footer-links li {
+  margin-bottom: 4px;
+}
+
+.footer-links a {
+  padding: 8px 0;
+}

@@ -1,9 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { FaStar, FaBed, FaBath, FaUsers, FaMapMarkerAlt, FaHeart } from 'react-icons/fa';
 import { useResidences } from '../context/ResidencesContext';
-import { useFavorites } from '../context/FavoritesContext';
 import SmartSearch, { CriteresCompris } from '../components/SmartSearch';
+import ResidenceCard from '../components/ResidenceCard';
 import './Residences.css';
 
 const Residences = () => {
@@ -20,7 +18,6 @@ const Residences = () => {
   const [aiResult, setAiResult] = useState(null);
   const { residences, searchResidences } = useResidences();
   const [filteredResidences, setFilteredResidences] = useState(residences);
-  const { addToFavorites, removeFromFavorites, isFavorite } = useFavorites();
 
   // Filtrage en direct pour un ou deux mots (« Cocody », « studio »).
   // Une phrase complète n'est pas filtrée mot à mot : elle part à l'IA avec Entrée.
@@ -57,14 +54,6 @@ const Residences = () => {
     });
     setSearchQuery('');
     setAiResult(null);
-  };
-
-  const toggleFavorite = (residence) => {
-    if (isFavorite(residence.id)) {
-      removeFromFavorites(residence.id);
-    } else {
-      addToFavorites(residence);
-    }
   };
 
   const cities = [...new Set(residences.map(r => r.city))];
@@ -188,110 +177,18 @@ const Residences = () => {
 
         {/* Grille des résidences */}
         {displayed.length > 0 ? (
-          <div className="residences-grid">
-            {displayed.map((residence) => (
-              <div key={residence.id} className="residence-card">
-                <div className="residence-image">
-                  <img 
-                    src={residence.images[0]} 
-                    alt={residence.name}
-                    className="residence-img"
-                    onError={(e) => {
-                      e.target.style.display = 'none';
-                      e.target.nextSibling.style.display = 'flex';
-                    }}
-                  />
-                  <div className="image-fallback" style={{display: 'none'}}>
-                    <span>Photo {residence.name}</span>
-                  </div>
-
-                  {aiResult?.mode === 'ia' && aiResult.resultats.length > 0 && (
-                    <div className="match-badge" title="Proximité avec votre description, comparée au meilleur résultat">
-                      {residence.id === displayed[0].id
-                        ? '✨ Meilleur choix'
-                        : `✨ Correspondance ${Math.round(Math.max(0, residence.score) / displayed[0].score * 100)} %`}
-                    </div>
-                  )}
-                  
-                  {/* Badge de disponibilité */}
-                  <div className={`availability-badge ${residence.availability.status}`}>
-                    {residence.availability.status === 'disponible' && <span>✓ Disponible</span>}
-                    {residence.availability.status === 'occupé' && <span>👤 Occupé</span>}
-                    {residence.availability.status === 'réservé' && <span>⏰ Réservé</span>}
-                    {residence.availability.status === 'maintenance' && <span>🔧 Maintenance</span>}
-                  </div>
-                  
-                  <div className="residence-badges">
-                    <div className="residence-rating">
-                      <FaStar />
-                      <span>{residence.rating}</span>
-                    </div>
-                    
-                    <button
-                      className={`favorite-btn ${isFavorite(residence.id) ? 'active' : ''}`}
-                      onClick={() => toggleFavorite(residence)}
-                      aria-label={isFavorite(residence.id) ? 'Retirer des favoris' : 'Ajouter aux favoris'}
-                    >
-                      <FaHeart />
-                    </button>
-                  </div>
-                </div>
-
-                <div className="residence-content">
-                  <h3>{residence.name}</h3>
-                  <p className="residence-reference">Réf: {residence.reference}</p>
-                  
-                  <p className="residence-location">
-                    <FaMapMarkerAlt />
-                    {residence.location}
-                  </p>
-
-                  <div className="residence-details">
-                    <span><FaBed /> {residence.bedrooms} chambres</span>
-                    <span><FaBath /> {residence.bathrooms} sdb</span>
-                    <span><FaUsers /> {residence.maxGuests} pers. max</span>
-                  </div>
-
-                  <p className="residence-description">
-                    {residence.description.substring(0, 120)}...
-                  </p>
-
-                  <div className="residence-amenities">
-                    <h4>Équipements :</h4>
-                    <div className="amenities-list">
-                      {residence.amenities.slice(0, 4).map((amenity, index) => (
-                        <span key={index} className="amenity-tag">{amenity}</span>
-                      ))}
-                      {residence.amenities.length > 4 && (
-                        <span className="amenity-more">+{residence.amenities.length - 4} autres</span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="residence-footer">
-                    <div className="residence-price">
-                      <span className="price">{residence.price.toLocaleString()}</span>
-                      <span className="currency">{residence.currency}</span>
-                      <span className="period">/{residence.period}</span>
-                    </div>
-
-                    <div className="residence-actions">
-                      <Link
-                        to={`/residence/${residence.id}`}
-                        className="btn btn-outline"
-                      >
-                        Voir détails
-                      </Link>
-                      <Link
-                        to={`/reservation?residence=${residence.id}`}
-                        className="btn btn-primary"
-                      >
-                        Réserver
-                      </Link>
-                    </div>
-                  </div>
-                </div>
-              </div>
+          <div className="rc-grille">
+            {displayed.map((residence, index) => (
+              <ResidenceCard
+                key={residence.id}
+                residence={residence}
+                eager={index < 3}
+                badge={aiResult?.mode === 'ia' && aiResult.resultats.length > 0
+                  ? (residence.id === displayed[0].id
+                    ? '✨ Meilleur choix'
+                    : `✨ Correspondance ${Math.round(Math.max(0, residence.score) / displayed[0].score * 100)} %`)
+                  : null}
+              />
             ))}
           </div>
         ) : (
