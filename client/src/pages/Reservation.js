@@ -233,6 +233,12 @@ const Reservation = () => {
             </div>
 
             <h3>Détails du séjour</h3>
+            {residence?.availability && (
+              <p className="sejour-regle">
+                Séjour de {residence.availability.minStay === 1 ? '1 nuit' : `${residence.availability.minStay} nuits`} minimum
+                {' '}et {residence.availability.maxStay} nuits maximum pour cette résidence.
+              </p>
+            )}
 
             <div className="form-row">
               <div className="form-group">
@@ -261,7 +267,13 @@ const Reservation = () => {
                 <input
                   type="date"
                   id="departureDate"
-                  min={watch('arrivalDate') || today}
+                  min={(() => {
+                    const arr = watch('arrivalDate');
+                    if (!arr) return today;
+                    const d = new Date(`${arr}T00:00:00Z`);
+                    d.setUTCDate(d.getUTCDate() + (residence?.availability?.minStay || 1));
+                    return d.toISOString().slice(0, 10);
+                  })()}
                   {...register('departureDate', { 
                     required: 'La date de départ est obligatoire',
                     validate: value => {
@@ -269,7 +281,13 @@ const Reservation = () => {
                       if (!arrivalDate) return true;
                       const departure = new Date(value);
                       const arrival = new Date(arrivalDate);
-                      return departure > arrival || 'La date de départ doit être après la date d\'arrivée';
+                      if (departure <= arrival) return 'La date de départ doit être après la date d\'arrivée';
+                      const nuits = Math.round((departure - arrival) / 86400000);
+                      const min = residence?.availability?.minStay || 1;
+                      const max = residence?.availability?.maxStay || 365;
+                      if (nuits < min) return `Séjour minimum : ${min} nuit${min > 1 ? 's' : ''} pour cette résidence`;
+                      if (nuits > max) return `Séjour maximum : ${max} nuits pour cette résidence`;
+                      return true;
                     }
                   })}
                   className={errors.departureDate ? 'error' : ''}

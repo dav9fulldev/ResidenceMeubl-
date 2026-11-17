@@ -26,7 +26,7 @@ class Residence {
       occupant: null,
       arrivee: null,
       depart: null,
-      sejourMin: 1,
+      sejourMin: 2,
       sejourMax: 30,
       ...(data.disponibilite || {}),
     };
@@ -47,6 +47,9 @@ class Residence {
     if (!Number.isInteger(this.nombreChambres) || this.nombreChambres < 1) erreurs.push('Au moins 1 chambre');
     if (!Number.isInteger(this.capacite) || this.capacite < 1) erreurs.push('Capacité d\'au moins 1 personne');
     if (!STATUTS.includes(this.disponibilite.statut)) erreurs.push('Statut de disponibilité invalide');
+    const { sejourMin, sejourMax } = this.disponibilite;
+    if (!Number.isInteger(sejourMin) || sejourMin < 1) erreurs.push('Séjour minimum : au moins 1 nuit');
+    if (!Number.isInteger(sejourMax) || sejourMax < sejourMin) erreurs.push('Séjour maximum : au moins égal au minimum');
 
     return { valide: erreurs.length === 0, erreurs };
   }

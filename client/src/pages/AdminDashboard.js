@@ -25,7 +25,13 @@ const AdminDashboard = () => {
 
   const confirmees = reservations.filter(r => r.statut === 'confirmee');
   const chiffreAffaires = confirmees.reduce((total, r) => total + (Number(r.prixTotal) || 0), 0);
+  const acomptesPayes = reservations.filter(r => r.acompte?.paye);
+  const acomptesEncaisses = acomptesPayes.reduce((t, r) => t + (Number(r.acompte.montant) || 0), 0);
+  const acomptesAttendus = confirmees.filter(r => r.acompte && !r.acompte.paye && r.acompte.possible);
+  const montantAttendu = acomptesAttendus.reduce((t, r) => t + (Number(r.acompte.montant) || 0), 0);
+  const doublons = reservations.filter(r => r.acompte?.doublons?.length);
   const aTraiter = [
+    ...doublons.map(r => ({ r, type: 'doublon' })),
     ...demandes.map(r => ({ r, type: 'demande' })),
     ...enAttente.filter(r => r.demandeAnnulation?.statut !== 'en_attente').map(r => ({ r, type: 'attente' })),
   ];
@@ -64,11 +70,11 @@ const AdminDashboard = () => {
               {aTraiter.slice(0, 6).map(({ r, type }) => (
                 <li key={`${type}-${r.id}`}>
                   <Link to="/admin/reservations" className={`todo-item ${type}`}>
-                    <span className="todo-icon">{type === 'demande' ? <FaUndo /> : <FaHourglassHalf />}</span>
+                    <span className="todo-icon">{type === 'demande' ? <FaUndo /> : type === 'doublon' ? '⚠️' : <FaHourglassHalf />}</span>
                     <span className="todo-text">
                       <strong>{r.client.prenom} {r.client.nom}</strong>
                       <span>
-                        {type === 'demande' ? 'Demande d\'annulation' : 'Réservation à confirmer'} · {r.residence?.nom} · {formatDate(r.dates.arrivee)}
+                        {type === 'demande' ? 'Demande d\'annulation' : type === 'doublon' ? 'Acompte payé en double : à rembourser' : 'Réservation à confirmer'} · {r.residence?.nom} · {formatDate(r.dates.arrivee)}
                       </span>
                     </span>
                     <FaArrowRight className="todo-arrow" />
@@ -90,6 +96,28 @@ const AdminDashboard = () => {
             <div><dt>Demandes d'annulation</dt><dd>{demandes.length}</dd></div>
             <div><dt>Montant confirmé</dt><dd>{chiffreAffaires.toLocaleString('fr-FR')} <small>FCFA</small></dd></div>
           </dl>
+        </section>
+
+        <section className="overview-card overview-acomptes">
+          <div className="overview-card-header">
+            <h2>💰 Acomptes PI-SPI</h2>
+            <Link to="/admin/reservations">Détails <FaArrowRight /></Link>
+          </div>
+          <dl className="overview-figures">
+            <div><dt>Encaissés</dt><dd>{acomptesEncaisses.toLocaleString('fr-FR')} <small>FCFA</small></dd></div>
+            <div><dt>Acomptes reçus</dt><dd>{acomptesPayes.length}</dd></div>
+            <div><dt>En attente de paiement</dt><dd>{acomptesAttendus.length} · {montantAttendu.toLocaleString('fr-FR')} <small>FCFA</small></dd></div>
+          </dl>
+          {acomptesPayes.length > 0 && (
+            <ul className="acomptes-recents">
+              {[...acomptesPayes].sort((a, b) => new Date(b.acompte.payeLe) - new Date(a.acompte.payeLe)).slice(0, 4).map(r => (
+                <li key={r.id}>
+                  <span>{r.client.prenom} {r.client.nom} · {r.residence?.nom}</span>
+                  <b>{Number(r.acompte.montant).toLocaleString('fr-FR')} FCFA</b>
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
       </div>
     </div>

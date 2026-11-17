@@ -38,7 +38,7 @@ module.exports = [
       occupant: null,
       arrivee: null,
       depart: null,
-      sejourMin: 1,
+      sejourMin: 2,
       sejourMax: 30
     },
     actif: true
@@ -78,7 +78,7 @@ module.exports = [
       occupant: "Famille Martin",
       arrivee: "2024-12-01",
       depart: "2025-01-15",
-      sejourMin: 7,
+      sejourMin: 2,
       sejourMax: 45
     },
     actif: true
@@ -117,7 +117,7 @@ module.exports = [
       occupant: null,
       arrivee: null,
       depart: null,
-      sejourMin: 1,
+      sejourMin: 2,
       sejourMax: 15
     },
     actif: true
@@ -159,7 +159,7 @@ module.exports = [
       occupant: "M. Dupont",
       arrivee: "2024-12-20",
       depart: "2025-02-01",
-      sejourMin: 14,
+      sejourMin: 2,
       sejourMax: 60
     },
     actif: true
@@ -198,7 +198,7 @@ module.exports = [
       occupant: null,
       arrivee: null,
       depart: null,
-      sejourMin: 1,
+      sejourMin: 2,
       sejourMax: 30
     },
     actif: true
@@ -238,7 +238,7 @@ module.exports = [
       occupant: null,
       arrivee: null,
       depart: null,
-      sejourMin: 3,
+      sejourMin: 2,
       sejourMax: 90
     },
     actif: true
@@ -275,7 +275,7 @@ module.exports = [
       occupant: null,
       arrivee: null,
       depart: null,
-      sejourMin: 1,
+      sejourMin: 2,
       sejourMax: 30
     },
     actif: true
@@ -356,7 +356,7 @@ module.exports = [
       occupant: null,
       arrivee: null,
       depart: null,
-      sejourMin: 7,
+      sejourMin: 2,
       sejourMax: 60
     },
     actif: true
@@ -399,7 +399,7 @@ module.exports = [
       occupant: "Mme Johnson",
       arrivee: "2024-11-01",
       depart: "2025-03-01",
-      sejourMin: 30,
+      sejourMin: 2,
       sejourMax: 120
     },
     actif: true

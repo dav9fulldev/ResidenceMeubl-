@@ -197,3 +197,37 @@
     font-size: 1.6rem;
   }
 }
+
+.overview-acomptes {
+  grid-column: 1 / -1;
+}
+
+.acomptes-recents {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.acomptes-recents li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  font-size: 0.9rem;
+  min-width: 0;
+}
+
+.acomptes-recents span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-muted);
+}
+
+.acomptes-recents b {
+  white-space: nowrap;
+}

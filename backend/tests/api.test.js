@@ -894,3 +894,20 @@ test('acompte : demande réutilisée, paiement tardif accepté, doublon signalé
   assert.equal(vue.acompte.doublons.length, 1, 'doublon à rembourser signalé');
   assert.equal(vue.acompte.doublons[0].txId, qr.body.data.txId);
 });
+
+test('durée de séjour réglable par résidence (2 nuits par défaut, 1 possible)', async () => {
+  const headers = await connexionAdmin();
+  const r1 = (await api('/api/residences/1')).body.data;
+  assert.equal(r1.disponibilite.sejourMin, 2, 'minimum par défaut');
+  const uneNuit = () => api('/api/reservations', { method: 'POST', body: nouvelleReservation({ residenceId: 1, email: 'nuit@example.com', dateArrivee: jourDansNJours(200), dateDepart: jourDansNJours(201) }) });
+  assert.equal((await uneNuit()).status, 400);
+
+  assert.equal((await api('/api/admin/residences/1', { method: 'PUT', headers, body: { disponibilite: { sejourMin: 0, sejourMax: 30 } } })).status, 400);
+  assert.equal((await api('/api/admin/residences/1', { method: 'PUT', headers, body: { disponibilite: { sejourMin: 5, sejourMax: 3 } } })).status, 400);
+  const ok = await api('/api/admin/residences/1', { method: 'PUT', headers, body: { disponibilite: { sejourMin: 1, sejourMax: 30 } } });
+  assert.equal(ok.status, 200);
+  assert.notEqual(ok.body.data.disponibilite.statut, 'maintenance');
+  assert.equal(ok.body.data.disponibilite.automatique ?? true, true, 'statut toujours calculé, pas figé à la main');
+  assert.equal((await uneNuit()).status, 201);
+  await api('/api/admin/residences/1', { method: 'PUT', headers, body: { disponibilite: { sejourMin: 2, sejourMax: 30 } } });
+});
