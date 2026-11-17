@@ -331,6 +331,18 @@ test('les critères chiffrés sont compris dans une phrase libre', () => {
   assert.deepEqual(c('budget soixante-cinq mille'), { budgetMax: 65000 });
 });
 
+test("l'adresse Voyage est normalisée quelle que soit la forme saisie", () => {
+  const u = AIService.urlBase;
+  const attendu = 'https://ai.mongodb.com/v1';
+  assert.equal(u(undefined), attendu);
+  assert.equal(u(''), attendu);
+  assert.equal(u('ai.mongodb.com'), attendu);
+  assert.equal(u('https://ai.mongodb.com/'), attendu);
+  assert.equal(u('https://ai.mongodb.com/v1'), attendu);
+  assert.equal(u('https://ai.mongodb.com/v1/embeddings'), attendu);
+  assert.equal(u(' "https://api.voyageai.com/v1/" '), 'https://api.voyageai.com/v1');
+});
+
 test('sans clé Voyage, la recherche bascule sur les mots-clés', async () => {
   delete process.env.VOYAGE_API_KEY;
   const res = await api('/api/residences/recherche-ia', { method: 'POST', body: { question: 'villa avec piscine à Riviera' } });
