@@ -210,6 +210,37 @@ router.put('/:id/status', requireAdmin, async (req, res) => {
 });
 
 /**
+ * @route   PUT /api/reservations/:id/annulation
+ * @desc    Accepter ou refuser la demande d'annulation d'un client
+ * @body    { decision: 'accepter' | 'refuser', message? }
+ * @access  Admin
+ */
+router.put('/:id/annulation', requireAdmin, async (req, res) => {
+  try {
+    const { decision, message } = req.body || {};
+    const resultat = await ReservationService.traiterDemandeAnnulation(req.params.id, decision, message);
+    if (!resultat) {
+      return res.status(404).json({ success: false, message: 'Réservation non trouvée' });
+    }
+    res.json({
+      success: true,
+      data: {
+        id: resultat.reservation.id,
+        statut: resultat.reservation.statut,
+        demandeAnnulation: resultat.reservation.demandeAnnulation,
+        emailEnvoye: resultat.emailEnvoye,
+      },
+    });
+  } catch (error) {
+    if (error instanceof ReservationService.ErreurClient) {
+      return res.status(error.status).json({ success: false, message: error.message });
+    }
+    console.error('Erreur lors du traitement de la demande d\'annulation:', error);
+    res.status(500).json({ success: false, message: 'Erreur lors du traitement de la demande' });
+  }
+});
+
+/**
  * @route   POST /api/reservations/check-disponibilite
  * @desc    Vérifier la disponibilité d'une résidence
  * @access  Public

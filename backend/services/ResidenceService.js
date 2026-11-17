@@ -23,7 +23,7 @@ class ErreurValidation extends Error {}
 
 // Version publique : jamais le nom de l'occupant (donnée personnelle réservée à l'admin)
 const publique = (residence) => {
-  const { occupant, ...disponibilite } = residence.disponibilite;
+  const { occupant, reservationId, ...disponibilite } = residence.disponibilite;
   return { ...residence, disponibilite };
 };
 
@@ -57,6 +57,7 @@ const appliquerReservations = (residence, reservationsConfirmees) => {
       depart: sejour.dates.depart,
       prochaineDisponibilite: sejour.dates.depart,
       automatique: true, // calculé depuis les réservations, pas posé à la main
+      reservationId: sejour.id, // pour l'admin : réservation à annuler pour libérer
     },
   };
 };
@@ -188,6 +189,18 @@ class ResidenceService {
   async updateStatut(id, statut, details = {}) {
     if (!Residence.STATUTS.includes(statut)) {
       throw new ErreurValidation('Statut invalide');
+    }
+    // « Disponible » ne peut pas masquer une réservation confirmée : il faut l'annuler
+    if (statut === 'disponible') {
+      const [bloquante] = await this.reservationsConfirmees({ residenceId: parseInt(id) });
+      if (bloquante) {
+        const date = (d) => new Date(d).toLocaleDateString('fr-FR');
+        throw new ErreurValidation(
+          `Cette résidence est réservée par ${bloquante.client.prenom} ${bloquante.client.nom} ` +
+          `du ${date(bloquante.dates.arrivee)} au ${date(bloquante.dates.depart)} (réf. ${bloquante.id}). ` +
+          'Annulez cette réservation pour libérer la résidence : le client sera prévenu par email.'
+        );
+      }
     }
     const libre = statut === 'disponible' || statut === 'maintenance';
     return this.updateResidence(id, {

@@ -8,9 +8,27 @@ const AdminPanel = () => {
   const {
     residences,
     updateResidenceStatus,
+    updateReservationStatus,
+    reloadResidences,
     addResidence,
     deleteResidence
   } = useResidences();
+
+  const formatDate = (d) => (d ? new Date(d).toLocaleDateString('fr-FR') : '—');
+
+  // Le client a changé d'avis : annuler la réservation libère la résidence
+  const handleCancelReservation = async (residence) => {
+    const a = residence.availability;
+    if (!window.confirm(
+      `Annuler la réservation de ${a.currentOccupant} (du ${formatDate(a.checkIn)} au ${formatDate(a.checkOut)}) ?\n` +
+      'Les dates seront libérées et le client recevra un email d\'annulation.'
+    )) return;
+    const ok = await runAction(async () => {
+      await updateReservationStatus(a.reservationId, 'annulee');
+      await reloadResidences();
+    });
+    if (ok) setEditingResidence(null);
+  };
 
   const [actionError, setActionError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -171,6 +189,25 @@ const AdminPanel = () => {
                 <div className="residence-admin-actions">
                   {editingResidence?.id === residence.id ? (
                     <div className="edit-form">
+                      {residence.availability.automatic && residence.availability.reservationId && (
+                        <div className="auto-status-notice">
+                          <p>
+                            <strong>{residence.availability.status === 'occupé' ? 'Occupée' : 'Réservée'}</strong> par{' '}
+                            {residence.availability.currentOccupant}, du {formatDate(residence.availability.checkIn)} au{' '}
+                            {formatDate(residence.availability.checkOut)} (réservation confirmée).
+                          </p>
+                          <p>Le client a changé d'avis ? Annulez sa réservation pour libérer la résidence.</p>
+                          <button
+                            type="button"
+                            className="btn btn-danger btn-sm"
+                            onClick={() => handleCancelReservation(residence)}
+                            disabled={saving}
+                          >
+                            Annuler la réservation
+                          </button>
+                          <p className="auto-status-hint">Ou choisissez « Maintenance » ci-dessous pour bloquer la résidence.</p>
+                        </div>
+                      )}
                       <select
                         value={editForm.status}
                         onChange={(e) => setEditForm(prev => ({ ...prev, status: e.target.value }))}

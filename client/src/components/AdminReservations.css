@@ -131,3 +131,14 @@
   padding: 10px 14px;
   margin-bottom: 12px;
 }
+
+.reservation-demande {
+  background: #fff7ed;
+  color: #9a3412 !important;
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+
+.reservation-card:has(.reservation-demande) {
+  border-left-color: #ea580c;
+}

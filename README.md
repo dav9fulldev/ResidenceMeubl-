@@ -22,11 +22,13 @@ Plateforme de réservation de résidences meublées à Abidjan : site vitrine, r
 - **Recherche vocale** : bouton micro, le texte s'écrit en direct et la recherche se lance à la fin de la phrase (Chrome, Edge, Safari).
 - **« Vous aimerez aussi »** : 3 résidences comparables sur chaque fiche.
 - **Réservation en ligne** : contrôle des dates déjà prises, de la capacité et de la durée de séjour ; référence et montant affichés ; email d'accusé de réception.
+- **Mes réservations, sans compte** : avec l'email et la référence, ou via un lien reçu par email, le client voit l'historique de ses réservations et peut **demander une annulation**.
 - **Favoris** enregistrés dans le navigateur.
 
 ### Pour l'administrateur (`/admin/login`)
 - Connexion vérifiée par le serveur (jeton signé valable 8 h, tentatives limitées).
 - **Réservations** : liste filtrable, confirmation ou annulation → email automatique au client.
+- **Demandes d'annulation** des clients : acceptation (dates libérées) ou refus avec message, email au client dans les deux cas.
 - **Résidences** : ajout, modification, suppression, mise en maintenance.
 - Le statut « Réservé » / « Occupé » se met à jour **automatiquement** à partir des réservations confirmées.
 

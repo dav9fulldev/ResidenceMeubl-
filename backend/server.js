@@ -9,6 +9,7 @@ const { clientIp, cleLimite } = require('./middleware/clientIp');
 const residencesRoutes = require('./routes/residences');
 const reservationsRoutes = require('./routes/reservations');
 const adminRoutes = require('./routes/admin');
+const clientRoutes = require('./routes/client');
 
 const app = express();
 
@@ -72,6 +73,7 @@ app.use('/api/', globalLimiter);
 app.use('/api/residences', residencesRoutes);
 app.use('/api/reservations', reservationsRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/client', clientRoutes);
 
 // ✅ Route de santé
 app.get('/health', (req, res) => {

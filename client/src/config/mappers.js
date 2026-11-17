@@ -31,6 +31,8 @@ export const fromApiResidence = (r) => ({
     checkOut: r.disponibilite?.depart || null,
     minStay: r.disponibilite?.sejourMin ?? 1,
     maxStay: r.disponibilite?.sejourMax ?? 30,
+    automatic: Boolean(r.disponibilite?.automatique),
+    reservationId: r.disponibilite?.reservationId || null,
   },
 });
 

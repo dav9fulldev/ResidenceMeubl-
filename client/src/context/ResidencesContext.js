@@ -195,6 +195,14 @@ export const ResidencesProvider = ({ children }) => {
     return response.data;
   }, [adminRequest]);
 
+  const decideCancellation = useCallback(async (reservationId, decision, message = '') => {
+    const response = await adminRequest(API_ENDPOINTS.reservations.decideCancellation(reservationId), {
+      method: 'PUT',
+      body: { decision, message },
+    });
+    return response.data;
+  }, [adminRequest]);
+
   const value = useMemo(() => ({
     residences,
     loading,
@@ -214,10 +222,11 @@ export const ResidencesProvider = ({ children }) => {
     deleteResidence,
     getReservations,
     updateReservationStatus,
+    decideCancellation,
   }), [
     residences, loading, offline, isAdmin, loadResidences, getResidenceById, searchResidences,
     createReservation, smartSearch, getSimilarResidences, loginAdmin, logoutAdmin, updateResidenceStatus, addResidence,
-    updateResidence, deleteResidence, getReservations, updateReservationStatus,
+    updateResidence, deleteResidence, getReservations, updateReservationStatus, decideCancellation,
   ]);
 
   return (

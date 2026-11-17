@@ -16,6 +16,13 @@ export const API_ENDPOINTS = {
     create: `${API_BASE_URL}/reservations`,
     getAll: `${API_BASE_URL}/reservations`,
     updateStatus: (id) => `${API_BASE_URL}/reservations/${id}/status`,
+    decideCancellation: (id) => `${API_BASE_URL}/reservations/${id}/annulation`,
+  },
+  client: {
+    access: `${API_BASE_URL}/client/acces`,
+    link: `${API_BASE_URL}/client/lien`,
+    reservations: `${API_BASE_URL}/client/reservations`,
+    requestCancellation: (id) => `${API_BASE_URL}/client/reservations/${id}/annulation`,
   },
   admin: {
     login: `${API_BASE_URL}/admin/login`,
@@ -55,9 +62,31 @@ export class ApiError extends Error {
  * Requête vers l'API. `auth: true` ajoute le jeton admin.
  * Lève une ApiError avec le message renvoyé par le serveur.
  */
-export const apiRequest = async (url, { auth = false, body, ...options } = {}) => {
+// Jeton d'accès client « Mes réservations » (sans compte)
+const CLIENT_TOKEN_KEY = 'clientToken';
+
+export const getClientToken = () => {
+  try {
+    return sessionStorage.getItem(CLIENT_TOKEN_KEY);
+  } catch {
+    return null;
+  }
+};
+
+export const setClientToken = (token) => {
+  try {
+    if (token) sessionStorage.setItem(CLIENT_TOKEN_KEY, token);
+    else sessionStorage.removeItem(CLIENT_TOKEN_KEY);
+  } catch {
+    // stockage indisponible : l'accès durera le temps de la page
+  }
+};
+
+export const apiRequest = async (url, { auth = false, token, body, ...options } = {}) => {
   const headers = { 'Content-Type': 'application/json', ...options.headers };
-  if (auth) {
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  } else if (auth) {
     const token = getAdminToken();
     if (token) headers.Authorization = `Bearer ${token}`;
   }

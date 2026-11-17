@@ -8,6 +8,7 @@ import Residences from './pages/Residences';
 import ResidenceDetail from './pages/ResidenceDetail';
 import Reservation from './pages/Reservation';
 import Favorites from './pages/Favorites';
+import MesReservations from './pages/MesReservations';
 import AdminLogin from './pages/AdminLogin';
 import AdminDashboard from './pages/AdminDashboard';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -30,6 +31,7 @@ function App() {
                 <Route path="/residence/:id" element={<ResidenceDetail />} />
                 <Route path="/reservation" element={<Reservation />} />
                 <Route path="/favorites" element={<Favorites />} />
+                <Route path="/mes-reservations" element={<MesReservations />} />
                 
                 {/* Routes Administrateur */}
                 <Route path="/admin/login" element={<AdminLogin />} />
