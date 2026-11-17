@@ -7,6 +7,8 @@ const ResidenceService = require('../services/ResidenceService');
 const requireAdmin = require('../middleware/requireAdmin');
 const SmartSearchService = require('../services/SmartSearchService');
 const StatsService = require('../services/StatsService');
+const acompte = require('../services/paiement/acompte');
+const PiSpi = require('../services/paiement/PiSpiClient');
 
 // Limiter les tentatives de connexion (anti force brute)
 const loginLimiter = rateLimit({
@@ -122,6 +124,23 @@ router.delete('/residences/:id', async (req, res) => {
   } catch (error) {
     gererErreur(res, error, 'lors de la suppression de la résidence');
   }
+});
+
+/**
+ * @route   GET /api/admin/paiements/config
+ * @desc    Mode de paiement, pourcentage d'acompte, réglages PI-SPI manquants, URL du webhook
+ */
+router.get('/paiements/config', (req, res) => {
+  res.json({
+    success: true,
+    data: {
+      mode: acompte.mode(),
+      pourcentage: acompte.pourcentage(),
+      problemes: PiSpi.problemesConfiguration(),
+      webhookSecretDefini: Boolean((process.env.PISPI_WEBHOOK_SECRET || '').trim()),
+      webhookUrl: `${req.protocol}://${req.get('host')}/api/paiements/pispi/webhook`,
+    },
+  });
 });
 
 /**

@@ -157,6 +157,18 @@ const AdminReservations = () => {
                   <a href={`mailto:${r.client.email}`}>{r.client.email}</a> · <a href={`tel:${r.client.telephone}`}>{r.client.telephone}</a>
                 </p>
                 {r.notes && <p className="reservation-notes">« {r.notes} »</p>}
+                {r.statut === 'confirmee' && r.acompte && (
+                  <p className={`reservation-acompte ${r.acompte.paye ? 'paye' : 'attente'}`}>
+                    {r.acompte.paye
+                      ? `💰 Acompte payé : ${Number(r.acompte.montant).toLocaleString('fr-FR')} FCFA le ${formatDate(r.acompte.payeLe)} (PI-SPI)`
+                      : `⏳ Acompte à payer : ${Number(r.acompte.montant).toLocaleString('fr-FR')} FCFA`}
+                  </p>
+                )}
+                {r.acompte?.doublons?.length > 0 && (
+                  <p className="reservation-acompte doublon">
+                    ⚠️ Paiement en double reçu ({r.acompte.doublons.map(d => `${Number(d.montant).toLocaleString('fr-FR')} FCFA, réf. ${d.txId}`).join(' ; ')}) : à rembourser au client.
+                  </p>
+                )}
                 {enDemande(r) && (
                   <p className="reservation-demande">
                     ↩️ <strong>Le client demande l'annulation</strong> (le {formatDate(r.demandeAnnulation.dateDemande)})

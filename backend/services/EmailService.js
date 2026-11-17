@@ -435,6 +435,46 @@ class EmailService {
     });
   }
 
+  // Acompte reçu : reçu pour le client
+  async sendAcompteRecu(r) {
+    const a = r.acompte;
+    const reste = Math.max(0, (Number(r.prixTotal) || 0) - (Number(a.montant) || 0));
+    await this.envoyer({
+      to: r.client.email,
+      replyTo: this.expediteur,
+      subject: `✅ Acompte reçu - ${r.residenceInfo?.nom}`,
+      html: this.emailSimple({
+        titre: 'Acompte reçu',
+        couleur: '#2e7d32',
+        contenu: `<p>Bonjour ${esc(r.client.prenom)},</p>
+          <p>Nous avons bien reçu votre acompte de <strong>${Number(a.montant).toLocaleString('fr-FR')} FCFA</strong> par PI-SPI. Votre séjour est garanti.</p>
+          ${this.recapReservation(r)}
+          <p><strong>Reste à régler :</strong> ${reste.toLocaleString('fr-FR')} FCFA</p>
+          <p style="color:#777;font-size:13px;">Référence du paiement : ${esc(a.txId)}${a.end2endId ? ` · Identifiant PI-SPI : ${esc(a.end2endId)}` : ''}</p>`,
+        bouton: { texte: 'Gérer mes réservations', url: this.lienGestion(r.client.email) },
+      }),
+    });
+  }
+
+  // Acompte reçu : notification à l'administrateur
+  async sendAcompteRecuAdmin(r) {
+    const a = r.acompte;
+    await this.envoyer({
+      to: process.env.ADMIN_EMAIL || process.env.EMAIL_USER,
+      replyTo: r.client.email,
+      subject: `💰 Acompte reçu - ${r.client.prenom} ${r.client.nom} (${Number(a.montant).toLocaleString('fr-FR')} FCFA)`,
+      html: this.emailSimple({
+        titre: 'Acompte reçu',
+        couleur: '#2e7d32',
+        contenu: `<p><strong>${esc(r.client.prenom)} ${esc(r.client.nom)}</strong> a réglé l'acompte de
+          <strong>${Number(a.montant).toLocaleString('fr-FR')} FCFA</strong> (${a.methode === 'qr' ? 'QR Code' : 'demande de paiement'}).</p>
+          ${this.recapReservation(r)}
+          <p style="color:#777;font-size:13px;">txId ${esc(a.txId)}${a.end2endId ? ` · end2endId ${esc(a.end2endId)}` : ''}</p>`,
+        bouton: { texte: 'Ouvrir le tableau de bord', url: `${urlSite()}/admin/reservations` },
+      }),
+    });
+  }
+
   // Informer le client d'un changement de statut (confirmée ou annulée)
   async sendStatusEmail(reservation, { message = null } = {}) {
     const confirmee = reservation.statut === 'confirmee';
@@ -452,6 +492,7 @@ class EmailService {
 
   generateStatusEmailHTML(reservation, message = null) {
     const confirmee = reservation.statut === 'confirmee';
+    const acompteInfo = require('./paiement/acompte').etatAcompte(reservation);
     const couleur = confirmee ? '#2e7d32' : '#c62828';
     const date = (d) => new Date(d).toLocaleDateString('fr-FR');
     const residence = reservation.residenceInfo || {};
@@ -496,6 +537,12 @@ class EmailService {
           </div>
 
           ${message ? `<div class="section"><p><span class="label">Message de notre équipe :</span> ${esc(message)}</p></div>` : ''}
+
+          ${confirmee && acompteInfo?.possible ? `<div class="section" style="border-left-color:#d4af37;">
+              <p><span class="label">Acompte à régler :</span> ${Number(acompteInfo.montant).toLocaleString('fr-FR')} FCFA (${acompteInfo.pourcentage} %)</p>
+              <p>Garantissez votre séjour en payant l'acompte par PI-SPI (QR Code ou demande de paiement dans l'application de votre banque) :</p>
+              <p style="text-align:center;margin:18px 0;"><a href="${esc(this.lienGestion(reservation.client.email))}" style="background:#d4af37;color:#1a1a2e;padding:12px 22px;border-radius:8px;text-decoration:none;font-weight:bold;">Payer l'acompte</a></p>
+            </div>` : ''}
 
           ${confirmee
             ? `<div class="section"><p>Pour toute question avant votre arrivée, répondez simplement à cet email.

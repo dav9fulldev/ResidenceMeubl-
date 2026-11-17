@@ -1,0 +1,174 @@
+.acompte-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  z-index: 300;
+}
+
+.acompte-modal {
+  position: relative;
+  width: 100%;
+  max-width: 440px;
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  background: var(--surface);
+  color: var(--text);
+  border-radius: 16px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.acompte-modal h2 {
+  margin: 0;
+  font-size: 1.3rem;
+}
+
+.acompte-fermer {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 1.1rem;
+  padding: 8px;
+  cursor: pointer;
+}
+
+.acompte-resume {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.acompte-resume strong {
+  color: var(--text);
+}
+
+.acompte-methodes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 6px 0;
+}
+
+.acompte-methodes button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 8px;
+  border-radius: 10px;
+  border: 2px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.acompte-methodes button.active {
+  border-color: #d4af37;
+  background: rgba(212, 175, 55, 0.12);
+  font-weight: 700;
+}
+
+.acompte-modal label {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.acompte-modal input {
+  padding: 12px;
+  border-radius: 8px;
+  border: 2px solid var(--border);
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 0.9rem;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.acompte-aide {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+.acompte-valider {
+  margin-top: 6px;
+  justify-content: center;
+}
+
+.acompte-qr {
+  text-align: center;
+}
+
+.acompte-qr-image {
+  display: inline-block;
+  background: #fff;
+  padding: 12px;
+  border-radius: 12px;
+  line-height: 0;
+}
+
+.acompte-qr-image img {
+  width: 240px;
+  max-width: 100%;
+  height: auto;
+}
+
+.acompte-attente {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 4px 0;
+  font-weight: 600;
+}
+
+.acompte-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #d4af37;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: acompte-tourne 0.8s linear infinite;
+}
+
+@keyframes acompte-tourne {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .acompte-spinner { animation: none; }
+}
+
+.acompte-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.acompte-succes {
+  text-align: center;
+  padding: 12px 0;
+}
+
+.acompte-succes svg {
+  font-size: 3rem;
+  color: #10b981;
+}
+
+.acompte-succes h3 {
+  margin: 8px 0 4px;
+}
+
+.acompte-pied {
+  margin: 8px 0 0;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-align: center;
+}
