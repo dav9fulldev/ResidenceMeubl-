@@ -341,6 +341,24 @@ test("l'adresse Voyage est normalisée quelle que soit la forme saisie", () => {
   assert.equal(u('https://ai.mongodb.com/v1'), attendu);
   assert.equal(u('https://ai.mongodb.com/v1/embeddings'), attendu);
   assert.equal(u(' "https://api.voyageai.com/v1/" '), 'https://api.voyageai.com/v1');
+
+  // Clé collée avec espaces ou guillemets
+  const avant = process.env.VOYAGE_API_KEY;
+  process.env.VOYAGE_API_KEY = '  "cle-123"\n';
+  assert.equal(AIService.cle, 'cle-123');
+  process.env.VOYAGE_API_KEY = '   ';
+  assert.equal(AIService.estActive(), false);
+  if (avant === undefined) delete process.env.VOYAGE_API_KEY; else process.env.VOYAGE_API_KEY = avant;
+});
+
+test('derrière le relais Render, chaque visiteur a sa propre limite de réservations', async () => {
+  // En production, Express doit lire la vraie IP dans X-Forwarded-For
+  process.env.NODE_ENV = 'production';
+  delete require.cache[require.resolve('../server')];
+  const appProd = require('../server');
+  process.env.NODE_ENV = 'test';
+  assert.equal(appProd.get('trust proxy'), 1);
+  assert.equal(app.get('trust proxy'), false, 'pas de relais en test / local');
 });
 
 test('sans clé Voyage, la recherche bascule sur les mots-clés', async () => {

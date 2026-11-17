@@ -40,8 +40,13 @@ class AIService {
     return process.env.VOYAGE_MODEL || 'voyage-4-lite';
   }
 
+  // Clé nettoyée : espaces, retours à la ligne et guillemets copiés par erreur
+  get cle() {
+    return (process.env.VOYAGE_API_KEY || '').trim().replace(/^['"]|['"]$/g, '').trim();
+  }
+
   estActive() {
-    return Boolean(process.env.VOYAGE_API_KEY);
+    return Boolean(this.cle);
   }
 
   /**
@@ -58,7 +63,7 @@ class AIService {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${process.env.VOYAGE_API_KEY}`,
+        Authorization: `Bearer ${this.cle}`,
       },
       body: JSON.stringify({
         input: textes,
