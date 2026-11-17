@@ -18,6 +18,7 @@ export const API_ENDPOINTS = {
     updateStatus: (id) => `${API_BASE_URL}/reservations/${id}/status`,
     decideCancellation: (id) => `${API_BASE_URL}/reservations/${id}/annulation`,
     markRefunded: (id) => `${API_BASE_URL}/reservations/${id}/remboursement`,
+    retryRefund: (id) => `${API_BASE_URL}/reservations/${id}/remboursement/relancer`,
   },
   client: {
     access: `${API_BASE_URL}/client/acces`,

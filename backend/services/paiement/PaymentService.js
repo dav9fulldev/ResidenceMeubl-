@@ -260,6 +260,14 @@ class PaymentService {
   async traiterEvenements(corps) {
     const evenements = Array.isArray(corps?.data) ? corps.data : [];
     for (const ev of evenements) {
+      if (['RETOUR_ENVOYE', 'RETOUR_REJETE'].includes(ev?.evCode) && ev.end2endId) {
+        try {
+          await require('./RefundService').verifierParEnd2endId(String(ev.end2endId));
+        } catch (error) {
+          console.error('⚠️ Webhook retour PI-SPI :', error.message);
+        }
+        continue;
+      }
       if (!ev?.txId || !['PAIEMENT_RECU', 'RTP_REJETE'].includes(ev.evCode)) continue;
       try {
         await this.verifier(String(ev.txId), { forcer: true });
@@ -296,6 +304,7 @@ class PaymentService {
     if (this.minuterie) return;
     this.minuterie = setInterval(() => {
       this.verifierEnAttente().catch(e => console.error('⚠️ Vérification des paiements :', e.message));
+      require('./RefundService').verifierEnCours().catch(e => console.error('⚠️ Vérification des remboursements :', e.message));
     }, intervalleMs);
     this.minuterie.unref?.();
   }

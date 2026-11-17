@@ -4,6 +4,7 @@ const EmailService = require('./EmailService');
 const db = require('../db');
 const acompte = require('./paiement/acompte');
 const PaymentService = require('./paiement/PaymentService');
+const RefundService = require('./paiement/RefundService');
 
 const STATUTS_VALIDES = ['en_attente', 'confirmee', 'annulee'];
 const FORMAT_DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -60,6 +61,7 @@ class ReservationService {
   constructor() {
     this.emailService = new EmailService();
     PaymentService.emailService = this.emailService;
+    RefundService.emailService = this.emailService;
   }
 
   get collection() {
@@ -209,10 +211,19 @@ class ReservationService {
     return res.modifiedCount;
   }
 
-  // L'admin indique que l'acompte d'une réservation annulée a été remboursé
+  // L'admin relance le remboursement automatique (après un échec)
+  async relancerRemboursement(id) {
+    const r = await this.collection.findOne({ id: String(id) }, { projection: { _id: 0, acompte: 1, statut: 1 } });
+    if (!r?.acompte?.paye || r.statut !== 'annulee') throw new ErreurClient('Aucun acompte à rembourser pour cette réservation', 404);
+    if (r.acompte.remboursement?.statut === 'rembourse') throw new ErreurClient('Acompte déjà remboursé');
+    await this.collection.updateOne({ id: String(id) }, { $set: { 'acompte.remboursement.statut': 'a_rembourser' } });
+    return RefundService.rembourser(id);
+  }
+
+  // L'admin indique que l'acompte a été remboursé hors PI-SPI (après un échec)
   async marquerRembourse(id, reference = '') {
     const res = await this.collection.findOneAndUpdate(
-      { id: String(id), 'acompte.remboursement.statut': 'a_rembourser' },
+      { id: String(id), 'acompte.remboursement.statut': { $in: ['a_rembourser', 'echec'] } },
       { $set: { 'acompte.remboursement.statut': 'rembourse', 'acompte.remboursement.le': new Date(), 'acompte.remboursement.reference': String(reference || '').slice(0, 80) } },
       { returnDocument: 'after', projection: { _id: 0 } }
     );
@@ -323,11 +334,9 @@ class ReservationService {
     );
     if (!avant) return null;
 
-    // Acompte déjà payé : remboursement à effectuer par l'admin
+    // Acompte déjà payé : remboursement automatique (retour de fonds PI-SPI)
     if (nouveauStatut === 'annulee' && avant.acompte?.paye && !avant.acompte.remboursement) {
-      await this.collection.updateOne({ id: avant.id }, {
-        $set: { 'acompte.remboursement': { statut: 'a_rembourser', depuis: new Date() } },
-      });
+      await RefundService.rembourser(avant.id);
     }
 
     // Une annulation décidée par l'admin clôt aussi une demande du client en attente

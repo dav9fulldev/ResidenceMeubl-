@@ -947,10 +947,7 @@ test('annulation avec acompte payé → à rembourser ; le client peut nettoyer 
   await api(`/api/client/reservations/${id}/annulation`, { method: 'POST', headers: headersClient, body: {} });
   await api(`/api/reservations/${id}/annulation`, { method: 'PUT', headers: headersAdmin, body: { decision: 'accepter' } });
   let vue = (await api('/api/reservations', { headers: headersAdmin })).body.data.find(r => r.id === id);
-  assert.equal(vue.acompte.remboursement.statut, 'a_rembourser');
-  const remb = await api(`/api/reservations/${id}/remboursement`, { method: 'PUT', headers: headersAdmin, body: { reference: 'RET-123' } });
-  assert.equal(remb.status, 200);
-  assert.equal(remb.body.data.remboursement.statut, 'rembourse');
+  assert.equal(vue.acompte.remboursement.statut, 'rembourse', 'remboursé automatiquement (simulation)');
   assert.equal((await api(`/api/reservations/${id}/remboursement`, { method: 'PUT', headers: headersAdmin, body: {} })).status, 404);
 
   // Historique : la réservation annulée peut être masquée par le client, pas par un autre
@@ -968,4 +965,65 @@ test('annulation avec acompte payé → à rembourser ; le client peut nettoyer 
   const active = await reservationConfirmee(1, 170, 173, email);
   const rien = await api('/api/client/reservations/masquer', { method: 'POST', headers: tokTout, body: { ids: [active.id] } });
   assert.equal(rien.body.data.masquees, 0);
+});
+
+test('remboursement automatique PI-SPI : retour de fonds, rejet, relance, délai dépassé', async (t) => {
+  configurerPiSpi(t, { PAIEMENT_MODE: 'pispi' });
+  const es = ReservationService.emailService;
+  es.sendAcompteRecu = async () => {}; es.sendAcompteRecuAdmin = async () => {};
+  const rembourses = [];
+  es.sendRemboursementEffectue = async (r) => { rembourses.push(r.id); };
+
+  const preparer = async (j) => {
+    const { id, headersAdmin, headersClient } = await reservationConfirmee(1, j, j + 3, `remb${j}@example.com`);
+    await api(`/api/reservations/${id}/status`, { method: 'PUT', headers: headersAdmin, body: { statut: 'confirmee' } });
+    // Acompte payé (simulé en base, avec un end2endId PI-SPI)
+    await db.collection('reservations').updateOne({ id }, { $set: { acompte: { paye: true, montant: 40500, payeLe: new Date(), txId: 'TX' + j, end2endId: 'E2E-' + j, methode: 'demande' } } });
+    await api(`/api/client/reservations/${id}/annulation`, { method: 'POST', headers: headersClient, body: {} });
+    return { id, headersAdmin };
+  };
+  const PiSpiLocal = require('../services/paiement/PiSpiClient');
+  const RefundService = require('../services/paiement/RefundService');
+  const retours = [];
+  let reponseRetour = (e2e) => ({ end2endId: e2e, retourStatut: 'INITIE' });
+  t.mock.method(PiSpiLocal, 'retournerFonds', async (e2e) => { retours.push(e2e); return reponseRetour(e2e); });
+  let lecture = (e2e) => ({ end2endId: e2e, retourStatut: 'INITIE' });
+  t.mock.method(PiSpiLocal, 'lirePaiement', async (e2e) => lecture(e2e));
+
+  // 1. Acceptation → retour demandé, en cours, puis IRREVOCABLE
+  const a = await preparer(300);
+  await api(`/api/reservations/${a.id}/annulation`, { method: 'PUT', headers: a.headersAdmin, body: { decision: 'accepter' } });
+  assert.deepEqual(retours, ['E2E-300']);
+  let r = await db.collection('reservations').findOne({ id: a.id });
+  assert.equal(r.acompte.remboursement.statut, 'en_cours');
+  lecture = (e2e) => ({ end2endId: e2e, retourStatut: 'IRREVOCABLE', retourDateReponse: new Date().toISOString() });
+  await RefundService.verifierEnCours();
+  r = await db.collection('reservations').findOne({ id: a.id });
+  assert.equal(r.acompte.remboursement.statut, 'rembourse');
+  assert.equal(r.acompte.remboursement.automatique, true);
+  await new Promise(res => setTimeout(res, 20));
+  assert.deepEqual(rembourses, [a.id], 'email de remboursement envoyé une fois');
+  await RefundService.verifierEnCours();
+  assert.equal(rembourses.length, 1);
+
+  // 2. Retour rejeté → échec, puis relance réussie par l'admin
+  const b = await preparer(320);
+  reponseRetour = (e2e) => ({ end2endId: e2e, retourStatut: 'REJETE', retourStatutRaison: 'AG10' });
+  await api(`/api/reservations/${b.id}/annulation`, { method: 'PUT', headers: b.headersAdmin, body: { decision: 'accepter' } });
+  r = await db.collection('reservations').findOne({ id: b.id });
+  assert.equal(r.acompte.remboursement.statut, 'echec');
+  assert.match(r.acompte.remboursement.raison, /désactivé/);
+  reponseRetour = (e2e) => ({ end2endId: e2e, retourStatut: 'IRREVOCABLE' });
+  const relance = await api(`/api/reservations/${b.id}/remboursement/relancer`, { method: 'POST', headers: b.headersAdmin });
+  assert.equal(relance.status, 200, JSON.stringify(relance.body));
+  assert.equal(relance.body.data.remboursement.statut, 'rembourse');
+  assert.equal(relance.body.data.remboursement.tentatives, 2);
+
+  // 3. Délai de 90 jours dépassé (403) → échec explicite
+  const c = await preparer(340);
+  PiSpiLocal.retournerFonds.mock.mockImplementation(async () => { throw new PiSpiLocal.ErreurPiSpi('Délai de retour de fonds dépassé', { status: 403 }); });
+  await api(`/api/reservations/${c.id}/annulation`, { method: 'PUT', headers: c.headersAdmin, body: { decision: 'accepter' } });
+  r = await db.collection('reservations').findOne({ id: c.id });
+  assert.equal(r.acompte.remboursement.statut, 'echec');
+  assert.match(r.acompte.remboursement.raison, /90 jours/);
 });

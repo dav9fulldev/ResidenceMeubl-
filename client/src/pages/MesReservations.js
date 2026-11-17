@@ -239,7 +239,7 @@ const MesReservations = () => {
                   <p><strong>Du {formatDate(r.dates.arrivee)} au {formatDate(r.dates.depart)}</strong> · {r.nombrePersonnes} pers.</p>
                   <p>{Number(r.prixTotal).toLocaleString('fr-FR')} FCFA · Réf. {r.id}</p>
 
-                  {r.acompte?.remboursement?.statut === 'a_rembourser' && (
+                  {['a_rembourser', 'echec', 'en_cours'].includes(r.acompte?.remboursement?.statut) && (
                     <p className="demande-info attente">↩️ Acompte de {Number(r.acompte.montant).toLocaleString('fr-FR')} FCFA : remboursement en cours.</p>
                   )}
                   {r.acompte?.remboursement?.statut === 'rembourse' && (

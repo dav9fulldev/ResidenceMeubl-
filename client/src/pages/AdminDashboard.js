@@ -29,7 +29,7 @@ const AdminDashboard = () => {
   const acomptesEncaisses = acomptesPayes.reduce((t, r) => t + (Number(r.acompte.montant) || 0), 0);
   const acomptesAttendus = confirmees.filter(r => r.acompte && !r.acompte.paye && r.acompte.possible);
   const montantAttendu = acomptesAttendus.reduce((t, r) => t + (Number(r.acompte.montant) || 0), 0);
-  const doublons = reservations.filter(r => r.acompte?.doublons?.length || r.acompte?.remboursement?.statut === 'a_rembourser');
+  const doublons = reservations.filter(r => r.acompte?.doublons?.length || ['a_rembourser', 'echec'].includes(r.acompte?.remboursement?.statut));
   const aTraiter = [
     ...doublons.map(r => ({ r, type: 'doublon' })),
     ...demandes.map(r => ({ r, type: 'demande' })),
@@ -74,7 +74,7 @@ const AdminDashboard = () => {
                     <span className="todo-text">
                       <strong>{r.client.prenom} {r.client.nom}</strong>
                       <span>
-                        {type === 'demande' ? 'Demande d\'annulation' : type === 'doublon' ? (r.acompte?.remboursement?.statut === 'a_rembourser' ? 'Réservation annulée : acompte à rembourser' : 'Acompte payé en double : à rembourser') : 'Réservation à confirmer'} · {r.residence?.nom} · {formatDate(r.dates.arrivee)}
+                        {type === 'demande' ? 'Demande d\'annulation' : type === 'doublon' ? (['a_rembourser', 'echec'].includes(r.acompte?.remboursement?.statut) ? 'Remboursement d\'acompte à traiter' : 'Acompte payé en double : à rembourser') : 'Réservation à confirmer'} · {r.residence?.nom} · {formatDate(r.dates.arrivee)}
                       </span>
                     </span>
                     <FaArrowRight className="todo-arrow" />

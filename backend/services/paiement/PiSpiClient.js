@@ -17,6 +17,7 @@ const SCOPES_PAR_DEFAUT = [
   'piz/demande_paiement.write',
   'piz/demande_paiement.read',
   'piz/paiement.read',
+  'piz/retour_fonds.write',
 ].join(' ');
 
 const DELAI_MS = 10000;
@@ -165,6 +166,20 @@ class PiSpiClient {
    */
   async lirePaiementRecu(txId) {
     return this.requete('GET', `/paiements-recus/${encodeURIComponent(txId)}`);
+  }
+
+  /**
+   * Retour de fonds (remboursement intégral) d'un paiement reçu. Idempotent côté PI-SPI.
+   * Limite : 90 jours après le paiement (403 au-delà).
+   * Réponse : le paiement avec retourStatut (INITIE | IRREVOCABLE | REJETE).
+   */
+  async retournerFonds(end2endId) {
+    return this.requete('PUT', `/paiements/${encodeURIComponent(end2endId)}/retours`);
+  }
+
+  // Détail d'un paiement (dont retourStatut) par son identifiant de bout en bout
+  async lirePaiement(end2endId) {
+    return this.requete('GET', `/paiements/${encodeURIComponent(end2endId)}`);
   }
 }
 
