@@ -38,11 +38,19 @@ class RefundService {
    * Lance le remboursement d'une réservation annulée dont l'acompte est payé.
    * Sans effet si rien n'est à rembourser ou si c'est déjà fait.
    */
-  async rembourser(reservationId) {
+  async rembourser(reservationId, { ignorerPolitique = false } = {}) {
     const r = await this.collection.findOne({ id: String(reservationId) }, { projection: { _id: 0 } });
     if (!r?.acompte?.paye || r.statut !== 'annulee') return null;
     const etat = r.acompte.remboursement?.statut;
     if (etat === 'rembourse' || etat === 'en_cours') return r;
+
+    // Politique : évaluée à la date de la demande d'annulation du client
+    if (!ignorerPolitique) {
+      const politique = acompte.politiqueRemboursement(r, r.demandeAnnulation?.dateDemande || new Date());
+      if (politique && !politique.remboursable) {
+        return this.majRemboursement(r.id, { statut: 'non_remboursable', depuis: new Date(), raison: politique.raison });
+      }
+    }
 
     const maintenant = new Date();
     const base = { depuis: r.acompte.remboursement?.depuis || maintenant, tentatives: (r.acompte.remboursement?.tentatives || 0) + 1, derniereTentative: maintenant };

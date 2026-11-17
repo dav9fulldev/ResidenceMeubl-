@@ -353,6 +353,7 @@ const PaiementAcompte = ({ reservation, token, onPaye, onFermer, direct = null }
             </div>
           </>
         )}
+        {a.conditions && statut !== 'paye' && <p className="acompte-conditions">ℹ️ {a.conditions}</p>}
         <p className="acompte-pied">Paiement instantané sécurisé PI-SPI (BCEAO)</p>
       </div>
     </div>

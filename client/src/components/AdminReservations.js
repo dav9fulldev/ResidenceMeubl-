@@ -188,6 +188,21 @@ const AdminReservations = () => {
                       : `⏳ Acompte à payer : ${Number(r.acompte.montant).toLocaleString('fr-FR')} FCFA`}
                   </p>
                 )}
+                {r.acompte?.remboursement?.statut === 'non_remboursable' && (
+                  <p className="reservation-acompte attente">
+                    🔒 Acompte de {Number(r.acompte.montant).toLocaleString('fr-FR')} FCFA conservé : {r.acompte.remboursement.raison}.{' '}
+                    <button type="button" className="btn btn-outline btn-sm" onClick={() => {
+                      if (window.confirm('Rembourser quand même cet acompte (geste commercial) ?')) relancer(r);
+                    }}>Rembourser quand même</button>
+                  </p>
+                )}
+                {enDemande(r) && r.acompte?.paye && r.acompte.politique && (
+                  <p className={`reservation-acompte ${r.acompte.politique.remboursable ? 'paye' : 'attente'}`}>
+                    {r.acompte.politique.remboursable
+                      ? `Si vous acceptez : acompte de ${Number(r.acompte.montant).toLocaleString('fr-FR')} FCFA remboursé automatiquement.`
+                      : `Si vous acceptez : acompte conservé (${r.acompte.politique.raison.toLowerCase()}).`}
+                  </p>
+                )}
                 {r.acompte?.remboursement?.statut === 'en_cours' && (
                   <p className="reservation-acompte attente">
                     ↩️ Remboursement de {Number(r.acompte.montant).toLocaleString('fr-FR')} FCFA en cours via PI-SPI…

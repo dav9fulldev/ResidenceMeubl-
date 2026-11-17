@@ -58,3 +58,8 @@ services:
         sync: false
       - key: PISPI_APP_URL
         sync: false
+      # Politique de remboursement de l'acompte
+      - key: ACOMPTE_REMBOURSABLE_APRES_PAIEMENT_JOURS
+        value: "5"
+      - key: ACOMPTE_NON_REMBOURSABLE_AVANT_ARRIVEE_JOURS
+        value: "3"
