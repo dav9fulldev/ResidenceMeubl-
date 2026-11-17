@@ -213,6 +213,42 @@ router.put('/:id/status', requireAdmin, async (req, res) => {
 });
 
 /**
+ * @route   POST /api/reservations/:id/remboursement/relancer
+ * @desc    Relancer le remboursement automatique PI-SPI
+ * @access  Admin
+ */
+router.post('/:id/remboursement/relancer', requireAdmin, async (req, res) => {
+  try {
+    const r = await ReservationService.relancerRemboursement(req.params.id);
+    res.json({ success: true, data: { id: r.id, remboursement: r.acompte.remboursement } });
+  } catch (error) {
+    if (error instanceof ReservationService.ErreurClient) {
+      return res.status(error.status).json({ success: false, message: error.message });
+    }
+    console.error('Erreur relance remboursement :', error);
+    res.status(500).json({ success: false, message: 'Erreur lors du remboursement' });
+  }
+});
+
+/**
+ * @route   PUT /api/reservations/:id/remboursement
+ * @desc    Marquer l'acompte d'une réservation annulée comme remboursé : { reference? }
+ * @access  Admin
+ */
+router.put('/:id/remboursement', requireAdmin, async (req, res) => {
+  try {
+    const r = await ReservationService.marquerRembourse(req.params.id, req.body?.reference);
+    res.json({ success: true, data: { id: r.id, remboursement: r.acompte.remboursement } });
+  } catch (error) {
+    if (error instanceof ReservationService.ErreurClient) {
+      return res.status(error.status).json({ success: false, message: error.message });
+    }
+    console.error('Erreur remboursement :', error);
+    res.status(500).json({ success: false, message: 'Erreur lors de l\'enregistrement du remboursement' });
+  }
+});
+
+/**
  * @route   PUT /api/reservations/:id/annulation
  * @desc    Accepter ou refuser la demande d'annulation d'un client
  * @body    { decision: 'accepter' | 'refuser', message? }

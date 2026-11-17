@@ -177,6 +177,19 @@ export const ResidencesProvider = ({ children }) => {
     replaceResidence(response.data);
   }, [adminRequest]);
 
+  const markRefunded = useCallback(async (reservationId, reference = '') => {
+    const response = await adminRequest(API_ENDPOINTS.reservations.markRefunded(reservationId), {
+      method: 'PUT',
+      body: { reference },
+    });
+    return response.data;
+  }, [adminRequest]);
+
+  const retryRefund = useCallback(async (reservationId) => {
+    const response = await adminRequest(API_ENDPOINTS.reservations.retryRefund(reservationId), { method: 'POST' });
+    return response.data;
+  }, [adminRequest]);
+
   // Durée de séjour autorisée (nuits) pour une résidence
   const updateStayLimits = useCallback(async (residenceId, minStay, maxStay) => {
     const response = await adminRequest(API_ENDPOINTS.admin.residence(residenceId), {
@@ -260,12 +273,14 @@ export const ResidencesProvider = ({ children }) => {
     updateReservationStatus,
     decideCancellation,
     updateStayLimits,
+    markRefunded,
+    retryRefund,
     getStats,
     downloadReservationsCsv,
   }), [
     residences, loading, offline, isAdmin, loadResidences, getResidenceById, searchResidences,
     createReservation, smartSearch, getSimilarResidences, loginAdmin, logoutAdmin, updateResidenceStatus, addResidence,
-    updateResidence, deleteResidence, getReservations, updateReservationStatus, decideCancellation, updateStayLimits, getStats, downloadReservationsCsv,
+    updateResidence, deleteResidence, getReservations, updateReservationStatus, decideCancellation, updateStayLimits, markRefunded, retryRefund, getStats, downloadReservationsCsv,
   ]);
 
   return (

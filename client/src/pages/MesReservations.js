@@ -38,6 +38,19 @@ const MesReservations = () => {
   const [paiementPour, setPaiementPour] = useState(null); // réservation dont on paie l'acompte
   const [paiementDirect, setPaiementDirect] = useState(null);
 
+  const masquer = async (ids) => {
+    const texte = ids
+      ? 'Retirer cette réservation de votre historique ?'
+      : 'Retirer de votre historique toutes les réservations annulées ou terminées ?';
+    if (!window.confirm(texte)) return;
+    try {
+      await apiRequest(API_ENDPOINTS.client.hide, { method: 'POST', token, body: ids ? { ids } : {} });
+      setReservations(prev => prev.filter(r => (ids ? !ids.includes(r.id) : !r.peutMasquer)));
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
   const ouvrirPaiement = (r) => {
     setPaiementDirect(preparerPaiementDirect(r)); // à faire pendant le geste (ouverture d'onglet)
     setPaiementPour(r);
@@ -200,6 +213,13 @@ const MesReservations = () => {
 
         {loading && !reservations && <p>Chargement…</p>}
         {reservations && reservations.length === 0 && <p>Aucune réservation trouvée.</p>}
+        {reservations?.filter(r => r.peutMasquer).length > 1 && (
+          <p className="nettoyer-historique">
+            <button type="button" className="btn-lien-discret" onClick={() => masquer(null)}>
+              Retirer toutes les réservations annulées ou terminées
+            </button>
+          </p>
+        )}
 
         <div className="client-reservations">
           {reservations?.map((r) => {
@@ -219,7 +239,13 @@ const MesReservations = () => {
                   <p><strong>Du {formatDate(r.dates.arrivee)} au {formatDate(r.dates.depart)}</strong> · {r.nombrePersonnes} pers.</p>
                   <p>{Number(r.prixTotal).toLocaleString('fr-FR')} FCFA · Réf. {r.id}</p>
 
-                  {r.acompte?.paye && (
+                  {['a_rembourser', 'echec', 'en_cours'].includes(r.acompte?.remboursement?.statut) && (
+                    <p className="demande-info attente">↩️ Acompte de {Number(r.acompte.montant).toLocaleString('fr-FR')} FCFA : remboursement en cours.</p>
+                  )}
+                  {r.acompte?.remboursement?.statut === 'rembourse' && (
+                    <p className="demande-info acceptee">↩️ Acompte remboursé le {formatDate(r.acompte.remboursement.le)}.</p>
+                  )}
+                  {r.acompte?.paye && !r.acompte?.remboursement && (
                     <p className="demande-info acceptee">💰 Acompte de {Number(r.acompte.montant).toLocaleString('fr-FR')} FCFA reçu le {formatDate(r.acompte.payeLe)}.</p>
                   )}
                   {r.acompte?.possible && (
@@ -246,6 +272,11 @@ const MesReservations = () => {
                     </p>
                   )}
 
+                  {r.peutMasquer && (
+                    <button type="button" className="btn-lien-discret" onClick={() => masquer([r.id])}>
+                      Retirer de mon historique
+                    </button>
+                  )}
                   {r.peutDemanderAnnulation && cancelId !== r.id && (
                     <button type="button" className="btn btn-outline btn-sm" onClick={() => { setCancelId(r.id); setMotif(''); setInfo(''); }}>
                       Demander l'annulation

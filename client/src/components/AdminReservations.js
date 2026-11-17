@@ -12,7 +12,31 @@ const STATUTS = {
 const formatDate = (value) => (value ? new Date(value).toLocaleDateString('fr-FR') : '—');
 
 const AdminReservations = () => {
-  const { getReservations, updateReservationStatus, decideCancellation, reloadResidences, residences } = useResidences();
+  const { getReservations, updateReservationStatus, decideCancellation, markRefunded, retryRefund, reloadResidences, residences } = useResidences();
+
+  const relancer = async (r) => {
+    try {
+      const res = await retryRefund(r.id);
+      setReservations(prev => prev.map(x => (x.id === r.id ? { ...x, acompte: { ...x.acompte, remboursement: res.remboursement } } : x)));
+      setNotice(res.remboursement?.statut === 'echec' ? '' : 'Remboursement relancé via PI-SPI.');
+      if (res.remboursement?.statut === 'echec') setError(`Remboursement refusé : ${res.remboursement.raison}`);
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const rembourser = async (r) => {
+    const reference = window.prompt(
+      `Confirmez que l'acompte de ${Number(r.acompte.montant).toLocaleString('fr-FR')} FCFA a été remboursé à ${r.client.prenom} ${r.client.nom}.\nRéférence du remboursement (facultatif) :`, '');
+    if (reference === null) return;
+    try {
+      const res = await markRefunded(r.id, reference);
+      setReservations(prev => prev.map(x => (x.id === r.id ? { ...x, acompte: { ...x.acompte, remboursement: res.remboursement } } : x)));
+      setNotice('Remboursement enregistré.');
+    } catch (err) {
+      setError(err.message);
+    }
+  };
   const [reservations, setReservations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -162,6 +186,24 @@ const AdminReservations = () => {
                     {r.acompte.paye
                       ? `💰 Acompte payé : ${Number(r.acompte.montant).toLocaleString('fr-FR')} FCFA le ${formatDate(r.acompte.payeLe)} (PI-SPI)`
                       : `⏳ Acompte à payer : ${Number(r.acompte.montant).toLocaleString('fr-FR')} FCFA`}
+                  </p>
+                )}
+                {r.acompte?.remboursement?.statut === 'en_cours' && (
+                  <p className="reservation-acompte attente">
+                    ↩️ Remboursement de {Number(r.acompte.montant).toLocaleString('fr-FR')} FCFA en cours via PI-SPI…
+                  </p>
+                )}
+                {['a_rembourser', 'echec'].includes(r.acompte?.remboursement?.statut) && (
+                  <p className="reservation-acompte doublon">
+                    ⚠️ Acompte de {Number(r.acompte.montant).toLocaleString('fr-FR')} FCFA non remboursé
+                    {r.acompte.remboursement.raison ? ` : ${r.acompte.remboursement.raison}` : ''}.{' '}
+                    <button type="button" className="btn btn-outline btn-sm" onClick={() => relancer(r)}>Relancer via PI-SPI</button>{' '}
+                    <button type="button" className="btn btn-outline btn-sm" onClick={() => rembourser(r)}>Remboursé autrement</button>
+                  </p>
+                )}
+                {r.acompte?.remboursement?.statut === 'rembourse' && (
+                  <p className="reservation-acompte paye">
+                    ↩️ Acompte remboursé le {formatDate(r.acompte.remboursement.le)}{r.acompte.remboursement.automatique ? ' automatiquement par PI-SPI' : ''}{r.acompte.remboursement.reference ? ` (réf. ${r.acompte.remboursement.reference})` : ''}
                   </p>
                 )}
                 {r.acompte?.doublons?.length > 0 && (

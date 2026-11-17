@@ -456,6 +456,25 @@ class EmailService {
     });
   }
 
+  // Remboursement de l'acompte effectué
+  async sendRemboursementEffectue(r) {
+    const a = r.acompte;
+    await this.envoyer({
+      to: r.client.email,
+      replyTo: this.expediteur,
+      subject: `↩️ Acompte remboursé - ${r.residenceInfo?.nom}`,
+      html: this.emailSimple({
+        titre: 'Acompte remboursé',
+        couleur: '#2e7d32',
+        contenu: `<p>Bonjour ${esc(r.client.prenom)},</p>
+          <p>Suite à l'annulation de votre réservation, votre acompte de <strong>${Number(a.montant).toLocaleString('fr-FR')} FCFA</strong>
+          vous a été remboursé par PI-SPI sur le compte utilisé pour le paiement.</p>
+          ${this.recapReservation(r)}
+          ${a.remboursement?.reference ? `<p style="color:#777;font-size:13px;">Référence : ${esc(a.remboursement.reference)}</p>` : ''}`,
+      }),
+    });
+  }
+
   // Acompte reçu : notification à l'administrateur
   async sendAcompteRecuAdmin(r) {
     const a = r.acompte;
@@ -537,6 +556,9 @@ class EmailService {
           </div>
 
           ${message ? `<div class="section"><p><span class="label">Message de notre équipe :</span> ${esc(message)}</p></div>` : ''}
+
+          ${!confirmee && reservation.acompte?.paye ? `<div class="section"><p><span class="label">Votre acompte :</span>
+            ${Number(reservation.acompte.montant).toLocaleString('fr-FR')} FCFA vous est remboursé automatiquement par PI-SPI. Vous recevrez une confirmation par email.</p></div>` : ''}
 
           ${confirmee && acompteInfo?.possible ? `<div class="section" style="border-left-color:#d4af37;">
               <p><span class="label">Acompte à régler :</span> ${Number(acompteInfo.montant).toLocaleString('fr-FR')} FCFA (${acompteInfo.pourcentage} %)</p>

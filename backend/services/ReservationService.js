@@ -4,6 +4,7 @@ const EmailService = require('./EmailService');
 const db = require('../db');
 const acompte = require('./paiement/acompte');
 const PaymentService = require('./paiement/PaymentService');
+const RefundService = require('./paiement/RefundService');
 
 const STATUTS_VALIDES = ['en_attente', 'confirmee', 'annulee'];
 const FORMAT_DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -49,7 +50,8 @@ const vueClient = (r) => ({
   dateCreation: r.dateCreation,
   demandeAnnulation: r.demandeAnnulation || null,
   peutDemanderAnnulation: peutDemanderAnnulation(r),
-  acompte: acompte.etatAcompte(r),
+  peutMasquer: r.statut === 'annulee' || r.dates.depart <= aujourdhui(),
+  acompte: { ...acompte.etatAcompte(r), remboursement: r.acompte?.remboursement || null },
 });
 
 /**
@@ -59,6 +61,7 @@ class ReservationService {
   constructor() {
     this.emailService = new EmailService();
     PaymentService.emailService = this.emailService;
+    RefundService.emailService = this.emailService;
   }
 
   get collection() {
@@ -167,7 +170,7 @@ class ReservationService {
       dateCreation: reservation.dateCreation,
       prixTotal: reservation.prixTotal,
       demandeAnnulation: reservation.demandeAnnulation || null,
-      acompte: acompte.etatAcompte(reservation),
+      acompte: { ...acompte.etatAcompte(reservation), remboursement: reservation.acompte?.remboursement || null },
     }));
   }
 
@@ -187,9 +190,45 @@ class ReservationService {
 
   // Historique du client ; limité à une réservation si l'accès vient d'une référence
   async getReservationsClient({ email, ref }) {
-    const filtre = { 'client.email': email, ...(ref ? { id: ref } : {}) };
+    const filtre = { 'client.email': email, masqueeParClient: { $ne: true }, ...(ref ? { id: ref } : {}) };
     const docs = await this.collection.find(filtre, { projection: { _id: 0 } }).sort({ dateCreation: -1 }).toArray();
     return docs.map(vueClient);
+  }
+
+  /**
+   * Le client retire de son historique des réservations annulées ou terminées.
+   * Elles restent visibles par l'admin (comptabilité). ids = liste, ou null pour « toutes ».
+   * @returns nombre de réservations masquées
+   */
+  async masquerPourClient({ email, ref }, ids = null) {
+    const filtre = {
+      'client.email': email,
+      $or: [{ statut: 'annulee' }, { 'dates.depart': { $lte: aujourdhui() } }],
+      ...(ids ? { id: { $in: ids.map(String) } } : {}),
+      ...(ref ? { id: ref } : {}),
+    };
+    const res = await this.collection.updateMany(filtre, { $set: { masqueeParClient: true, masqueeLe: new Date() } });
+    return res.modifiedCount;
+  }
+
+  // L'admin relance le remboursement automatique (après un échec)
+  async relancerRemboursement(id) {
+    const r = await this.collection.findOne({ id: String(id) }, { projection: { _id: 0, acompte: 1, statut: 1 } });
+    if (!r?.acompte?.paye || r.statut !== 'annulee') throw new ErreurClient('Aucun acompte à rembourser pour cette réservation', 404);
+    if (r.acompte.remboursement?.statut === 'rembourse') throw new ErreurClient('Acompte déjà remboursé');
+    await this.collection.updateOne({ id: String(id) }, { $set: { 'acompte.remboursement.statut': 'a_rembourser' } });
+    return RefundService.rembourser(id);
+  }
+
+  // L'admin indique que l'acompte a été remboursé hors PI-SPI (après un échec)
+  async marquerRembourse(id, reference = '') {
+    const res = await this.collection.findOneAndUpdate(
+      { id: String(id), 'acompte.remboursement.statut': { $in: ['a_rembourser', 'echec'] } },
+      { $set: { 'acompte.remboursement.statut': 'rembourse', 'acompte.remboursement.le': new Date(), 'acompte.remboursement.reference': String(reference || '').slice(0, 80) } },
+      { returnDocument: 'after', projection: { _id: 0 } }
+    );
+    if (!res) throw new ErreurClient('Aucun remboursement en attente pour cette réservation', 404);
+    return res;
   }
 
   /**
@@ -294,6 +333,11 @@ class ReservationService {
       { returnDocument: 'before', projection: { _id: 0 } }
     );
     if (!avant) return null;
+
+    // Acompte déjà payé : remboursement automatique (retour de fonds PI-SPI)
+    if (nouveauStatut === 'annulee' && avant.acompte?.paye && !avant.acompte.remboursement) {
+      await RefundService.rembourser(avant.id);
+    }
 
     // Une annulation décidée par l'admin clôt aussi une demande du client en attente
     if (nouveauStatut === 'annulee' && avant.demandeAnnulation?.statut === 'en_attente') {
