@@ -42,7 +42,8 @@
   border-radius: 10px;
   border: 2px solid transparent;
   font-size: 1rem;
-  color: #1a1a2e;
+  color: var(--text);
+  background: var(--surface);
 }
 
 .smart-search-form input:focus {
@@ -87,14 +88,14 @@
 .smart-search-summary {
   margin-bottom: 30px;
   padding: 16px 24px;
-  background: white;
+  background: var(--surface);
   border-radius: 8px;
   border-left: 4px solid #d4af37;
 }
 
 .smart-search-summary p {
   margin: 0;
-  color: #444;
+  color: var(--text-muted);
   font-weight: 500;
 }
 
@@ -117,8 +118,8 @@
   border-radius: 999px;
   padding: 4px 12px;
   font-size: 0.85rem;
-  background: #f3f4f6;
-  color: #4b5563;
+  background: var(--surface-2);
+  color: var(--text-muted);
 }
 
 .mode-chip.ia {

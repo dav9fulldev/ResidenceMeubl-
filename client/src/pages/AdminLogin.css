@@ -8,7 +8,7 @@
 }
 
 .admin-login-container {
-  background: white;
+  background: var(--surface);
   border-radius: 24px;
   box-shadow: 0 25px 50px rgba(0, 0, 0, 0.25);
   overflow: hidden;
@@ -49,13 +49,13 @@
 /* Formulaire de connexion */
 .admin-login-form {
   padding: 60px 40px;
-  background: white;
+  background: var(--surface);
 }
 
 .admin-login-form h3 {
   font-size: 28px;
   font-weight: 700;
-  color: #1f2937;
+  color: var(--text);
   margin: 0 0 32px 0;
   text-align: center;
 }
@@ -69,30 +69,30 @@
   align-items: center;
   gap: 8px;
   font-weight: 600;
-  color: #374151;
+  color: var(--text);
   margin-bottom: 8px;
   font-size: 14px;
 }
 
 .form-group label svg {
-  color: #6b7280;
+  color: var(--text-muted);
   font-size: 16px;
 }
 
 .form-group input {
   width: 100%;
   padding: 16px 20px;
-  border: 2px solid #e5e7eb;
+  border: 2px solid var(--border);
   border-radius: 12px;
   font-size: 16px;
   transition: all 0.3s ease;
-  background: #f9fafb;
+  background: var(--surface-2);
 }
 
 .form-group input:focus {
   outline: none;
   border-color: #d4af37;
-  background: white;
+  background: var(--surface);
   box-shadow: 0 0 0 4px rgba(212, 175, 55, 0.1);
 }
 
@@ -108,7 +108,7 @@
   transform: translateY(-50%);
   background: none;
   border: none;
-  color: #6b7280;
+  color: var(--text-muted);
   cursor: pointer;
   padding: 8px;
   border-radius: 6px;
@@ -117,7 +117,7 @@
 
 .password-toggle:hover {
   color: #d4af37;
-  background: #f3f4f6;
+  background: var(--surface-2);
 }
 
 /* Bouton de connexion */
@@ -153,11 +153,11 @@
   text-align: center;
   margin-top: 32px;
   padding-top: 24px;
-  border-top: 1px solid #e5e7eb;
+  border-top: 1px solid var(--border);
 }
 
 .admin-login-footer p {
-  color: #6b7280;
+  color: var(--text-muted);
   margin: 0 0 16px 0;
   font-size: 14px;
 }
@@ -170,7 +170,7 @@
 
 /* Informations */
 .admin-login-info {
-  background: #f8fafc;
+  background: var(--bg-soft);
   padding: 40px;
   display: flex;
   flex-direction: column;
@@ -179,17 +179,17 @@
 }
 
 .info-card {
-  background: white;
+  background: var(--surface);
   padding: 24px;
   border-radius: 16px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--border);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
 }
 
 .info-card h4 {
   font-size: 18px;
   font-weight: 600;
-  color: #1f2937;
+  color: var(--text);
   margin: 0 0 12px 0;
   display: flex;
   align-items: center;
@@ -197,7 +197,7 @@
 }
 
 .info-card p {
-  color: #6b7280;
+  color: var(--text-muted);
   line-height: 1.6;
   margin: 0;
   font-size: 14px;
@@ -264,8 +264,8 @@
 
 /* États de focus et hover */
 .form-group input:hover {
-  background: white;
-  border-color: #d1d5db;
+  background: var(--surface);
+  border-color: var(--border);
 }
 
 .btn-login:hover:not(:disabled) {

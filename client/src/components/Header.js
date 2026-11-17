@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useFavorites } from '../context/FavoritesContext';
-import { FaHeart, FaBars, FaTimes, FaSearch } from 'react-icons/fa';
+import { FaHeart, FaBars, FaTimes, FaSearch, FaMoon, FaSun } from 'react-icons/fa';
+import useTheme from '../hooks/useTheme';
 import './Header.css';
 
 const Header = () => {
@@ -9,6 +10,17 @@ const Header = () => {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const { favorites } = useFavorites();
   const location = useLocation();
+  const { theme, toggleTheme } = useTheme();
+
+  // Fermer le menu à chaque changement de page, et bloquer le défilement derrière le menu ouvert
+  useEffect(() => {
+    setIsMenuOpen(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    document.body.style.overflow = isMenuOpen ? 'hidden' : '';
+    return () => { document.body.style.overflow = ''; };
+  }, [isMenuOpen]);
 
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen);
@@ -86,6 +98,15 @@ const Header = () => {
         </nav>
 
         <div className="header-actions">
+          <button
+            className="theme-toggle"
+            onClick={toggleTheme}
+            aria-label={theme === 'dark' ? 'Passer en mode clair' : 'Passer en mode sombre'}
+            title={theme === 'dark' ? 'Mode clair' : 'Mode sombre'}
+          >
+            {theme === 'dark' ? <FaSun /> : <FaMoon />}
+          </button>
+
           <button 
             className="search-toggle"
             onClick={toggleSearch}
@@ -97,7 +118,8 @@ const Header = () => {
           <button 
             className="mobile-menu-toggle"
             onClick={toggleMenu}
-            aria-label="Menu"
+            aria-label={isMenuOpen ? 'Fermer le menu' : 'Ouvrir le menu'}
+            aria-expanded={isMenuOpen}
           >
             {isMenuOpen ? <FaTimes /> : <FaBars />}
           </button>
