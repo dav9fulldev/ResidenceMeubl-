@@ -911,3 +911,13 @@ test('durée de séjour réglable par résidence (2 nuits par défaut, 1 possibl
   assert.equal((await uneNuit()).status, 201);
   await api('/api/admin/residences/1', { method: 'PUT', headers, body: { disponibilite: { sejourMin: 2, sejourMax: 30 } } });
 });
+
+test('adresse de paiement : saisie mobile normalisée', () => {
+  const n = PaymentService.normaliserAlias;
+  const attendu = 'f0c7ac56-48e6-4bfb-86ee-91192a836d1e';
+  assert.equal(n(' F0C7AC56-48E6-4BFB-86EE-91192A836D1E '), attendu);
+  assert.equal(n('f0c7ac56\u201348e6\u20134bfb\u201386ee\u201391192a836d1e'), attendu, 'tirets iOS');
+  assert.equal(n('f0c7ac5648e64bfb86ee91192a836d1e'), attendu, 'sans tirets');
+  assert.equal(n('f0c7ac56 48e6 4bfb 86ee 91192a836d1e'), attendu, 'espaces');
+  assert.ok(!PiSpi.UUID_V4.test(n('f0c7ac56-48e6-4bfb-86ee-911902a8')), 'faute de frappe toujours refusée');
+});

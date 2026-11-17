@@ -4,6 +4,14 @@ import { API_ENDPOINTS, apiRequest } from '../config/api';
 import './PaiementAcompte.css';
 
 const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+// Nettoie une adresse de paiement saisie ou collée : espaces, tirets typographiques (iOS),
+// majuscules ; accepte aussi 32 caractères sans tirets.
+const normaliserAlias = (valeur) => {
+  const brut = String(valeur || '').toLowerCase().replace(/[‐-―−﹘﹣－]/g, '-').replace(/[^0-9a-f-]/g, '');
+  const hex = brut.replace(/-/g, '');
+  return hex.length === 32 ? `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}` : brut;
+};
+
 const fcfa = (n) => `${Number(n || 0).toLocaleString('fr-FR')} FCFA`;
 
 /**
@@ -49,15 +57,17 @@ const PaiementAcompte = ({ reservation, token, onPaye, onFermer }) => {
   const demarrer = async () => {
     setErreur('');
     setMessage('');
-    if (methode === 'demande' && !UUID_V4.test(alias.trim())) {
-      setErreur('Adresse de paiement invalide. Copiez-la depuis l\'application de votre banque (format xxxxxxxx-xxxx-4xxx-xxxx-xxxxxxxxxxxx).');
+    const aliasPropre = normaliserAlias(alias);
+    if (methode === 'demande' && !UUID_V4.test(aliasPropre)) {
+      const n = aliasPropre.replace(/-/g, '').length;
+      setErreur(`Adresse de paiement incomplète ou incorrecte (${n} caractères sur 32). Le plus simple : copiez-la depuis l'application de votre banque et collez-la ici.`);
       return;
     }
     setEnvoi(true);
     try {
       const r = await apiRequest(urlAcompte, {
         method: 'POST', token,
-        body: methode === 'demande' ? { methode, payeurAlias: alias.trim() } : { methode },
+        body: methode === 'demande' ? { methode, payeurAlias: aliasPropre } : { methode },
       });
       setPaiement(r.data);
       setStatut('en_attente');
@@ -117,7 +127,13 @@ const PaiementAcompte = ({ reservation, token, onPaye, onFermer }) => {
               <>
                 <label htmlFor="acompte-alias">Votre adresse de paiement PI-SPI</label>
                 <input id="acompte-alias" value={alias} onChange={(e) => setAlias(e.target.value)}
-                  placeholder="xxxxxxxx-xxxx-4xxx-xxxx-xxxxxxxxxxxx" autoComplete="off" spellCheck="false" inputMode="text" />
+                  placeholder="Collez votre adresse de paiement" autoComplete="off" autoCorrect="off"
+                  autoCapitalize="off" spellCheck="false" inputMode="text" />
+                {alias && (
+                  <p className={`acompte-alias-etat ${UUID_V4.test(normaliserAlias(alias)) ? 'ok' : ''}`}>
+                    {UUID_V4.test(normaliserAlias(alias)) ? '✓ Adresse au bon format' : `${normaliserAlias(alias).replace(/-/g, '').length} / 32 caractères`}
+                  </p>
+                )}
                 <p className="acompte-aide">Elle figure dans l'application de votre banque (rubrique PI-SPI / adresse de paiement). Vous recevrez la demande dans cette application.</p>
               </>
             )}
