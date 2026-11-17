@@ -1,9 +1,83 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { FaStar, FaBed, FaBath, FaUsers, FaArrowRight, FaMapMarkerAlt } from 'react-icons/fa';
 import { useResidences } from '../context/ResidencesContext';
-import videoScript from '../assets/videos/video_script.mp4';
 import './Home.css';
+
+// Vidéo légère sur téléphone (720p, ~1 Mo), plus nette sur ordinateur (1080p, ~2,4 Mo), sans son
+const VIDEO_MOBILE = '/videos/hero-mobile.mp4';
+const VIDEO_DESKTOP = '/videos/hero-desktop.mp4';
+const POSTER = '/images/hero-poster.jpg';
+
+/**
+ * Vidéo d'ambiance en lecture automatique.
+ * Safari exige l'attribut « muted » réel (React ne l'écrit pas) : on le pose à la main.
+ * Si la lecture est refusée (mode Économie d'énergie de l'iPhone, données réduites…),
+ * on affiche l'image fixe au lieu d'une vidéo figée avec un bouton ▶, puis on retente
+ * au premier toucher de l'écran.
+ */
+const HeroVideo = () => {
+  const ref = useRef(null);
+  const [bloquee, setBloquee] = useState(false);
+
+  useEffect(() => {
+    const video = ref.current;
+    if (!video) return undefined;
+
+    const reduireAnimations = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    if (reduireAnimations) {
+      setBloquee(true);
+      return undefined;
+    }
+
+    video.muted = true;
+    video.defaultMuted = true;
+    video.setAttribute('muted', '');
+    video.setAttribute('playsinline', '');
+    video.setAttribute('webkit-playsinline', '');
+
+    const mobile = window.matchMedia?.('(max-width: 768px)').matches;
+    video.src = mobile ? VIDEO_MOBILE : VIDEO_DESKTOP;
+
+    const lancer = () => {
+      const promesse = video.play();
+      if (promesse?.then) {
+        promesse.then(() => setBloquee(false)).catch(() => setBloquee(true));
+      }
+    };
+
+    // Nouvelle tentative au premier geste du visiteur (autorisé même en économie d'énergie)
+    const auPremierGeste = () => lancer();
+    // Dès que la vidéo joue vraiment, on l'affiche (même après un premier refus)
+    const enLecture = () => setBloquee(false);
+    video.addEventListener('playing', enLecture);
+    window.addEventListener('touchstart', auPremierGeste, { once: true, passive: true });
+    window.addEventListener('click', auPremierGeste, { once: true });
+
+    lancer();
+    return () => {
+      window.removeEventListener('touchstart', auPremierGeste);
+      window.removeEventListener('click', auPremierGeste);
+      video.removeEventListener('playing', enLecture);
+    };
+  }, []);
+
+  return (
+    <video
+      ref={ref}
+      className={`hero-video ${bloquee ? 'hero-video--poster' : ''}`}
+      muted
+      loop
+      playsInline
+      preload="metadata"
+      poster={POSTER}
+      controls={false}
+      disablePictureInPicture
+      aria-hidden="true"
+      tabIndex={-1}
+    />
+  );
+};
 
 const Home = () => {
   const { residences } = useResidences();
@@ -15,21 +89,7 @@ const Home = () => {
       {/* Section Héro */}
       <section className="hero">
         {/* Vidéo en arrière-plan */}
-        <video 
-          className="hero-video" 
-          autoPlay 
-          muted 
-          loop 
-          playsInline
-          webkit-playsinline="true"
-          preload="auto"
-          poster="/images/residence1.png"
-          controls={false}
-          disablePictureInPicture
-        >
-          <source src={videoScript} type="video/mp4" />
-          Votre navigateur ne supporte pas la lecture de vidéos.
-        </video>
+        <HeroVideo />
         
         {/* Overlay sombre */}
         <div className="hero-overlay"></div>
