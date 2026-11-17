@@ -1,18 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
-import { FaCalendarAlt, FaUser, FaEnvelope, FaPhone, FaFileUpload, FaCheckCircle, FaArrowLeft } from 'react-icons/fa';
+import { FaCalendarAlt, FaUser, FaEnvelope, FaPhone, FaCheckCircle, FaArrowLeft } from 'react-icons/fa';
 import { useResidences } from '../context/ResidencesContext';
 import './Reservation.css';
 
 const Reservation = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { getResidenceById, reserveResidence } = useResidences();
+  const { getResidenceById, createReservation, offline, loading } = useResidences();
   const [residence, setResidence] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isSubmitted, setIsSubmitted] = useState(false);
-  const [uploadedFile, setUploadedFile] = useState(null);
+  const [confirmation, setConfirmation] = useState(null);
+  const [submitError, setSubmitError] = useState('');
+
+  // Date du jour au format AAAA-MM-JJ (heure locale) pour les champs date
+  const today = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 
   const {
     register,
@@ -38,36 +41,17 @@ const Reservation = () => {
     }
   }, [searchParams, setValue, getResidenceById]);
 
-  const handleFileUpload = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setUploadedFile(file);
-    }
-  };
-
   const onSubmit = async (data) => {
+    if (!residence) return;
     setIsSubmitting(true);
-    
+    setSubmitError('');
+
     try {
-      // Simuler l'envoi au backend
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Ici, vous enverriez les données au backend via API
-      console.log('Données de réservation:', data);
-      
-      // Mettre à jour le statut de la résidence
-      if (residence) {
-        reserveResidence(residence.id, {
-          fullName: `${data.firstName} ${data.lastName}`,
-          checkIn: data.checkIn,
-          checkOut: data.checkOut
-        });
-      }
-      
-      setIsSubmitted(true);
+      const result = await createReservation(residence.id, data);
+      setConfirmation(result);
+      window.scrollTo(0, 0);
     } catch (error) {
-      console.error('Erreur lors de la réservation:', error);
-      alert('Une erreur est survenue. Veuillez réessayer.');
+      setSubmitError(error.message);
     } finally {
       setIsSubmitting(false);
     }
@@ -77,7 +61,7 @@ const Reservation = () => {
     navigate('/residences');
   };
 
-  if (isSubmitted) {
+  if (confirmation) {
     return (
       <div className="reservation-page">
         <div className="container">
@@ -85,9 +69,16 @@ const Reservation = () => {
             <FaCheckCircle className="success-icon" />
             <h1>Réservation envoyée avec succès !</h1>
             <p>
-              Merci pour votre réservation. Nous avons reçu votre demande et nous vous 
+              Merci pour votre réservation. Nous avons reçu votre demande et nous vous
               contacterons dans les plus brefs délais pour confirmer votre séjour.
             </p>
+            <p>
+              <strong>Référence :</strong> {confirmation.reference}<br />
+              <strong>Montant estimé :</strong> {Number(confirmation.prixTotal).toLocaleString('fr-FR')} FCFA
+            </p>
+            {confirmation.emailEnvoye
+              ? <p>Un email de confirmation vous a été envoyé.</p>
+              : <p>Conservez cette référence : l'email de confirmation n'a pas pu être envoyé.</p>}
             <div className="success-actions">
               <button 
                 className="btn btn-primary"
@@ -138,6 +129,12 @@ const Reservation = () => {
                   <span>{residence.price.toLocaleString()} {residence.currency}/{residence.period}</span>
                 </div>
               </div>
+            </div>
+          )}
+
+          {!residence && !loading && (
+            <div className="error-message">
+              Aucune résidence sélectionnée. Choisissez une résidence dans la liste pour la réserver.
             </div>
           )}
 
@@ -237,13 +234,10 @@ const Reservation = () => {
                 <input
                   type="date"
                   id="arrivalDate"
-                  {...register('arrivalDate', { 
+                  min={today}
+                  {...register('arrivalDate', {
                     required: 'La date d\'arrivée est obligatoire',
-                    validate: value => {
-                      const today = new Date();
-                      const selectedDate = new Date(value);
-                      return selectedDate >= today || 'La date d\'arrivée doit être future';
-                    }
+                    validate: value => value >= today || 'La date d\'arrivée ne peut pas être dans le passé'
                   })}
                   className={errors.arrivalDate ? 'error' : ''}
                 />
@@ -259,6 +253,7 @@ const Reservation = () => {
                 <input
                   type="date"
                   id="departureDate"
+                  min={watch('arrivalDate') || today}
                   {...register('departureDate', { 
                     required: 'La date de départ est obligatoire',
                     validate: value => {
@@ -291,7 +286,7 @@ const Reservation = () => {
                   className={errors.guests ? 'error' : ''}
                 >
                   <option value="">Sélectionnez</option>
-                  {[1, 2, 3, 4, 5, 6, 7, 8].map(num => (
+                  {Array.from({ length: residence?.maxGuests || 8 }, (_, i) => i + 1).map(num => (
                     <option key={num} value={num}>{num} personne{num > 1 ? 's' : ''}</option>
                   ))}
                 </select>
@@ -300,24 +295,6 @@ const Reservation = () => {
                 )}
               </div>
 
-              <div className="form-group">
-                <label htmlFor="identityDocument">
-                  <FaFileUpload /> Pièce d'identité *
-                </label>
-                <input
-                  type="file"
-                  id="identityDocument"
-                  accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-                  onChange={handleFileUpload}
-                  className={errors.identityDocument ? 'error' : ''}
-                />
-                {uploadedFile && (
-                  <span className="file-info">Fichier sélectionné : {uploadedFile.name}</span>
-                )}
-                {errors.identityDocument && (
-                  <span className="error-message">{errors.identityDocument.message}</span>
-                )}
-              </div>
             </div>
 
             <div className="form-group full-width">
@@ -332,11 +309,20 @@ const Reservation = () => {
               />
             </div>
 
+            {submitError && (
+              <div className="error-message" role="alert">{submitError}</div>
+            )}
+            {offline && (
+              <div className="error-message" role="alert">
+                Le service de réservation est momentanément indisponible. Réessayez dans quelques instants.
+              </div>
+            )}
+
             <div className="form-actions">
               <button
                 type="submit"
                 className="btn btn-primary btn-large"
-                disabled={isSubmitting}
+                disabled={isSubmitting || !residence || offline}
               >
                 {isSubmitting ? 'Envoi en cours...' : 'Envoyer la réservation'}
               </button>

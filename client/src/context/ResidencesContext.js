@@ -1,5 +1,7 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { residences as initialResidences } from '../data/residences';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { API_ENDPOINTS, apiRequest, getAdminToken, setAdminToken } from '../config/api';
+import { fromApiResidence, toApiResidence } from '../config/mappers';
+import { residences as fallbackResidences } from '../data/residences';
 
 const ResidencesContext = createContext();
 
@@ -12,240 +14,190 @@ export const useResidences = () => {
 };
 
 export const ResidencesProvider = ({ children }) => {
-  const [residences, setResidences] = useState(initialResidences);
-  const [isAdmin, setIsAdmin] = useState(false); // Mode administrateur
+  const [residences, setResidences] = useState([]);
+  const [loading, setLoading] = useState(true);
+  // true quand l'API est injoignable : on affiche le catalogue local, en lecture seule
+  const [offline, setOffline] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(() => Boolean(getAdminToken()));
 
-  // Charger les données depuis localStorage au démarrage
-  useEffect(() => {
-    const savedResidences = localStorage.getItem('residences');
-    if (savedResidences) {
-      setResidences(JSON.parse(savedResidences));
+  // Déconnecte l'admin si le serveur refuse le jeton (expiré ou invalide)
+  const adminRequest = useCallback(async (url, options = {}) => {
+    try {
+      return await apiRequest(url, { ...options, auth: true });
+    } catch (error) {
+      if (error.status === 401) {
+        setAdminToken(null);
+        setIsAdmin(false);
+      }
+      throw error;
     }
   }, []);
 
-  // Sauvegarder les changements dans localStorage
-  useEffect(() => {
-    localStorage.setItem('residences', JSON.stringify(residences));
-  }, [residences]);
-
-  // Fonction pour réserver une résidence
-  const reserveResidence = (residenceId, reservationData) => {
-    setResidences(prev => prev.map(residence => {
-      if (residence.id === residenceId) {
-        return {
-          ...residence,
-          available: false,
-          availability: {
-            status: 'réservé',
-            nextAvailable: reservationData.checkOut,
-            currentOccupant: reservationData.fullName,
-            checkIn: reservationData.checkIn,
-            checkOut: reservationData.checkOut,
-            minStay: residence.availability.minStay,
-            maxStay: residence.availability.maxStay
-          }
-        };
-      }
-      return residence;
-    }));
-  };
-
-  // Fonction pour libérer une résidence (check-out)
-  const releaseResidence = (residenceId) => {
-    setResidences(prev => prev.map(residence => {
-      if (residence.id === residenceId) {
-        return {
-          ...residence,
-          available: true,
-          availability: {
-            status: 'disponible',
-            nextAvailable: null,
-            currentOccupant: null,
-            checkIn: null,
-            checkOut: null,
-            minStay: residence.availability.minStay,
-            maxStay: residence.availability.maxStay
-          }
-        };
-      }
-      return residence;
-    }));
-  };
-
-  // Fonction pour changer manuellement le statut (admin)
-  const updateResidenceStatus = (residenceId, newStatus, additionalData = {}) => {
-    setResidences(prev => prev.map(residence => {
-      if (residence.id === residenceId) {
-        let availability;
-        
-        switch (newStatus) {
-          case 'disponible':
-            availability = {
-              status: 'disponible',
-              nextAvailable: null,
-              currentOccupant: null,
-              checkIn: null,
-              checkOut: null,
-              minStay: residence.availability.minStay,
-              maxStay: residence.availability.maxStay
-            };
-            break;
-          case 'occupé':
-            availability = {
-              status: 'occupé',
-              nextAvailable: additionalData.nextAvailable || null,
-              currentOccupant: additionalData.currentOccupant || 'Occupant actuel',
-              checkIn: additionalData.checkIn || new Date().toISOString().split('T')[0],
-              checkOut: additionalData.checkOut || null,
-              minStay: residence.availability.minStay,
-              maxStay: residence.availability.maxStay
-            };
-            break;
-          case 'réservé':
-            availability = {
-              status: 'réservé',
-              nextAvailable: additionalData.nextAvailable || null,
-              currentOccupant: additionalData.currentOccupant || 'Client réservé',
-              checkIn: additionalData.checkIn || null,
-              checkOut: additionalData.checkOut || null,
-              minStay: residence.availability.minStay,
-              maxStay: residence.availability.maxStay
-            };
-            break;
-          case 'maintenance':
-            availability = {
-              status: 'maintenance',
-              nextAvailable: additionalData.nextAvailable || null,
-              currentOccupant: null,
-              checkIn: null,
-              checkOut: null,
-              minStay: residence.availability.minStay,
-              maxStay: residence.availability.maxStay
-            };
-            break;
-          default:
-            availability = {
-              status: 'disponible',
-              nextAvailable: null,
-              currentOccupant: null,
-              checkIn: null,
-              checkOut: null,
-              minStay: residence.availability.minStay,
-              maxStay: residence.availability.maxStay
-            };
-            break;
-        }
-
-        return {
-          ...residence,
-          available: newStatus === 'disponible',
-          availability
-        };
-      }
-      return residence;
-    }));
-  };
-
-  // Fonction pour basculer le mode administrateur
-  const toggleAdminMode = () => {
-    setIsAdmin(prev => !prev);
-  };
-
-  // Fonction pour se connecter en tant qu'admin
-  const loginAdmin = () => {
-    setIsAdmin(true);
-    localStorage.setItem('adminAuthenticated', 'true');
-  };
-
-  // Fonction pour se déconnecter
-  const logoutAdmin = () => {
-    setIsAdmin(false);
-    localStorage.removeItem('adminAuthenticated');
-  };
-
-  // Vérifier l'authentification au démarrage
-  useEffect(() => {
-    const isAuthenticated = localStorage.getItem('adminAuthenticated') === 'true';
-    if (isAuthenticated) {
-      setIsAdmin(true);
+  const loadResidences = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = isAdmin
+        ? await adminRequest(API_ENDPOINTS.admin.residences)
+        : await apiRequest(API_ENDPOINTS.residences.getAll);
+      setResidences(response.data.map(fromApiResidence));
+      setOffline(false);
+    } catch (error) {
+      console.error('Chargement des résidences impossible, catalogue local utilisé :', error.message);
+      setResidences(fallbackResidences);
+      setOffline(true);
+    } finally {
+      setLoading(false);
     }
-  }, []);
+  }, [isAdmin, adminRequest]);
 
-  // Fonction pour récupérer une résidence par ID
-  const getResidenceById = (id) => {
-    return residences.find(residence => residence.id === parseInt(id));
-  };
+  useEffect(() => {
+    loadResidences();
+  }, [loadResidences]);
 
-  // Fonction pour rechercher des résidences
-  const searchResidences = (query, filters = {}) => {
-    let results = [...residences];
+  // ---------- Public ----------
 
-    // Recherche par nom, ville ou quartier
-    if (query && query.trim() !== '') {
-      const searchTerm = query.toLowerCase();
-      results = results.filter(residence => 
-        residence.name.toLowerCase().includes(searchTerm) ||
-        residence.city.toLowerCase().includes(searchTerm) ||
-        residence.neighborhood.toLowerCase().includes(searchTerm)
+  const getResidenceById = useCallback(
+    (id) => residences.find(r => r.id === parseInt(id, 10)),
+    [residences]
+  );
+
+  const searchResidences = useCallback((query, filters = {}) => {
+    let results = residences.filter(r => r.active !== false);
+    const has = (v) => v !== undefined && v !== null && v !== '';
+
+    if (has(query) && query.trim()) {
+      const term = query.trim().toLowerCase();
+      results = results.filter(r =>
+        [r.name, r.city, r.neighborhood, r.location, r.type].some(v => v && v.toLowerCase().includes(term))
       );
     }
-
-    // Filtres - seulement si les valeurs sont définies et non vides
-    if (filters.priceMin !== undefined && filters.priceMin !== '' && filters.priceMin !== null) {
-      results = results.filter(residence => residence.price >= parseInt(filters.priceMin));
-    }
-    if (filters.priceMax !== undefined && filters.priceMax !== '' && filters.priceMax !== null) {
-      results = results.filter(residence => residence.price <= parseInt(filters.priceMax));
-    }
-    if (filters.bedrooms && filters.bedrooms !== '') {
-      results = results.filter(residence => residence.bedrooms >= parseInt(filters.bedrooms));
-    }
-    if (filters.city && filters.city !== '') {
-      results = results.filter(residence => residence.city === filters.city);
-    }
-    if (filters.availability && filters.availability !== '') {
-      results = results.filter(residence => residence.availability.status === filters.availability);
-    }
+    if (has(filters.priceMin)) results = results.filter(r => r.price >= parseInt(filters.priceMin, 10));
+    if (has(filters.priceMax)) results = results.filter(r => r.price <= parseInt(filters.priceMax, 10));
+    if (has(filters.bedrooms)) results = results.filter(r => r.bedrooms >= parseInt(filters.bedrooms, 10));
+    if (has(filters.city)) results = results.filter(r => r.city === filters.city);
+    if (has(filters.availability)) results = results.filter(r => r.availability.status === filters.availability);
 
     return results;
-  };
+  }, [residences]);
 
-  // Fonction pour ajouter une nouvelle résidence
-  const addResidence = (newResidence) => {
-    setResidences(prev => [...prev, newResidence]);
-  };
+  // Envoie une réservation. Retourne { reference, prixTotal, emailEnvoye }.
+  const createReservation = useCallback(async (residenceId, data) => {
+    const response = await apiRequest(API_ENDPOINTS.reservations.create, {
+      method: 'POST',
+      body: {
+        residenceId,
+        nom: data.lastName,
+        prenom: data.firstName,
+        email: data.email,
+        telephone: data.phone,
+        dateArrivee: data.arrivalDate,
+        dateDepart: data.departureDate,
+        nombrePersonnes: Number(data.guests),
+        notes: data.specialRequests || '',
+      },
+    });
+    return response.data;
+  }, []);
 
-  // Fonction pour supprimer une résidence
-  const deleteResidence = (residenceId) => {
-    if (window.confirm('Êtes-vous sûr de vouloir supprimer cette résidence ?')) {
-      setResidences(prev => prev.filter(residence => residence.id !== residenceId));
+  // ---------- Administration ----------
+
+  const loginAdmin = useCallback(async (username, password) => {
+    try {
+      const response = await apiRequest(API_ENDPOINTS.admin.login, {
+        method: 'POST',
+        body: { username, password },
+      });
+      setAdminToken(response.data.token);
+      setIsAdmin(true);
+      return { success: true };
+    } catch (error) {
+      return { success: false, message: error.message };
     }
+  }, []);
+
+  const logoutAdmin = useCallback(() => {
+    setAdminToken(null);
+    setIsAdmin(false);
+  }, []);
+
+  // Remplace une résidence dans la liste après une modification côté serveur
+  const replaceResidence = (updated) => {
+    const mapped = fromApiResidence(updated);
+    setResidences(prev => prev.map(r => (r.id === mapped.id ? mapped : r)));
   };
 
-  // Fonction pour mettre à jour une résidence existante
-  const updateResidence = (residenceId, updatedData) => {
-    setResidences(prev => prev.map(residence => 
-      residence.id === residenceId 
-        ? { ...residence, ...updatedData }
-        : residence
-    ));
-  };
+  const updateResidenceStatus = useCallback(async (residenceId, status, details = {}) => {
+    const response = await adminRequest(API_ENDPOINTS.admin.residenceStatus(residenceId), {
+      method: 'PUT',
+      body: {
+        statut: status,
+        details: {
+          occupant: details.currentOccupant || null,
+          arrivee: details.checkIn || null,
+          depart: details.checkOut || null,
+          prochaineDisponibilite: details.nextAvailable || null,
+        },
+      },
+    });
+    replaceResidence(response.data);
+  }, [adminRequest]);
 
-  const value = {
+  const addResidence = useCallback(async (residence) => {
+    const response = await adminRequest(API_ENDPOINTS.admin.residences, {
+      method: 'POST',
+      body: toApiResidence(residence),
+    });
+    setResidences(prev => [...prev, fromApiResidence(response.data)]);
+  }, [adminRequest]);
+
+  const updateResidence = useCallback(async (residenceId, residence) => {
+    const response = await adminRequest(API_ENDPOINTS.admin.residence(residenceId), {
+      method: 'PUT',
+      body: toApiResidence(residence),
+    });
+    replaceResidence(response.data);
+  }, [adminRequest]);
+
+  const deleteResidence = useCallback(async (residenceId) => {
+    await adminRequest(API_ENDPOINTS.admin.residence(residenceId), { method: 'DELETE' });
+    setResidences(prev => prev.filter(r => r.id !== residenceId));
+  }, [adminRequest]);
+
+  const getReservations = useCallback(async () => {
+    const response = await adminRequest(API_ENDPOINTS.reservations.getAll);
+    return response.data;
+  }, [adminRequest]);
+
+  const updateReservationStatus = useCallback(async (reservationId, statut) => {
+    const response = await adminRequest(API_ENDPOINTS.reservations.updateStatus(reservationId), {
+      method: 'PUT',
+      body: { statut },
+    });
+    return response.data;
+  }, [adminRequest]);
+
+  const value = useMemo(() => ({
     residences,
+    loading,
+    offline,
     isAdmin,
-    reserveResidence,
-    releaseResidence,
-    updateResidenceStatus,
-    addResidence,
-    deleteResidence,
-    updateResidence,
-    toggleAdminMode,
+    reloadResidences: loadResidences,
+    getResidenceById,
+    searchResidences,
+    createReservation,
     loginAdmin,
     logoutAdmin,
-    getResidenceById,
-    searchResidences
-  };
+    updateResidenceStatus,
+    addResidence,
+    updateResidence,
+    deleteResidence,
+    getReservations,
+    updateReservationStatus,
+  }), [
+    residences, loading, offline, isAdmin, loadResidences, getResidenceById, searchResidences,
+    createReservation, loginAdmin, logoutAdmin, updateResidenceStatus, addResidence,
+    updateResidence, deleteResidence, getReservations, updateReservationStatus,
+  ]);
 
   return (
     <ResidencesContext.Provider value={value}>

@@ -15,12 +15,6 @@ const AdminLogin = () => {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  // Identifiants administrateur (en production, cela viendrait d'une base de données)
-  const ADMIN_CREDENTIALS = {
-    username: 'admin',
-    password: 'residence2026' // En production, utilisez un mot de passe sécurisé et stockez-le de manière sécurisée
-  };
-
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setCredentials(prev => ({
@@ -35,23 +29,13 @@ const AdminLogin = () => {
     setIsLoading(true);
     setError('');
 
-    try {
-      // Simuler un délai de connexion
-      await new Promise(resolve => setTimeout(resolve, 1000));
+    const result = await loginAdmin(credentials.username, credentials.password);
+    setIsLoading(false);
 
-      if (credentials.username === ADMIN_CREDENTIALS.username && 
-          credentials.password === ADMIN_CREDENTIALS.password) {
-        
-        // Connexion réussie
-        loginAdmin();
-        navigate('/admin/dashboard');
-      } else {
-        setError('Identifiants incorrects. Veuillez réessayer.');
-      }
-    } catch (error) {
-      setError('Une erreur est survenue. Veuillez réessayer.');
-    } finally {
-      setIsLoading(false);
+    if (result.success) {
+      navigate('/admin/dashboard');
+    } else {
+      setError(result.message || 'Identifiants incorrects. Veuillez réessayer.');
     }
   };
 

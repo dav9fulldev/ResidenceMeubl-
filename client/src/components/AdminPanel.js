@@ -1,19 +1,20 @@
 import React, { useState } from 'react';
-import { FaCog, FaEyeSlash, FaSave, FaTimes, FaPlus, FaTrash } from 'react-icons/fa';
+import { FaCog, FaSave, FaTimes, FaPlus, FaTrash } from 'react-icons/fa';
 import { useResidences } from '../context/ResidencesContext';
 import AddResidenceForm from './AddResidenceForm';
 import './AdminPanel.css';
 
 const AdminPanel = () => {
-  const { 
-    residences, 
-    isAdmin, 
-    toggleAdminMode, 
+  const {
+    residences,
     updateResidenceStatus,
     addResidence,
     deleteResidence
   } = useResidences();
-  
+
+  const [actionError, setActionError] = useState('');
+  const [saving, setSaving] = useState(false);
+
   const [editingResidence, setEditingResidence] = useState(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [editForm, setEditForm] = useState({
@@ -35,14 +36,41 @@ const AdminPanel = () => {
     });
   };
 
-  const handleSave = () => {
+  // Exécute une action admin et affiche l'erreur éventuelle
+  const runAction = async (action) => {
+    setSaving(true);
+    setActionError('');
+    try {
+      await action();
+      return true;
+    } catch (error) {
+      setActionError(error.message);
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = (residence) => {
+    if (window.confirm(`Supprimer définitivement « ${residence.name} » ?`)) {
+      runAction(() => deleteResidence(residence.id));
+    }
+  };
+
+  const handleAdd = async (newResidence) => {
+    const ok = await runAction(() => addResidence(newResidence));
+    if (ok) setShowAddForm(false);
+  };
+
+  const handleSave = async () => {
     if (editingResidence && editForm.status) {
-      updateResidenceStatus(editingResidence.id, editForm.status, {
+      const ok = await runAction(() => updateResidenceStatus(editingResidence.id, editForm.status, {
         currentOccupant: editForm.currentOccupant,
         checkIn: editForm.checkIn,
         checkOut: editForm.checkOut,
         nextAvailable: editForm.nextAvailable
-      });
+      }));
+      if (!ok) return;
       setEditingResidence(null);
       setEditForm({
         status: '',
@@ -75,32 +103,15 @@ const AdminPanel = () => {
     }
   };
 
-  if (!isAdmin) {
-    return (
-      <div className="admin-toggle">
-        <button 
-          className="btn btn-secondary btn-admin-toggle"
-          onClick={toggleAdminMode}
-        >
-          <FaCog />
-          Mode Administrateur
-        </button>
-      </div>
-    );
-  }
-
   return (
     <div className="admin-panel">
       <div className="admin-header">
         <h3>🛠️ Panel Administrateur</h3>
-        <button 
-          className="btn btn-outline btn-sm"
-          onClick={toggleAdminMode}
-        >
-          <FaEyeSlash />
-          Masquer
-        </button>
       </div>
+
+      {actionError && (
+        <div className="error-message" role="alert">{actionError}</div>
+      )}
 
       <div className="admin-content">
         <div className="admin-actions">
@@ -218,9 +229,10 @@ const AdminPanel = () => {
                       )}
 
                       <div className="edit-actions">
-                        <button 
+                        <button
                           className="btn btn-primary btn-sm"
                           onClick={handleSave}
+                          disabled={saving}
                         >
                           <FaSave />
                           Sauvegarder
@@ -245,7 +257,8 @@ const AdminPanel = () => {
                       </button>
                       <button 
                         className="btn btn-danger btn-sm"
-                        onClick={() => deleteResidence(residence.id)}
+                        onClick={() => handleDelete(residence)}
+                        disabled={saving}
                         title="Supprimer la résidence"
                       >
                         <FaTrash />
@@ -262,7 +275,7 @@ const AdminPanel = () => {
       {/* Formulaire d'ajout de résidence */}
       {showAddForm && (
         <AddResidenceForm
-          onAddResidence={addResidence}
+          onAddResidence={handleAdd}
           onClose={() => setShowAddForm(false)}
         />
       )}

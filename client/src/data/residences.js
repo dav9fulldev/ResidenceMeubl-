@@ -62,7 +62,7 @@ export const residences = [
     availability: {
       status: "occupé",
       nextAvailable: "2025-01-15",
-      currentOccupant: "Famille Martin",
+      currentOccupant: null,
       checkIn: "2024-12-01",
       checkOut: "2025-01-15",
       minStay: 7,
@@ -120,7 +120,7 @@ export const residences = [
     availability: {
       status: "réservé",
       nextAvailable: "2025-02-01",
-      currentOccupant: "M. Dupont",
+      currentOccupant: null,
       checkIn: "2024-12-20",
       checkOut: "2025-02-01",
       minStay: 14,
@@ -294,7 +294,7 @@ export const residences = [
     availability: {
       status: "occupé",
       nextAvailable: "2025-03-01",
-      currentOccupant: "Mme Johnson",
+      currentOccupant: null,
       checkIn: "2024-11-01",
       checkOut: "2025-03-01",
       minStay: 30,

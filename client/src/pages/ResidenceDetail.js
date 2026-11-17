@@ -113,7 +113,7 @@ const ResidenceDetail = () => {
         {/* Statut de disponibilité */}
         <div className="availability-section">
           <h3>Disponibilité et réservation</h3>
-          <AvailabilityStatus availability={residence.availability} />
+          <AvailabilityStatus availability={residence.availability} onReserve={handleReservation} />
         </div>
 
         {/* Informations principales */}

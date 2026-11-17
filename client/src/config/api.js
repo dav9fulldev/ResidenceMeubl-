@@ -1,66 +1,85 @@
 /**
  * Configuration de l'API Backend
+ * L'URL vient de REACT_APP_API_URL (client/.env en local, variables d'environnement sur Vercel).
  */
-
-// URL de l'API backend
 export const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001/api';
 
-// Endpoints
 export const API_ENDPOINTS = {
-  // Résidences
   residences: {
     getAll: `${API_BASE_URL}/residences`,
     getById: (id) => `${API_BASE_URL}/residences/${id}`,
-    search: `${API_BASE_URL}/residences/search`,
     checkAvailability: `${API_BASE_URL}/residences/check-disponibilite`,
   },
-  
-  // Réservations
   reservations: {
     create: `${API_BASE_URL}/reservations`,
-    getById: (id) => `${API_BASE_URL}/reservations/${id}`,
     getAll: `${API_BASE_URL}/reservations`,
     updateStatus: (id) => `${API_BASE_URL}/reservations/${id}/status`,
-    getStats: `${API_BASE_URL}/reservations/stats`,
   },
-  
-  // Admin
   admin: {
     login: `${API_BASE_URL}/admin/login`,
-    logout: `${API_BASE_URL}/admin/logout`,
-    getStats: `${API_BASE_URL}/admin/stats`,
-    updateResidenceStatus: (id) => `${API_BASE_URL}/admin/residences/${id}/status`,
-    updateResidence: (id) => `${API_BASE_URL}/admin/residences/${id}`,
-    getAllResidences: `${API_BASE_URL}/admin/residences`,
-  }
+    residences: `${API_BASE_URL}/admin/residences`,
+    residence: (id) => `${API_BASE_URL}/admin/residences/${id}`,
+    residenceStatus: (id) => `${API_BASE_URL}/admin/residences/${id}/status`,
+  },
 };
 
-// Options par défaut pour les requêtes
-export const DEFAULT_HEADERS = {
-  'Content-Type': 'application/json',
-};
+const TOKEN_KEY = 'adminToken';
 
-// Helper pour les requêtes API
-export const apiRequest = async (url, options = {}) => {
+export const getAdminToken = () => {
   try {
-    const response = await fetch(url, {
-      ...options,
-      headers: {
-        ...DEFAULT_HEADERS,
-        ...options.headers,
-      },
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.message || 'Erreur lors de la requête API');
-    }
-
-    return data;
-  } catch (error) {
-    console.error('Erreur API:', error);
-    throw error;
+    return sessionStorage.getItem(TOKEN_KEY);
+  } catch {
+    return null;
   }
 };
 
+export const setAdminToken = (token) => {
+  try {
+    if (token) sessionStorage.setItem(TOKEN_KEY, token);
+    else sessionStorage.removeItem(TOKEN_KEY);
+  } catch {
+    // stockage indisponible (navigation privée) : la session ne survivra pas au rechargement
+  }
+};
+
+export class ApiError extends Error {
+  constructor(message, status) {
+    super(message);
+    this.status = status;
+  }
+}
+
+/**
+ * Requête vers l'API. `auth: true` ajoute le jeton admin.
+ * Lève une ApiError avec le message renvoyé par le serveur.
+ */
+export const apiRequest = async (url, { auth = false, body, ...options } = {}) => {
+  const headers = { 'Content-Type': 'application/json', ...options.headers };
+  if (auth) {
+    const token = getAdminToken();
+    if (token) headers.Authorization = `Bearer ${token}`;
+  }
+
+  let response;
+  try {
+    response = await fetch(url, {
+      ...options,
+      headers,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+  } catch {
+    throw new ApiError('Impossible de joindre le serveur. Vérifiez votre connexion et réessayez.', 0);
+  }
+
+  let data = null;
+  try {
+    data = await response.json();
+  } catch {
+    // réponse vide ou non JSON
+  }
+
+  if (!response.ok) {
+    throw new ApiError(data?.message || `Erreur du serveur (${response.status})`, response.status);
+  }
+  return data;
+};

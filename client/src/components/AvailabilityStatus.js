@@ -1,8 +1,8 @@
 import React from 'react';
-import { FaCalendarAlt, FaUser, FaClock, FaCheckCircle, FaExclamationTriangle, FaInfoCircle } from 'react-icons/fa';
+import { FaCalendarAlt, FaClock, FaCheckCircle, FaExclamationTriangle, FaInfoCircle } from 'react-icons/fa';
 import './AvailabilityStatus.css';
 
-const AvailabilityStatus = ({ availability }) => {
+const AvailabilityStatus = ({ availability, onReserve }) => {
   const getStatusInfo = (status) => {
     switch (status) {
       case 'disponible':
@@ -19,7 +19,7 @@ const AvailabilityStatus = ({ availability }) => {
           color: '#ef4444',
           bgColor: '#fef2f2',
           text: 'Occupé',
-          description: 'Résidence actuellement louée'
+          description: 'Actuellement occupée : vous pouvez réserver à partir de sa date de libération'
         };
       case 'réservé':
         return {
@@ -27,7 +27,7 @@ const AvailabilityStatus = ({ availability }) => {
           color: '#f59e0b',
           bgColor: '#fffbeb',
           text: 'Réservé',
-          description: 'Résidence réservée pour une future date'
+          description: 'Déjà réservée sur certaines dates : les autres dates restent disponibles'
         };
       case 'maintenance':
         return {
@@ -82,10 +82,6 @@ const AvailabilityStatus = ({ availability }) => {
       {availability.status === 'occupé' && (
         <div className="occupancy-details">
           <div className="detail-item">
-            <FaUser className="detail-icon" />
-            <span>Occupé par : <strong>{availability.currentOccupant}</strong></span>
-          </div>
-          <div className="detail-item">
             <FaCalendarAlt className="detail-icon" />
             <span>Libération : <strong>{formatDate(availability.nextAvailable)}</strong></span>
           </div>
@@ -103,20 +99,8 @@ const AvailabilityStatus = ({ availability }) => {
       {availability.status === 'réservé' && (
         <div className="reservation-details">
           <div className="detail-item">
-            <FaUser className="detail-icon" />
-            <span>Réservé par : <strong>{availability.currentOccupant}</strong></span>
-          </div>
-          <div className="detail-item">
             <FaCalendarAlt className="detail-icon" />
-            <span>Disponible à partir du : <strong>{formatDate(availability.nextAvailable)}</strong></span>
-          </div>
-          <div className="detail-item">
-            <FaClock className="detail-icon" />
-            <span>Check-in : {formatDate(availability.checkIn)}</span>
-          </div>
-          <div className="detail-item">
-            <FaClock className="detail-icon" />
-            <span>Check-out : {formatDate(availability.checkOut)}</span>
+            <span>Dates déjà prises : du <strong>{formatDate(availability.checkIn)}</strong> au <strong>{formatDate(availability.checkOut)}</strong></span>
           </div>
         </div>
       )}
@@ -136,14 +120,13 @@ const AvailabilityStatus = ({ availability }) => {
 
       {/* Bouton d'action selon le statut */}
       <div className="availability-action">
-        {availability.status === 'disponible' ? (
-          <button className="btn btn-primary btn-availability">
-            Réserver maintenant
+        {availability.status === 'maintenance' ? (
+          <button className="btn btn-secondary btn-availability" disabled>
+            En maintenance
           </button>
         ) : (
-          <button className="btn btn-secondary btn-availability" disabled>
-            {availability.status === 'occupé' ? 'Indisponible' : 
-             availability.status === 'réservé' ? 'Déjà réservé' : 'En maintenance'}
+          <button className="btn btn-primary btn-availability" onClick={onReserve}>
+            {availability.status === 'disponible' ? 'Réserver maintenant' : "Réserver d'autres dates"}
           </button>
         )}
       </div>
