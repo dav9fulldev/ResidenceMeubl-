@@ -17,11 +17,13 @@ export const API_ENDPOINTS = {
     getAll: `${API_BASE_URL}/reservations`,
     updateStatus: (id) => `${API_BASE_URL}/reservations/${id}/status`,
     decideCancellation: (id) => `${API_BASE_URL}/reservations/${id}/annulation`,
+    markRefunded: (id) => `${API_BASE_URL}/reservations/${id}/remboursement`,
   },
   client: {
     access: `${API_BASE_URL}/client/acces`,
     link: `${API_BASE_URL}/client/lien`,
     reservations: `${API_BASE_URL}/client/reservations`,
+    hide: `${API_BASE_URL}/client/reservations/masquer`,
     requestCancellation: (id) => `${API_BASE_URL}/client/reservations/${id}/annulation`,
   },
   admin: {

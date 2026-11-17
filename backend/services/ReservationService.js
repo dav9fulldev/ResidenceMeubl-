@@ -49,7 +49,8 @@ const vueClient = (r) => ({
   dateCreation: r.dateCreation,
   demandeAnnulation: r.demandeAnnulation || null,
   peutDemanderAnnulation: peutDemanderAnnulation(r),
-  acompte: acompte.etatAcompte(r),
+  peutMasquer: r.statut === 'annulee' || r.dates.depart <= aujourdhui(),
+  acompte: { ...acompte.etatAcompte(r), remboursement: r.acompte?.remboursement || null },
 });
 
 /**
@@ -167,7 +168,7 @@ class ReservationService {
       dateCreation: reservation.dateCreation,
       prixTotal: reservation.prixTotal,
       demandeAnnulation: reservation.demandeAnnulation || null,
-      acompte: acompte.etatAcompte(reservation),
+      acompte: { ...acompte.etatAcompte(reservation), remboursement: reservation.acompte?.remboursement || null },
     }));
   }
 
@@ -187,9 +188,36 @@ class ReservationService {
 
   // Historique du client ; limité à une réservation si l'accès vient d'une référence
   async getReservationsClient({ email, ref }) {
-    const filtre = { 'client.email': email, ...(ref ? { id: ref } : {}) };
+    const filtre = { 'client.email': email, masqueeParClient: { $ne: true }, ...(ref ? { id: ref } : {}) };
     const docs = await this.collection.find(filtre, { projection: { _id: 0 } }).sort({ dateCreation: -1 }).toArray();
     return docs.map(vueClient);
+  }
+
+  /**
+   * Le client retire de son historique des réservations annulées ou terminées.
+   * Elles restent visibles par l'admin (comptabilité). ids = liste, ou null pour « toutes ».
+   * @returns nombre de réservations masquées
+   */
+  async masquerPourClient({ email, ref }, ids = null) {
+    const filtre = {
+      'client.email': email,
+      $or: [{ statut: 'annulee' }, { 'dates.depart': { $lte: aujourdhui() } }],
+      ...(ids ? { id: { $in: ids.map(String) } } : {}),
+      ...(ref ? { id: ref } : {}),
+    };
+    const res = await this.collection.updateMany(filtre, { $set: { masqueeParClient: true, masqueeLe: new Date() } });
+    return res.modifiedCount;
+  }
+
+  // L'admin indique que l'acompte d'une réservation annulée a été remboursé
+  async marquerRembourse(id, reference = '') {
+    const res = await this.collection.findOneAndUpdate(
+      { id: String(id), 'acompte.remboursement.statut': 'a_rembourser' },
+      { $set: { 'acompte.remboursement.statut': 'rembourse', 'acompte.remboursement.le': new Date(), 'acompte.remboursement.reference': String(reference || '').slice(0, 80) } },
+      { returnDocument: 'after', projection: { _id: 0 } }
+    );
+    if (!res) throw new ErreurClient('Aucun remboursement en attente pour cette réservation', 404);
+    return res;
   }
 
   /**
@@ -294,6 +322,13 @@ class ReservationService {
       { returnDocument: 'before', projection: { _id: 0 } }
     );
     if (!avant) return null;
+
+    // Acompte déjà payé : remboursement à effectuer par l'admin
+    if (nouveauStatut === 'annulee' && avant.acompte?.paye && !avant.acompte.remboursement) {
+      await this.collection.updateOne({ id: avant.id }, {
+        $set: { 'acompte.remboursement': { statut: 'a_rembourser', depuis: new Date() } },
+      });
+    }
 
     // Une annulation décidée par l'admin clôt aussi une demande du client en attente
     if (nouveauStatut === 'annulee' && avant.demandeAnnulation?.statut === 'en_attente') {

@@ -225,3 +225,21 @@
 .acompte-bloc .btn {
   margin-top: 0 !important;
 }
+
+.btn-lien-discret {
+  display: inline-block;
+  margin-top: 8px;
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--text-muted);
+  text-decoration: underline;
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.nettoyer-historique {
+  text-align: right;
+  margin: 0 0 8px;
+}

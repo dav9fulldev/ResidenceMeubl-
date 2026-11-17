@@ -12,7 +12,20 @@ const STATUTS = {
 const formatDate = (value) => (value ? new Date(value).toLocaleDateString('fr-FR') : '—');
 
 const AdminReservations = () => {
-  const { getReservations, updateReservationStatus, decideCancellation, reloadResidences, residences } = useResidences();
+  const { getReservations, updateReservationStatus, decideCancellation, markRefunded, reloadResidences, residences } = useResidences();
+
+  const rembourser = async (r) => {
+    const reference = window.prompt(
+      `Confirmez que l'acompte de ${Number(r.acompte.montant).toLocaleString('fr-FR')} FCFA a été remboursé à ${r.client.prenom} ${r.client.nom}.\nRéférence du remboursement (facultatif) :`, '');
+    if (reference === null) return;
+    try {
+      const res = await markRefunded(r.id, reference);
+      setReservations(prev => prev.map(x => (x.id === r.id ? { ...x, acompte: { ...x.acompte, remboursement: res.remboursement } } : x)));
+      setNotice('Remboursement enregistré.');
+    } catch (err) {
+      setError(err.message);
+    }
+  };
   const [reservations, setReservations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -162,6 +175,17 @@ const AdminReservations = () => {
                     {r.acompte.paye
                       ? `💰 Acompte payé : ${Number(r.acompte.montant).toLocaleString('fr-FR')} FCFA le ${formatDate(r.acompte.payeLe)} (PI-SPI)`
                       : `⏳ Acompte à payer : ${Number(r.acompte.montant).toLocaleString('fr-FR')} FCFA`}
+                  </p>
+                )}
+                {r.acompte?.remboursement?.statut === 'a_rembourser' && (
+                  <p className="reservation-acompte doublon">
+                    ⚠️ Réservation annulée : acompte de {Number(r.acompte.montant).toLocaleString('fr-FR')} FCFA à rembourser au client.{' '}
+                    <button type="button" className="btn btn-outline btn-sm" onClick={() => rembourser(r)}>Marquer comme remboursé</button>
+                  </p>
+                )}
+                {r.acompte?.remboursement?.statut === 'rembourse' && (
+                  <p className="reservation-acompte paye">
+                    ↩️ Acompte remboursé le {formatDate(r.acompte.remboursement.le)}{r.acompte.remboursement.reference ? ` (réf. ${r.acompte.remboursement.reference})` : ''}
                   </p>
                 )}
                 {r.acompte?.doublons?.length > 0 && (

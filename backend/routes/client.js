@@ -106,6 +106,20 @@ router.post('/reservations/:id/annulation', requireClient, async (req, res) => {
   }
 });
 
+/**
+ * @route   POST /api/client/reservations/masquer
+ * @desc    Retire de l'historique des réservations annulées ou terminées : { ids? } (sans ids : toutes)
+ */
+router.post('/reservations/masquer', requireClient, async (req, res) => {
+  try {
+    const ids = Array.isArray(req.body?.ids) ? req.body.ids.slice(0, 100) : null;
+    const nombre = await ReservationService.masquerPourClient(req.client, ids);
+    res.json({ success: true, data: { masquees: nombre } });
+  } catch (error) {
+    gererErreur(res, error, 'lors du nettoyage de l\'historique');
+  }
+});
+
 // ---------- Acompte PI-SPI ----------
 
 const paiementLimiter = rateLimit({

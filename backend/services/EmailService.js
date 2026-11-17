@@ -538,6 +538,9 @@ class EmailService {
 
           ${message ? `<div class="section"><p><span class="label">Message de notre équipe :</span> ${esc(message)}</p></div>` : ''}
 
+          ${!confirmee && reservation.acompte?.paye ? `<div class="section"><p><span class="label">Votre acompte :</span>
+            ${Number(reservation.acompte.montant).toLocaleString('fr-FR')} FCFA vous sera remboursé par PI-SPI. Nous vous confirmerons le remboursement par email.</p></div>` : ''}
+
           ${confirmee && acompteInfo?.possible ? `<div class="section" style="border-left-color:#d4af37;">
               <p><span class="label">Acompte à régler :</span> ${Number(acompteInfo.montant).toLocaleString('fr-FR')} FCFA (${acompteInfo.pourcentage} %)</p>
               <p>Garantissez votre séjour en payant l'acompte par PI-SPI (QR Code ou demande de paiement dans l'application de votre banque) :</p>
