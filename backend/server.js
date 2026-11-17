@@ -11,6 +11,13 @@ const adminRoutes = require('./routes/admin');
 
 const app = express();
 
+// Render (et la plupart des hébergeurs) placent un relais devant le serveur :
+// sans ce réglage, tous les visiteurs auraient la même IP et partageraient
+// les mêmes limites (ex. 3 réservations / 15 min pour tout le site).
+if (process.env.NODE_ENV === 'production' || process.env.TRUST_PROXY) {
+  app.set('trust proxy', Number(process.env.TRUST_PROXY) || 1);
+}
+
 // ✅ Logger toutes les requêtes
 if (process.env.NODE_ENV !== 'test') {
   app.use(morgan('combined'));

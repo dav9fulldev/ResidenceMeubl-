@@ -12,6 +12,21 @@ const crypto = require('crypto');
  * Sans clé, estActive() renvoie false et le reste de l'application
  * utilise la recherche classique par mots-clés.
  */
+const URL_PAR_DEFAUT = 'https://ai.mongodb.com/v1';
+
+/**
+ * Normalise VOYAGE_API_URL : accepte « ai.mongodb.com », « https://ai.mongodb.com »,
+ * « https://ai.mongodb.com/v1 » ou l'adresse complète « …/v1/embeddings ».
+ */
+function urlBase(valeur) {
+  let url = (valeur || '').trim().replace(/^['"]|['"]$/g, '');
+  if (!url) return URL_PAR_DEFAUT;
+  if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
+  url = url.replace(/\/+$/, '').replace(/\/embeddings$/, '');
+  if (!/\/v\d+$/.test(new URL(url).pathname)) url += '/v1';
+  return url;
+}
+
 const DIMENSION = 512;
 const DELAI_MS = 8000;
 const TAILLE_CACHE = 200;
@@ -25,8 +40,13 @@ class AIService {
     return process.env.VOYAGE_MODEL || 'voyage-4-lite';
   }
 
+  // Clé nettoyée : espaces, retours à la ligne et guillemets copiés par erreur
+  get cle() {
+    return (process.env.VOYAGE_API_KEY || '').trim().replace(/^['"]|['"]$/g, '').trim();
+  }
+
   estActive() {
-    return Boolean(process.env.VOYAGE_API_KEY);
+    return Boolean(this.cle);
   }
 
   /**
@@ -38,12 +58,12 @@ class AIService {
   async vectoriser(textes, type) {
     if (!this.estActive()) throw new Error('VOYAGE_API_KEY non configurée');
 
-    const url = `${(process.env.VOYAGE_API_URL || 'https://ai.mongodb.com/v1').replace(/\/$/, '')}/embeddings`;
+    const url = `${urlBase(process.env.VOYAGE_API_URL)}/embeddings`;
     const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${process.env.VOYAGE_API_KEY}`,
+        Authorization: `Bearer ${this.cle}`,
       },
       body: JSON.stringify({
         input: textes,
@@ -98,5 +118,6 @@ const cosinus = (a, b) => {
 
 const service = new AIService();
 service.cosinus = cosinus;
+service.urlBase = urlBase;
 
 module.exports = service;
