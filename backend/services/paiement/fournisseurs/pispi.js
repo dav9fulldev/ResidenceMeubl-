@@ -8,6 +8,7 @@ module.exports = {
   id: 'pispi',
   nom: 'PI-SPI',
   organisme: 'BCEAO',
+  logo: '/images/paiement/pispi.png',
   description: 'Paiement instantané interopérable de l\'UEMOA : le client paie depuis l\'application de sa banque ou de son portefeuille.',
   modes: ['QR code', 'Demande de paiement'],
   capacites: { acompte: true, remboursementAutomatique: true, remboursementPartiel: true },

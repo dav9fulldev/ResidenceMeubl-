@@ -19,6 +19,7 @@ function etat(f) {
     id: f.id,
     nom: f.nom,
     organisme: f.organisme,
+    logo: f.logo || null,
     description: f.description,
     modes: f.modes,
     capacites: f.capacites,

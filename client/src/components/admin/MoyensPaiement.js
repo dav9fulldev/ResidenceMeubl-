@@ -69,7 +69,9 @@ const MoyensPaiement = () => {
           return (
             <li key={m.id} className={`mp-moyen ${m.actif ? 'actif' : ''} ${m.aVenir ? 'a-venir' : ''}`}>
               <div className="mp-tete">
-                <span className={`mp-logo mp-logo-${m.id}`} aria-hidden="true">{m.nom.slice(0, 2).toUpperCase()}</span>
+                {m.logo
+                  ? <span className="mp-logo mp-logo-image"><img src={m.logo} alt={`Logo ${m.nom}`} /></span>
+                  : <span className={`mp-logo mp-logo-${m.id}`} aria-hidden="true">{m.nom.slice(0, 2).toUpperCase()}</span>}
                 <div className="mp-identite">
                   <p><b>{m.nom}</b> <span>· {m.organisme}</span></p>
                   <ul className="mp-modes">{m.modes.map(x => <li key={x}>{x}</li>)}</ul>

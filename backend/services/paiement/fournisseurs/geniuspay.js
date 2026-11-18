@@ -9,6 +9,7 @@ module.exports = {
   id: 'geniuspay',
   nom: 'GeniusPay',
   organisme: 'Agrégateur de paiement',
+  logo: '/images/paiement/geniuspay.png',
   description: 'Le client est redirigé vers une page de paiement sécurisée GeniusPay et choisit Wave, Orange Money, MTN, Moov ou sa carte bancaire.',
   modes: ['Wave', 'Orange Money', 'MTN MoMo', 'Moov Money', 'Carte bancaire'],
   capacites: { acompte: true, remboursementAutomatique: false, remboursementPartiel: false },

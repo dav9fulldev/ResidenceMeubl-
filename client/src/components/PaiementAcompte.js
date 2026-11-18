@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { FaQrcode, FaMobileAlt, FaCheckCircle, FaTimes, FaCamera, FaImage, FaPaste, FaArrowLeft, FaLock, FaUniversity, FaWallet } from 'react-icons/fa';
+import { FaQrcode, FaMobileAlt, FaCheckCircle, FaTimes, FaCamera, FaImage, FaPaste, FaArrowLeft, FaLock } from 'react-icons/fa';
 import { API_ENDPOINTS, apiRequest } from '../config/api';
 import { aliasDepuisQr, lireQrDepuisFichier, lireQrDepuisVideo, cameraDisponible } from '../utils/pispiQr';
 
@@ -258,13 +258,13 @@ const PaiementAcompte = ({ reservation, token, onPaye, onFermer, direct = null }
             <p className="acompte-choix-titre">Comment souhaitez-vous payer ?</p>
             {moyens.includes('geniuspay') && (
               <button type="button" className="acompte-moyen" onClick={() => setFournisseur('geniuspay')}>
-                <span className="acompte-moyen-icone gp"><FaWallet /></span>
+                <span className="acompte-moyen-logo"><img src="/images/paiement/geniuspay.png" alt="GeniusPay" /></span>
                 <span><b>Mobile Money ou carte</b><small>Wave, Orange Money, MTN, Moov, carte bancaire · via GeniusPay</small></span>
               </button>
             )}
             {moyens.includes('pispi') && (
               <button type="button" className="acompte-moyen" onClick={() => setFournisseur('pispi')}>
-                <span className="acompte-moyen-icone pi"><FaUniversity /></span>
+                <span className="acompte-moyen-logo"><img src="/images/paiement/pispi.png" alt="PI-SPI" /></span>
                 <span><b>Application bancaire (PI-SPI)</b><small>QR code ou demande de paiement, paiement instantané BCEAO</small></span>
               </button>
             )}
@@ -421,6 +421,7 @@ const PaiementAcompte = ({ reservation, token, onPaye, onFermer, direct = null }
         )}
         {a.conditions && statut !== 'paye' && <p className="acompte-conditions">ℹ️ {a.conditions}</p>}
         <p className="acompte-pied">
+          {fournisseur && <img className="acompte-pied-logo" src={`/images/paiement/${fournisseur === 'geniuspay' ? 'geniuspay' : 'pispi'}.png`} alt="" />}
           {fournisseur === 'geniuspay' ? 'Paiement sécurisé GeniusPay' : fournisseur === 'pispi' ? 'Paiement instantané sécurisé PI-SPI (BCEAO)' : 'Paiement sécurisé · aucune donnée bancaire n\'est conservée sur notre site'}
         </p>
       </div>
