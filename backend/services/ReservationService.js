@@ -167,6 +167,7 @@ class ReservationService {
       details: reservation.details,
       notes: reservation.notes,
       statut: reservation.statut,
+      statutLe: reservation.statutLe || null,
       dateCreation: reservation.dateCreation,
       prixTotal: reservation.prixTotal,
       demandeAnnulation: reservation.demandeAnnulation || null,
@@ -330,7 +331,7 @@ class ReservationService {
 
     const avant = await this.collection.findOneAndUpdate(
       { id: String(id) },
-      { $set: { statut: nouveauStatut } },
+      { $set: { statut: nouveauStatut, statutLe: new Date() } },
       { returnDocument: 'before', projection: { _id: 0 } }
     );
     if (!avant) return null;
@@ -393,6 +394,23 @@ class ReservationService {
     });
 
     return !conflit;
+  }
+
+  /** Identifiants des résidences libres sur la période (hors maintenance et dates déjà prises). */
+  async residencesLibres(dateArrivee, dateDepart) {
+    const occupees = await this.collection.distinct('residenceId', {
+      statut: { $ne: 'annulee' },
+      'dates.arrivee': { $lt: String(dateDepart) },
+      'dates.depart': { $gt: String(dateArrivee) },
+    });
+    const prises = new Set(occupees.map(Number));
+    const residences = await ResidenceService.getAllResidences();
+    const ids = [];
+    for (const r of residences) {
+      if (prises.has(Number(r.id))) continue;
+      if (await ResidenceService.checkDisponibilite(r.id)) ids.push(Number(r.id));
+    }
+    return ids;
   }
 }
 

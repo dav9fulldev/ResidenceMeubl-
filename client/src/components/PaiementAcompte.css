@@ -72,8 +72,8 @@
 }
 
 .acompte-methodes button.active {
-  border-color: #d4af37;
-  background: rgba(212, 175, 55, 0.12);
+  border-color: var(--gold);
+  background: rgba(196, 154, 98, 0.12);
   font-weight: 700;
 }
 
@@ -132,7 +132,7 @@
 .acompte-spinner {
   width: 16px;
   height: 16px;
-  border: 2px solid #d4af37;
+  border: 2px solid var(--gold);
   border-right-color: transparent;
   border-radius: 50%;
   animation: acompte-tourne 0.8s linear infinite;
@@ -185,11 +185,11 @@
 }
 
 .acompte-etapes b {
-  color: #b8941f;
+  color: var(--gold-ink);
 }
 
 :root[data-theme="dark"] .acompte-etapes b {
-  color: #f5d77a;
+  color: var(--gold-ink);
 }
 
 .acompte-sources {
@@ -206,8 +206,8 @@
   gap: 8px;
   padding: 12px 10px;
   border-radius: 10px;
-  border: 2px solid #d4af37;
-  background: rgba(212, 175, 55, 0.12);
+  border: 2px solid var(--gold);
+  background: rgba(196, 154, 98, 0.12);
   color: var(--text);
   font-weight: 600;
   font-size: 0.9rem;
@@ -254,12 +254,12 @@
   align-items: flex-start;
   padding: 12px;
   border-radius: 12px;
-  background: rgba(212, 175, 55, 0.12);
+  background: rgba(196, 154, 98, 0.12);
 }
 
 .acompte-envoyee svg {
   font-size: 1.8rem;
-  color: #d4af37;
+  color: var(--gold);
   flex-shrink: 0;
   margin-top: 2px;
 }
@@ -293,7 +293,7 @@
   border: none;
   background: none;
   padding: 0;
-  color: #b8941f;
+  color: var(--gold-ink);
   text-decoration: underline;
   cursor: pointer;
   font: inherit;
@@ -330,3 +330,14 @@
   border-radius: 8px;
   padding: 8px 10px;
 }
+
+/* Total / acompte / solde bien distingués */
+.acompte-montants { margin: 4px 0 6px; padding: 12px 14px; border-radius: 12px; background: var(--surface-2); }
+.acompte-montants div { display: flex; justify-content: space-between; gap: 12px; padding: 3px 0; font-size: 0.9rem; color: var(--text-muted); }
+.acompte-montants dd { margin: 0; font-variant-numeric: tabular-nums; }
+.acompte-montants .acompte-ligne { margin: 4px 0; padding: 8px 0; border-top: 1px dashed var(--border); border-bottom: 1px dashed var(--border); color: var(--text); font-weight: 700; font-size: 1rem; }
+.acompte-montants .acompte-ligne dd { color: var(--gold-ink); }
+
+.acompte-recap-succes { list-style: none; margin: 14px 0 18px; padding: 12px 14px; border-radius: 12px; background: var(--surface-2); text-align: left; }
+.acompte-recap-succes li { display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; font-size: 0.9rem; }
+.acompte-recap-succes span { color: var(--text-muted); }

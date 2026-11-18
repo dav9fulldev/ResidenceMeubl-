@@ -10,34 +10,63 @@
    Le thème est choisi par data-theme sur <html> (voir public/index.html et useTheme). */
 :root {
   color-scheme: light;
-  --bg: #ffffff;
-  --bg-soft: #f8f9fa;
-  --surface: #ffffff;
-  --surface-2: #f9fafb;
-  --text: #1a1a1a;
-  --text-muted: #666666;
-  --border: #e5e7eb;
-  --header-bg: rgba(255, 255, 255, 0.95);
-  --overlay-hover: rgba(99, 102, 241, 0.1);
+  /* Charte Sankofart : ivoire, vert profond, or doux */
+  --ivory: #F7F5F0;
+  --green-deep: #243C35;
+  --green-deeper: #1A2C26;
+  --gold: #C49A62;
+  --gold-ink: #8A6A3D;      /* or lisible sur fond clair (texte, liens) */
+  --gold-soft: rgba(196, 154, 98, 0.14);
+
+  --bg: #F7F5F0;
+  --bg-soft: #F7F5F0;
+  --surface: #FFFFFF;
+  --surface-2: #F1EEE7;
+  --text: #343A40;
+  --text-muted: #646A70;
+  --border: #E6E1D8;
+  --header-bg: rgba(247, 245, 240, 0.94);
+  --overlay-hover: rgba(36, 60, 53, 0.08);
+
+  --btn-primary-bg: #243C35;
+  --btn-primary-bg-hover: #1A2C26;
+  --btn-primary-fg: #FFFFFF;
+
+  --font-titre: 'Playfair Display', Georgia, 'Times New Roman', serif;
+  --font-texte: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --rayon: 14px;
+  --rayon-petit: 10px;
+  --ombre-carte: 0 1px 2px rgba(36, 60, 53, 0.04), 0 8px 24px rgba(36, 60, 53, 0.06);
 }
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --bg: #0f1117;
-  --bg-soft: #0b0d12;
-  --surface: #171a23;
-  --surface-2: #1f2330;
-  --text: #ecedf0;
-  --text-muted: #a3a8b5;
-  --border: #2c3140;
-  --header-bg: rgba(17, 19, 26, 0.92);
-  --overlay-hover: rgba(165, 180, 252, 0.12);
-  --text-primary: #ecedf0;
-  --text-secondary: #a3a8b5;
-  --text-light: #7c8291;
-  --background-light: #171a23;
-  --background-gray: #1f2330;
-  --border-color: #2c3140;
+  --green-deep: #2F4E45;
+  --gold: #C49A62;
+  --gold-ink: #D9B98A;
+  --gold-soft: rgba(196, 154, 98, 0.16);
+
+  --bg: #111513;
+  --bg-soft: #0D110F;
+  --surface: #181E1B;
+  --surface-2: #202824;
+  --text: #ECEAE4;
+  --text-muted: #A9AEA9;
+  --border: #2C3530;
+  --header-bg: rgba(17, 21, 19, 0.92);
+  --overlay-hover: rgba(196, 154, 98, 0.12);
+
+  --btn-primary-bg: #C49A62;
+  --btn-primary-bg-hover: #D3AE7B;
+  --btn-primary-fg: #15201C;
+
+  --text-primary: #ECEAE4;
+  --text-secondary: #A9AEA9;
+  --text-light: #7F8580;
+  --background-light: #181E1B;
+  --background-gray: #202824;
+  --border-color: #2C3530;
+  --ombre-carte: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.25);
 }
 
 html,
@@ -46,9 +75,7 @@ body {
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
+  font-family: var(--font-texte);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   line-height: 1.6;
@@ -83,20 +110,20 @@ body {
 
 /* Variables CSS pour les couleurs modernes */
 :root {
-  --primary-color: #6366f1;
-  --primary-dark: #4f46e5;
-  --primary-light: #a5b4fc;
+  --primary-color: #243C35;
+  --primary-dark: #1A2C26;
+  --primary-light: #C49A62;
   --secondary-color: #f59e0b;
   --secondary-dark: #d97706;
   --accent-color: #10b981;
   --accent-dark: #059669;
-  --text-primary: #1f2937;
-  --text-secondary: #6b7280;
-  --text-light: #9ca3af;
+  --text-primary: #343A40;
+  --text-secondary: #646A70;
+  --text-light: #8C9196;
   --background-light: #ffffff;
-  --background-gray: #f9fafb;
+  --background-gray: #F1EEE7;
   --background-dark: #111827;
-  --border-color: #e5e7eb;
+  --border-color: #E6E1D8;
   --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
   --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
   --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
@@ -119,11 +146,12 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 14px 28px;
-  border-radius: 12px;
+  padding: 13px 26px;
+  border-radius: 10px;
   text-decoration: none;
   font-weight: 600;
   font-size: 15px;
+  letter-spacing: 0.01em;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   border: none;
   cursor: pointer;
@@ -133,15 +161,24 @@ body {
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
-  color: white;
-  box-shadow: var(--shadow-md);
+  background: var(--btn-primary-bg);
+  color: var(--btn-primary-fg);
+  box-shadow: none;
 }
 
 .btn-primary:hover {
-  background: linear-gradient(135deg, var(--primary-dark), var(--primary-color));
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-lg);
+  background: var(--btn-primary-bg-hover);
+  transform: translateY(-1px);
+}
+
+.btn-gold {
+  background: var(--gold);
+  color: #1F2A26;
+}
+
+.btn-gold:hover {
+  background: #B88D55;
+  transform: translateY(-1px);
 }
 
 .btn-secondary {
@@ -152,25 +189,25 @@ body {
 }
 
 .btn-secondary:hover {
-  border-color: #d4af37;
+  border-color: var(--gold);
   transform: translateY(-2px);
   box-shadow: var(--shadow-md);
 }
 
 .btn-outline {
   background: transparent;
-  color: #b8941f;
-  border: 2px solid #d4af37;
+  color: var(--gold-ink);
+  border: 2px solid var(--gold);
 }
 
 .btn-outline:hover {
-  background: #d4af37;
+  background: var(--gold);
   color: #1a1a1a;
   transform: translateY(-2px);
 }
 
 :root[data-theme="dark"] .btn-outline {
-  color: #f5d77a;
+  color: var(--gold-ink);
 }
 
 :root[data-theme="dark"] .btn-outline:hover {
@@ -185,7 +222,7 @@ body {
 }
 
 .btn:focus-visible {
-  outline: 3px solid rgba(212, 175, 55, 0.75);
+  outline: 3px solid rgba(196, 154, 98, 0.75);
   outline-offset: 2px;
 }
 
@@ -304,7 +341,7 @@ svg {
   z-index: 2000;
   padding: 10px 16px;
   border-radius: 8px;
-  background: #d4af37;
+  background: var(--gold);
   color: #1a1a1a;
   font-weight: 700;
   text-decoration: none;
@@ -316,4 +353,52 @@ svg {
 
 main:focus {
   outline: none;
+}
+
+
+/* ---------- Typographie : titres élégants, informations très lisibles ---------- */
+h1, h2,
+.titre-elegant {
+  font-family: var(--font-titre);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+
+/* Le back-office reste en police de texte : densité et lisibilité des données */
+.admin-shell h1,
+.admin-shell h2 {
+  font-family: var(--font-texte);
+  letter-spacing: -0.01em;
+}
+
+.surtitre {
+  display: inline-block;
+  font-family: var(--font-texte);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gold-ink);
+}
+
+::selection {
+  background: rgba(196, 154, 98, 0.35);
+}
+
+/* Boutons secondaires partagés */
+.btn-sm {
+  padding: 8px 16px;
+  font-size: 14px;
+}
+
+.btn-danger {
+  background: #B4432A;
+  color: #fff;
+  border: none;
+}
+
+.btn-danger:hover {
+  background: #9A3822;
+  transform: translateY(-1px);
 }

@@ -89,6 +89,23 @@ const globalLimiter = rateLimit({
 app.use('/api/', globalLimiter);
 
 // ✅ Routes de l'API
+// Identité publique de l'établissement (coordonnées, réseaux) pour le site
+app.get('/api/etablissement', (req, res) => {
+  const Settings = require('./services/SettingsService');
+  res.json({
+    success: true,
+    data: {
+      ...Settings.etablissement({ publique: true }),
+      // Règles publiques de l'acompte (affichées avant la réservation)
+      acompte: {
+        pourcentage: Settings.get('acomptePourcentage'),
+        remboursementPourcentage: Settings.get('remboursementPourcentage'),
+        integralJours: Settings.get('remboursableApresPaiementJours'),
+        avantArriveeJours: Settings.get('nonRemboursableAvantArriveeJours'),
+      },
+    },
+  });
+});
 app.use('/api/residences', residencesRoutes);
 app.use('/api/reservations', reservationsRoutes);
 app.use('/api/admin', adminRoutes);

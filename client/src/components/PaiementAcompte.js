@@ -214,15 +214,22 @@ const PaiementAcompte = ({ reservation, token, onPaye, onFermer, direct = null }
       <div className="acompte-modal" onClick={(e) => e.stopPropagation()}>
         <button type="button" className="acompte-fermer" onClick={onFermer} aria-label="Fermer"><FaTimes /></button>
         <h2 id="acompte-titre">Payer l'acompte</h2>
-        <p className="acompte-resume">
-          {reservation.residence.nom} · <strong>{fcfa(a.montant)}</strong> ({a.pourcentage} % du séjour)
-        </p>
+        <dl className="acompte-montants">
+          <div><dt>Séjour à {reservation.residence.nom}</dt><dd>{fcfa(reservation.prixTotal)}</dd></div>
+          <div className="acompte-ligne"><dt>Acompte à payer maintenant ({a.pourcentage} %)</dt><dd>{fcfa(a.montant)}</dd></div>
+          <div className="solde"><dt>Solde restant</dt><dd>{fcfa(Number(reservation.prixTotal) - Number(a.montant))}</dd></div>
+        </dl>
 
         {statut === 'paye' ? (
           <div className="acompte-succes" role="status">
             <FaCheckCircle />
-            <h3>Acompte reçu</h3>
-            <p>Merci ! Votre séjour est garanti. Un reçu vous a été envoyé par email.</p>
+            <h3>Acompte reçu, votre séjour est garanti</h3>
+            <p>{fcfa(a.montant)} ont bien été payés par PI-SPI. Un reçu vous a été envoyé par email.</p>
+            <ul className="acompte-recap-succes">
+              <li><span>Résidence</span><b>{reservation.residence.nom}</b></li>
+              <li><span>Dates</span><b>{new Date(reservation.dates.arrivee).toLocaleDateString('fr-FR')} → {new Date(reservation.dates.depart).toLocaleDateString('fr-FR')}</b></li>
+              <li><span>Solde restant</span><b>{fcfa(Number(reservation.prixTotal) - Number(a.montant))}</b></li>
+            </ul>
             <button type="button" className="btn btn-primary" onClick={onFermer}>Fermer</button>
           </div>
         ) : !paiement ? (

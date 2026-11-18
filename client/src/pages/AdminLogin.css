@@ -20,7 +20,7 @@
 
 /* Header de la page de connexion */
 .admin-login-header {
-  background: linear-gradient(135deg, #d4af37 0%, #f59e0b 100%);
+  background: linear-gradient(135deg, var(--gold) 0%, #f59e0b 100%);
   color: white;
   padding: 60px 40px;
   display: flex;
@@ -91,9 +91,9 @@
 
 .form-group input:focus {
   outline: none;
-  border-color: #d4af37;
+  border-color: var(--gold);
   background: var(--surface);
-  box-shadow: 0 0 0 4px rgba(212, 175, 55, 0.1);
+  box-shadow: 0 0 0 4px rgba(196, 154, 98, 0.1);
 }
 
 /* Conteneur du mot de passe */
@@ -116,7 +116,7 @@
 }
 
 .password-toggle:hover {
-  color: #d4af37;
+  color: var(--gold);
   background: var(--surface-2);
 }
 
@@ -270,7 +270,7 @@
 
 .btn-login:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(212, 175, 55, 0.3);
+  box-shadow: 0 8px 25px rgba(196, 154, 98, 0.3);
 }
 
 .password-toggle {

@@ -1,160 +1,132 @@
-.admin-reservations {
-  background: var(--surface);
-  border-radius: 16px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
-  border: 1px solid var(--border);
-  margin: 20px 0;
-  padding: 24px;
+/* ---------- Réservations (back-office) ---------- */
+.resa-liste { padding: 16px 18px; min-width: 0; }
+.resa-admin:not(.avec-detail) { grid-template-columns: 1fr; }
+
+.resa-outils {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 10px;
 }
 
-.admin-reservations-header {
+.resa-recherche {
+  flex: 1;
   display: flex;
   align-items: center;
+  gap: 10px;
+  min-height: 42px;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text-muted);
+}
+
+.resa-recherche:focus-within { border-color: var(--gold); }
+
+.resa-recherche input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.92rem;
+}
+
+.resa-table td { white-space: nowrap; }
+.resa-montant { font-variant-numeric: tabular-nums; font-weight: 600; }
+.resa-chevron { color: var(--text-muted); width: 24px; }
+.adm-acompte-vide { color: var(--text-muted); }
+
+.resa-liste .error-message,
+.resa-liste .success-notice {
+  margin: 12px 0 4px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 0.9rem;
+}
+
+.resa-liste .success-notice { background: #E3F2EA; color: #1E6B47; }
+.resa-liste .error-message { background: #FDECE6; color: #A33A1C; }
+
+/* Panneau de détail */
+.resa-detail { display: flex; flex-direction: column; gap: 14px; }
+
+.resa-detail-tete {
+  display: flex;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 16px;
 }
 
-.admin-reservations-header h3 {
-  margin: 0;
-}
+.resa-detail-tete h2 { margin: 2px 0 0; font-size: 1.35rem; }
 
-.admin-reservations-filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 16px;
-}
-
-.filter-chip {
-  border: 1px solid var(--border);
+.resa-fermer {
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 10px;
   background: var(--surface-2);
-  color: var(--text);
-  border-radius: 999px;
-  padding: 6px 14px;
-  font-size: 0.875rem;
+  color: var(--text-muted);
   cursor: pointer;
 }
 
-.filter-chip.active {
-  background: var(--primary-color, #6366f1);
-  border-color: var(--primary-color, #6366f1);
-  color: white;
+.resa-detail-badges { display: flex; gap: 8px; flex-wrap: wrap; }
+.resa-detail .adm-infos { margin: 0; }
+
+.resa-contact { display: flex; flex-direction: column; gap: 8px; }
+.resa-contact .adm-btn { justify-content: flex-start; font-weight: 500; overflow: hidden; text-overflow: ellipsis; }
+
+.resa-bloc {
+  padding: 14px;
+  border-radius: var(--rayon-petit);
+  background: var(--surface-2);
 }
 
-.admin-reservations-empty {
-  color: var(--text-muted);
-  padding: 16px 0;
-}
-
-.admin-reservations-list {
-  display: grid;
-  gap: 12px;
-}
-
-.reservation-card {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 16px;
-  border: 1px solid var(--border);
-  border-left: 4px solid #f59e0b;
-  border-radius: 12px;
-}
-
-.reservation-card.statut-confirmee { border-left-color: #10b981; }
-.reservation-card.statut-annulee { border-left-color: #9ca3af; opacity: 0.75; }
-
-.reservation-card-main p {
-  margin: 4px 0;
-  color: var(--text);
-}
-
-.reservation-card-title {
+.resa-bloc h3 {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
   gap: 8px;
-  margin-bottom: 4px;
+  margin: 0 0 6px;
+  font-size: 0.9rem;
 }
 
-.reservation-badge {
-  font-size: 0.75rem;
-  padding: 2px 10px;
-  border-radius: 999px;
-  background: #fef3c7;
-  color: #92400e;
-}
+.resa-bloc p { margin: 0 0 6px; font-size: 0.9rem; color: var(--text-muted); line-height: 1.5; }
+.resa-bloc p:last-child { margin-bottom: 0; }
+.resa-bloc b { color: var(--text); }
 
-.reservation-badge.statut-confirmee { background: #d1fae5; color: #065f46; }
-.reservation-badge.statut-annulee { background: #f3f4f6; color: #4b5563; }
+.resa-bloc.alerte { background: #FDF1EC; border: 1px solid #F3CDBF; }
+.resa-bloc.alerte h3 { color: #A33A1C; }
+:root[data-theme="dark"] .resa-bloc.alerte { background: rgba(240, 110, 80, 0.1); border-color: rgba(240, 110, 80, 0.3); }
+:root[data-theme="dark"] .resa-bloc.alerte h3 { color: #F4A28C; }
 
-.reservation-contact a {
-  color: var(--primary-color, #6366f1);
-  word-break: break-all;
-}
+.resa-consequence { padding-top: 6px; border-top: 1px dashed rgba(163, 58, 28, 0.25); }
 
-.reservation-notes {
-  font-style: italic;
-}
+.resa-probleme { color: #A33A1C !important; }
+:root[data-theme="dark"] .resa-probleme { color: #F4A28C !important; }
+.resa-actions-ligne { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
 
-.reservation-ref {
-  font-size: 0.8rem;
-  color: var(--text-muted) !important;
-}
+.resa-ref { margin: 0; font-size: 0.8rem; color: var(--text-muted); }
 
-.reservation-card-actions {
+.resa-actions {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-  flex-shrink: 0;
+  gap: 10px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
 }
 
-@media (max-width: 640px) {
-  .admin-reservations {
-    padding: 16px;
-  }
+.resa-actions .adm-btn { flex: 1; min-height: 46px; }
 
-  .reservation-card {
-    flex-direction: column;
-  }
+/* Panneau ouvert : Montant et Acompte sont lisibles dans le détail */
+.avec-detail .resa-table th:nth-child(4), .avec-detail .resa-table td:nth-child(4),
+.avec-detail .resa-table th:nth-child(5), .avec-detail .resa-table td:nth-child(5) { display: none; }
 
-  .reservation-card-actions {
-    flex-direction: row;
-  }
+@media (max-width: 760px) {
+  .resa-liste { padding: 12px; }
+  .resa-txt-large { display: none; }
+  .avec-detail .resa-table td:nth-child(4),
+  .avec-detail .resa-table td:nth-child(5) { display: block; }
 }
 
-.success-notice {
-  background: #d1fae5;
-  color: #065f46;
-  border-radius: 8px;
-  padding: 10px 14px;
-  margin-bottom: 12px;
-}
-
-.reservation-demande {
-  background: #fff7ed;
-  color: #9a3412 !important;
-  border-radius: 8px;
-  padding: 8px 12px;
-}
-
-.reservation-card:has(.reservation-demande) {
-  border-left-color: #ea580c;
-}
-
-.reservation-acompte {
-  border-radius: 8px;
-  padding: 6px 10px;
-  font-size: 0.85rem;
-}
-
-.reservation-acompte.paye { background: #d1fae5; color: #065f46 !important; }
-.reservation-acompte.attente { background: #fef3c7; color: #92400e !important; }
-.reservation-acompte.doublon { background: #fee2e2; color: #991b1b !important; font-weight: 600; }
-
-/* Puces de filtre : zone tactile confortable */
-.filter-chip {
-  min-height: 40px;
-  padding: 8px 16px;
-}
+:root[data-theme="dark"] .resa-recherche input { background: transparent; }

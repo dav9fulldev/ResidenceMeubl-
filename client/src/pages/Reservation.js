@@ -1,45 +1,48 @@
 import React, { useState, useEffect } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
-import { FaCalendarAlt, FaUser, FaEnvelope, FaPhone, FaCheckCircle, FaArrowLeft } from 'react-icons/fa';
+import {
+  FaCalendarAlt, FaUser, FaEnvelope, FaPhone, FaCheck, FaArrowLeft, FaArrowRight, FaShieldAlt, FaUsers, FaMapMarkerAlt,
+} from 'react-icons/fa';
 import { useResidences } from '../context/ResidencesContext';
+import useEtablissement from '../hooks/useEtablissement';
 import './Reservation.css';
+
+const ETAPES = ['Votre séjour', 'Vos coordonnées', 'Vérification'];
+const CHAMPS_ETAPE = [['arrivalDate', 'departureDate', 'guests'], ['firstName', 'lastName', 'email', 'phone'], []];
+const fcfa = (n) => `${Math.round(Number(n) || 0).toLocaleString('fr-FR')} FCFA`;
+const dateLongue = (d) => (d ? new Date(`${d}T00:00:00`).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' }) : '—');
 
 const Reservation = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { getResidenceById, createReservation, offline, loading } = useResidences();
+  const etab = useEtablissement();
   const [residence, setResidence] = useState(null);
+  const [etape, setEtape] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [confirmation, setConfirmation] = useState(null);
   const [submitError, setSubmitError] = useState('');
 
-  // Date du jour au format AAAA-MM-JJ (heure locale) pour les champs date
+  // Date du jour au format AAAA-MM-JJ (heure locale)
   const today = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-    setValue,
-    watch
-  } = useForm();
+  const { register, handleSubmit, formState: { errors }, setValue, watch, trigger, getValues } = useForm({ mode: 'onTouched' });
 
-  // Récupérer l'ID de la résidence depuis l'URL et pré-remplir le formulaire
+  // Résidence et critères venus de l'URL (dates et personnes choisies sur l'accueil)
   useEffect(() => {
     const residenceId = searchParams.get('residence');
     if (residenceId) {
-      const foundResidence = getResidenceById(residenceId);
-      if (foundResidence) {
-        setResidence(foundResidence);
-        // Pré-remplir automatiquement les informations de la résidence
-        setValue('residenceName', foundResidence.name);
-        setValue('residenceReference', foundResidence.reference);
-        setValue('residenceLocation', foundResidence.location);
-        setValue('residencePrice', `${foundResidence.price.toLocaleString()} ${foundResidence.currency}/${foundResidence.period}`);
-      }
+      const trouvee = getResidenceById(residenceId);
+      if (trouvee) setResidence(trouvee);
     }
-  }, [searchParams, setValue, getResidenceById]);
+    const a = searchParams.get('arrivee');
+    const d = searchParams.get('depart');
+    const p = searchParams.get('personnes');
+    if (a && a >= today) setValue('arrivalDate', a);
+    if (d && (!a || d > a)) setValue('departureDate', d);
+    if (p) setValue('guests', p);
+  }, [searchParams, setValue, getResidenceById, today]);
 
   // Coordonnées mémorisées sur cet appareil pour la prochaine réservation
   useEffect(() => {
@@ -55,7 +58,6 @@ const Reservation = () => {
     if (!residence) return;
     setIsSubmitting(true);
     setSubmitError('');
-
     try {
       const result = await createReservation(residence.id, data);
       try {
@@ -64,7 +66,7 @@ const Reservation = () => {
       } catch {
         // stockage indisponible : sans conséquence
       }
-      setConfirmation({ ...result, email: data.email });
+      setConfirmation({ ...result, email: data.email, ...data });
       window.scrollTo(0, 0);
     } catch (error) {
       setSubmitError(error.message);
@@ -73,45 +75,58 @@ const Reservation = () => {
     }
   };
 
-  const handleBackToResidences = () => {
-    navigate('/residences');
+  const suivant = async () => {
+    if (await trigger(CHAMPS_ETAPE[etape])) {
+      setEtape(e => Math.min(2, e + 1));
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
   };
 
+  const precedent = () => setEtape(e => Math.max(0, e - 1));
+
+  const arrivee = watch('arrivalDate');
+  const depart = watch('departureDate');
+  const personnes = watch('guests');
+  const nuits = arrivee && depart && depart > arrivee
+    ? Math.round((Date.parse(`${depart}T00:00:00Z`) - Date.parse(`${arrivee}T00:00:00Z`)) / 86400000)
+    : 0;
+  const total = residence && nuits > 0 ? nuits * Number(residence.price) : 0;
+  const pctAcompte = Number(etab.acompte?.pourcentage) || 30;
+  const acompte = Math.ceil(total * pctAcompte / 100);
+  const minStay = residence?.availability?.minStay || 1;
+  const maxStay = residence?.availability?.maxStay || 365;
+
+  // ---------- Écran de confirmation ----------
   if (confirmation) {
     return (
       <div className="reservation-page">
         <div className="container">
-          <div className="success-message">
-            <FaCheckCircle className="success-icon" />
-            <h1>Réservation envoyée avec succès !</h1>
-            <p>Merci ! Nous avons bien reçu votre demande.</p>
-            <ol className="resa-etapes">
-              <li>Nous vérifions la disponibilité et confirmons votre séjour par email.</li>
-              <li>Vous réglez ensuite l'acompte par PI-SPI depuis « Mes réservations ».</li>
-              <li>Vous pouvez suivre ou annuler votre demande à tout moment depuis cette même page.</li>
-            </ol>
-            <p>
-              <strong>Référence :</strong> {confirmation.reference}<br />
-              <strong>Montant estimé :</strong> {Number(confirmation.prixTotal).toLocaleString('fr-FR')} FCFA
+          <div className="resa-merci">
+            <span className="resa-merci-icone"><FaCheck /></span>
+            <p className="surtitre">Demande envoyée</p>
+            <h1>Merci {confirmation.firstName}, c'est bien reçu !</h1>
+            <p className="resa-merci-texte">
+              Votre demande pour <b>{residence?.name}</b> du {dateLongue(confirmation.arrivalDate)} au {dateLongue(confirmation.departureDate)} est enregistrée.
+              {confirmation.emailEnvoye ? ` Un récapitulatif vient d'être envoyé à ${confirmation.email}.` : ' Conservez bien votre référence ci-dessous.'}
             </p>
-            {confirmation.emailEnvoye
-              ? <p>Un email de confirmation vous a été envoyé.</p>
-              : <p>Conservez cette référence : l'email de confirmation n'a pas pu être envoyé.</p>}
-            <div className="success-actions">
-              <button
-                className="btn btn-outline"
-                onClick={() => navigate('/mes-reservations', {
-                  state: { email: confirmation.email, reference: confirmation.reference },
-                })}
-              >
-                Gérer ma réservation
+
+            <div className="resa-merci-ref">
+              <span>Référence</span>
+              <b>{confirmation.reference}</b>
+            </div>
+
+            <ol className="resa-suite">
+              <li className="fait"><span><FaCheck /></span><div><b>Demande envoyée</b><p>Aucun paiement n'a été effectué.</p></div></li>
+              <li><span>2</span><div><b>Confirmation par notre équipe</b><p>Nous vérifions la disponibilité et vous répondons par email.</p></div></li>
+              <li><span>3</span><div><b>Acompte de {fcfa(Math.ceil(Number(confirmation.prixTotal) * pctAcompte / 100))}</b><p>À régler par PI-SPI depuis « Mes réservations », une fois le séjour confirmé.</p></div></li>
+              <li><span>4</span><div><b>Votre séjour</b><p>Le solde de {fcfa(Number(confirmation.prixTotal) - Math.ceil(Number(confirmation.prixTotal) * pctAcompte / 100))} est réglé selon les modalités indiquées à la confirmation.</p></div></li>
+            </ol>
+
+            <div className="resa-merci-actions">
+              <button type="button" className="btn btn-primary" onClick={() => navigate('/mes-reservations', { state: { email: confirmation.email, reference: confirmation.reference } })}>
+                Suivre ma réservation
               </button>
-              <button 
-                className="btn btn-primary"
-                onClick={handleBackToResidences}
-              >
-                Voir d'autres résidences
-              </button>
+              <Link to="/residences" className="btn btn-outline">Voir d'autres résidences</Link>
             </div>
           </div>
         </div>
@@ -119,275 +134,193 @@ const Reservation = () => {
     );
   }
 
-  const arrivee = watch('arrivalDate');
-  const depart = watch('departureDate');
-  const nuits = arrivee && depart && depart > arrivee
-    ? Math.round((Date.parse(`${depart}T00:00:00Z`) - Date.parse(`${arrivee}T00:00:00Z`)) / 86400000)
-    : 0;
-  const total = residence && nuits > 0 ? nuits * Number(residence.price) : 0;
-  const fcfa = (n) => `${Number(n).toLocaleString('fr-FR')} FCFA`;
-  const minStay = residence?.availability?.minStay || 1;
-  const maxStay = residence?.availability?.maxStay || 365;
-
+  // ---------- Formulaire en 3 étapes ----------
   return (
     <div className="reservation-page">
       <div className="container">
-        <div className="reservation-header">
-          <button type="button" className="back-btn" onClick={() => (residence ? navigate(`/residence/${residence.id}`) : handleBackToResidences())}>
-            <FaArrowLeft aria-hidden="true" />
-            {residence ? 'Retour à la résidence' : 'Retour aux résidences'}
-          </button>
-          <h1>Réserver votre séjour</h1>
-          <p>Aucun paiement maintenant : nous confirmons d'abord la disponibilité.</p>
-        </div>
+        <button type="button" className="resa-retour" onClick={() => (residence ? navigate(`/residence/${residence.id}`) : navigate('/residences'))}>
+          <FaArrowLeft aria-hidden="true" /> {residence ? 'Retour à la résidence' : 'Retour aux résidences'}
+        </button>
+        <h1 className="resa-titre">Réserver votre séjour</h1>
 
-        <div className="reservation-content">
-          {residence && (
-            <div className="resa-resume">
-              {residence.images?.[0] && <img src={residence.images[0]} alt="" />}
-              <div>
-                <p className="resa-resume-nom">{residence.name}</p>
-                <p className="resa-resume-lieu">{residence.location}</p>
-                <p className="resa-resume-prix"><strong>{fcfa(residence.price)}</strong> / {residence.period || 'nuit'}</p>
+        <ol className="resa-stepper" aria-label="Étapes de la réservation">
+          {ETAPES.map((nom, i) => (
+            <li key={nom} className={i < etape ? 'fait' : i === etape ? 'actif' : ''} aria-current={i === etape ? 'step' : undefined}>
+              <span className="resa-stepper-pastille">{i < etape ? <FaCheck /> : i + 1}</span>
+              <span className="resa-stepper-nom">{nom}</span>
+            </li>
+          ))}
+        </ol>
+
+        {!residence && !loading && (
+          <div className="error-message" role="alert">
+            Aucune résidence sélectionnée. <Link to="/residences">Choisissez une résidence</Link> pour la réserver.
+          </div>
+        )}
+
+        <div className="resa-cadre">
+          <form onSubmit={handleSubmit(onSubmit)} className="resa-form" noValidate>
+            {/* Étape 1 : séjour */}
+            <fieldset hidden={etape !== 0}>
+              <legend>Votre séjour</legend>
+              {residence?.availability && (
+                <p className="resa-aide">Séjour de {minStay === 1 ? '1 nuit' : `${minStay} nuits`} minimum et {maxStay} nuits maximum.</p>
+              )}
+              <div className="form-row">
+                <div className="form-group">
+                  <label htmlFor="arrivalDate"><FaCalendarAlt aria-hidden="true" /> Arrivée</label>
+                  <input type="date" id="arrivalDate" min={today} aria-invalid={Boolean(errors.arrivalDate)}
+                    {...register('arrivalDate', {
+                      required: 'Choisissez votre date d\'arrivée',
+                      validate: v => v >= today || 'La date d\'arrivée ne peut pas être dans le passé',
+                    })}
+                    className={errors.arrivalDate ? 'error' : ''} />
+                  {errors.arrivalDate && <span className="error-message" role="alert">{errors.arrivalDate.message}</span>}
+                </div>
+                <div className="form-group">
+                  <label htmlFor="departureDate"><FaCalendarAlt aria-hidden="true" /> Départ</label>
+                  <input type="date" id="departureDate" aria-invalid={Boolean(errors.departureDate)}
+                    min={(() => {
+                      if (!arrivee) return today;
+                      const d = new Date(`${arrivee}T00:00:00Z`);
+                      d.setUTCDate(d.getUTCDate() + minStay);
+                      return d.toISOString().slice(0, 10);
+                    })()}
+                    {...register('departureDate', {
+                      required: 'Choisissez votre date de départ',
+                      validate: value => {
+                        const a = getValues('arrivalDate');
+                        if (!a) return true;
+                        const n = Math.round((Date.parse(`${value}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86400000);
+                        if (n <= 0) return 'Le départ doit être après l\'arrivée';
+                        if (n < minStay) return `Séjour minimum : ${minStay} nuit${minStay > 1 ? 's' : ''} pour cette résidence`;
+                        if (n > maxStay) return `Séjour maximum : ${maxStay} nuits pour cette résidence`;
+                        return true;
+                      },
+                    })}
+                    className={errors.departureDate ? 'error' : ''} />
+                  {errors.departureDate && <span className="error-message" role="alert">{errors.departureDate.message}</span>}
+                </div>
               </div>
-            </div>
-          )}
-
-          {!residence && !loading && (
-            <div className="error-message" role="alert">
-              Aucune résidence sélectionnée. Choisissez une résidence dans la liste pour la réserver.
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit(onSubmit)} className="reservation-form" noValidate>
-            <h3>1. Votre séjour</h3>
-            {residence?.availability && (
-              <p className="sejour-regle">
-                Séjour de {minStay === 1 ? '1 nuit' : `${minStay} nuits`} minimum et {maxStay} nuits maximum.
-              </p>
-            )}
-
-            <div className="form-row">
               <div className="form-group">
-                <label htmlFor="arrivalDate">
-                  <FaCalendarAlt aria-hidden="true" /> Arrivée *
-                </label>
-                <input
-                  type="date"
-                  id="arrivalDate"
-                  min={today}
-                  aria-invalid={Boolean(errors.arrivalDate)}
-                  {...register('arrivalDate', {
-                    required: 'Choisissez votre date d\'arrivée',
-                    validate: value => value >= today || 'La date d\'arrivée ne peut pas être dans le passé'
-                  })}
-                  className={errors.arrivalDate ? 'error' : ''}
-                />
-                {errors.arrivalDate && (
-                  <span className="error-message" role="alert">{errors.arrivalDate.message}</span>
-                )}
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="departureDate">
-                  <FaCalendarAlt aria-hidden="true" /> Départ *
-                </label>
-                <input
-                  type="date"
-                  id="departureDate"
-                  min={(() => {
-                    if (!arrivee) return today;
-                    const d = new Date(`${arrivee}T00:00:00Z`);
-                    d.setUTCDate(d.getUTCDate() + minStay);
-                    return d.toISOString().slice(0, 10);
-                  })()}
-                  aria-invalid={Boolean(errors.departureDate)}
-                  {...register('departureDate', {
-                    required: 'Choisissez votre date de départ',
-                    validate: value => {
-                      const arrivalDate = watch('arrivalDate');
-                      if (!arrivalDate) return true;
-                      const n = Math.round((Date.parse(`${value}T00:00:00Z`) - Date.parse(`${arrivalDate}T00:00:00Z`)) / 86400000);
-                      if (n <= 0) return 'Le départ doit être après l\'arrivée';
-                      if (n < minStay) return `Séjour minimum : ${minStay} nuit${minStay > 1 ? 's' : ''} pour cette résidence`;
-                      if (n > maxStay) return `Séjour maximum : ${maxStay} nuits pour cette résidence`;
-                      return true;
-                    }
-                  })}
-                  className={errors.departureDate ? 'error' : ''}
-                />
-                {errors.departureDate && (
-                  <span className="error-message" role="alert">{errors.departureDate.message}</span>
-                )}
-              </div>
-            </div>
-
-            <div className="form-row">
-              <div className="form-group">
-                <label htmlFor="guests">
-                  <FaUser aria-hidden="true" /> Nombre de personnes *
-                </label>
-                <select
-                  id="guests"
-                  aria-invalid={Boolean(errors.guests)}
-                  {...register('guests', {
-                    required: 'Indiquez le nombre de personnes',
-                    min: { value: 1, message: 'Au moins 1 personne' }
-                  })}
-                  className={errors.guests ? 'error' : ''}
-                >
+                <label htmlFor="guests"><FaUsers aria-hidden="true" /> Nombre de personnes</label>
+                <select id="guests" aria-invalid={Boolean(errors.guests)}
+                  {...register('guests', { required: 'Indiquez le nombre de personnes', min: { value: 1, message: 'Au moins 1 personne' } })}
+                  className={errors.guests ? 'error' : ''}>
                   <option value="">Choisir</option>
-                  {Array.from({ length: residence?.maxGuests || 8 }, (_, i) => i + 1).map(num => (
-                    <option key={num} value={num}>{num} personne{num > 1 ? 's' : ''}</option>
+                  {Array.from({ length: residence?.maxGuests || 8 }, (_, i) => i + 1).map(n => (
+                    <option key={n} value={n}>{n} personne{n > 1 ? 's' : ''}</option>
                   ))}
                 </select>
-                {errors.guests && (
-                  <span className="error-message" role="alert">{errors.guests.message}</span>
-                )}
+                {errors.guests && <span className="error-message" role="alert">{errors.guests.message}</span>}
               </div>
-            </div>
+            </fieldset>
 
-            {residence && (
-              <div className="resa-total" aria-live="polite">
-                {nuits > 0 ? (
-                  <>
-                    <p><span>{fcfa(residence.price)} × {nuits} nuit{nuits > 1 ? 's' : ''}</span><strong>{fcfa(total)}</strong></p>
-                    <p className="resa-total-note">Total estimé. Après notre confirmation, un acompte vous sera demandé par PI-SPI.</p>
-                  </>
-                ) : (
-                  <p className="resa-total-note">Choisissez vos dates pour voir le prix total.</p>
-                )}
+            {/* Étape 2 : coordonnées */}
+            <fieldset hidden={etape !== 1}>
+              <legend>Vos coordonnées</legend>
+              <div className="form-row">
+                <div className="form-group">
+                  <label htmlFor="firstName"><FaUser aria-hidden="true" /> Prénom</label>
+                  <input type="text" id="firstName" autoComplete="given-name" aria-invalid={Boolean(errors.firstName)}
+                    {...register('firstName', { required: 'Le prénom est obligatoire', minLength: { value: 2, message: 'Au moins 2 caractères' } })}
+                    className={errors.firstName ? 'error' : ''} />
+                  {errors.firstName && <span className="error-message" role="alert">{errors.firstName.message}</span>}
+                </div>
+                <div className="form-group">
+                  <label htmlFor="lastName"><FaUser aria-hidden="true" /> Nom</label>
+                  <input type="text" id="lastName" autoComplete="family-name" aria-invalid={Boolean(errors.lastName)}
+                    {...register('lastName', { required: 'Le nom est obligatoire', minLength: { value: 2, message: 'Au moins 2 caractères' } })}
+                    className={errors.lastName ? 'error' : ''} />
+                  {errors.lastName && <span className="error-message" role="alert">{errors.lastName.message}</span>}
+                </div>
               </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label htmlFor="email"><FaEnvelope aria-hidden="true" /> Email</label>
+                  <input type="email" id="email" autoComplete="email" inputMode="email" aria-describedby="email-aide" aria-invalid={Boolean(errors.email)}
+                    {...register('email', { required: 'L\'email est obligatoire', pattern: { value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i, message: 'Veuillez entrer un email valide' } })}
+                    className={errors.email ? 'error' : ''} />
+                  <span id="email-aide" className="champ-aide">La confirmation et le suivi arrivent à cette adresse.</span>
+                  {errors.email && <span className="error-message" role="alert">{errors.email.message}</span>}
+                </div>
+                <div className="form-group">
+                  <label htmlFor="phone"><FaPhone aria-hidden="true" /> Téléphone</label>
+                  <input type="tel" id="phone" autoComplete="tel" inputMode="tel" placeholder="07 00 00 00 00" aria-invalid={Boolean(errors.phone)}
+                    {...register('phone', { required: 'Le téléphone est obligatoire', pattern: { value: /^[+]?[0-9\s\-()]{8,}$/, message: 'Veuillez entrer un numéro valide' } })}
+                    className={errors.phone ? 'error' : ''} />
+                  {errors.phone && <span className="error-message" role="alert">{errors.phone.message}</span>}
+                </div>
+              </div>
+              <div className="form-group">
+                <label htmlFor="specialRequests">Demandes particulières <span className="facultatif">(facultatif)</span></label>
+                <textarea id="specialRequests" rows="3" placeholder="Heure d'arrivée, lit bébé, préférences…" {...register('specialRequests')} />
+              </div>
+            </fieldset>
+
+            {/* Étape 3 : vérification */}
+            {etape === 2 && (
+              <fieldset>
+                <legend>Vérifiez votre demande</legend>
+                <dl className="resa-verif">
+                  <div><dt>Séjour</dt><dd>{dateLongue(arrivee)} → {dateLongue(depart)}<button type="button" onClick={() => setEtape(0)}>Modifier</button></dd></div>
+                  <div><dt>Personnes</dt><dd>{personnes}<button type="button" onClick={() => setEtape(0)}>Modifier</button></dd></div>
+                  <div><dt>Contact</dt><dd>{getValues('firstName')} {getValues('lastName')} · {getValues('email')} · {getValues('phone')}<button type="button" onClick={() => setEtape(1)}>Modifier</button></dd></div>
+                  {getValues('specialRequests') && <div><dt>Demandes</dt><dd>« {getValues('specialRequests')} »</dd></div>}
+                </dl>
+                <div className="resa-garanties">
+                  <p><FaShieldAlt aria-hidden="true" /> <b>Aucun paiement maintenant.</b> Nous confirmons d'abord la disponibilité.</p>
+                  <p>Après confirmation, vous réglez un acompte de {pctAcompte} % par PI-SPI. En cas d'annulation, il est remboursé en entier dans les {etab.acompte?.integralJours ?? 5} jours suivant le paiement{Number(etab.acompte?.remboursementPourcentage) > 0 ? `, puis à ${etab.acompte.remboursementPourcentage} %` : ''}, et plus du tout à moins de {etab.acompte?.avantArriveeJours ?? 3} jours de l'arrivée.</p>
+                </div>
+              </fieldset>
             )}
 
-            <h3>2. Vos coordonnées</h3>
-            <div className="form-row">
-              <div className="form-group">
-                <label htmlFor="firstName">
-                  <FaUser aria-hidden="true" /> Prénom *
-                </label>
-                <input
-                  type="text"
-                  id="firstName"
-                  autoComplete="given-name"
-                  aria-invalid={Boolean(errors.firstName)}
-                  {...register('firstName', {
-                    required: 'Le prénom est obligatoire',
-                    minLength: { value: 2, message: 'Le prénom doit contenir au moins 2 caractères' }
-                  })}
-                  className={errors.firstName ? 'error' : ''}
-                />
-                {errors.firstName && (
-                  <span className="error-message" role="alert">{errors.firstName.message}</span>
-                )}
-              </div>
+            {submitError && <div className="error-message" role="alert">{submitError}</div>}
+            {offline && <div className="error-message" role="alert">Le service de réservation est momentanément indisponible. Réessayez dans quelques instants.</div>}
 
-              <div className="form-group">
-                <label htmlFor="lastName">
-                  <FaUser aria-hidden="true" /> Nom *
-                </label>
-                <input
-                  type="text"
-                  id="lastName"
-                  autoComplete="family-name"
-                  aria-invalid={Boolean(errors.lastName)}
-                  {...register('lastName', {
-                    required: 'Le nom est obligatoire',
-                    minLength: { value: 2, message: 'Le nom doit contenir au moins 2 caractères' }
-                  })}
-                  className={errors.lastName ? 'error' : ''}
-                />
-                {errors.lastName && (
-                  <span className="error-message" role="alert">{errors.lastName.message}</span>
-                )}
-              </div>
-            </div>
-
-            <div className="form-row">
-              <div className="form-group">
-                <label htmlFor="email">
-                  <FaEnvelope aria-hidden="true" /> Email *
-                </label>
-                <input
-                  type="email"
-                  id="email"
-                  autoComplete="email"
-                  inputMode="email"
-                  aria-describedby="email-aide"
-                  aria-invalid={Boolean(errors.email)}
-                  {...register('email', {
-                    required: 'L\'email est obligatoire',
-                    pattern: {
-                      value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
-                      message: 'Veuillez entrer un email valide'
-                    }
-                  })}
-                  className={errors.email ? 'error' : ''}
-                />
-                <span id="email-aide" className="champ-aide">La confirmation et le suivi arrivent à cette adresse.</span>
-                {errors.email && (
-                  <span className="error-message" role="alert">{errors.email.message}</span>
-                )}
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="phone">
-                  <FaPhone aria-hidden="true" /> Téléphone *
-                </label>
-                <input
-                  type="tel"
-                  id="phone"
-                  autoComplete="tel"
-                  inputMode="tel"
-                  placeholder="07 00 00 00 00"
-                  aria-invalid={Boolean(errors.phone)}
-                  {...register('phone', {
-                    required: 'Le téléphone est obligatoire',
-                    pattern: {
-                      value: /^[+]?[0-9\s\-()]{8,}$/,
-                      message: 'Veuillez entrer un numéro de téléphone valide'
-                    }
-                  })}
-                  className={errors.phone ? 'error' : ''}
-                />
-                {errors.phone && (
-                  <span className="error-message" role="alert">{errors.phone.message}</span>
-                )}
-              </div>
-            </div>
-
-            <div className="form-group full-width">
-              <label htmlFor="specialRequests">
-                Demandes particulières (facultatif)
-              </label>
-              <textarea
-                id="specialRequests"
-                rows="3"
-                placeholder="Heure d'arrivée, lit bébé, préférences…"
-                {...register('specialRequests')}
-              />
-            </div>
-
-            {submitError && (
-              <div className="error-message" role="alert">{submitError}</div>
-            )}
-            {offline && (
-              <div className="error-message" role="alert">
-                Le service de réservation est momentanément indisponible. Réessayez dans quelques instants.
-              </div>
-            )}
-
-            <div className="form-actions">
-              <button
-                type="submit"
-                className="btn btn-primary btn-large"
-                disabled={isSubmitting || !residence || offline}
-              >
-                {isSubmitting ? 'Envoi en cours…' : 'Envoyer ma demande de réservation'}
-              </button>
-              <p className="resa-rassurance">Aucun paiement n'est demandé avant notre confirmation.</p>
+            <div className="resa-navigation">
+              {etape > 0 ? (
+                <button type="button" className="btn btn-outline" onClick={precedent}><FaArrowLeft aria-hidden="true" /> Retour</button>
+              ) : <span />}
+              {etape < 2 ? (
+                <button type="button" className="btn btn-primary" onClick={suivant} disabled={!residence}>
+                  Continuer <FaArrowRight aria-hidden="true" />
+                </button>
+              ) : (
+                <button type="submit" className="btn btn-primary" disabled={isSubmitting || !residence || offline}>
+                  {isSubmitting ? 'Envoi en cours…' : 'Envoyer ma demande'}
+                </button>
+              )}
             </div>
           </form>
+
+          {/* Récapitulatif */}
+          {residence && (
+            <aside className="resa-recap" aria-label="Récapitulatif">
+              {residence.images?.[0] && <img src={residence.images[0]} alt="" />}
+              <div className="resa-recap-corps">
+                <p className="resa-recap-nom">{residence.name}</p>
+                <p className="resa-recap-lieu"><FaMapMarkerAlt aria-hidden="true" /> {residence.location}</p>
+                <dl className="resa-recap-lignes">
+                  <div><dt>Arrivée</dt><dd>{arrivee ? dateLongue(arrivee) : '—'}</dd></div>
+                  <div><dt>Départ</dt><dd>{depart ? dateLongue(depart) : '—'}</dd></div>
+                  <div><dt>Personnes</dt><dd>{personnes || '—'}</dd></div>
+                </dl>
+                <div className="resa-recap-prix" aria-live="polite">
+                  {nuits > 0 ? (
+                    <>
+                      <p><span>{fcfa(residence.price)} × {nuits} nuit{nuits > 1 ? 's' : ''}</span><span>{fcfa(total)}</span></p>
+                      <p className="total"><span>Total du séjour</span><span>{fcfa(total)}</span></p>
+                      <p className="acompte"><span>Acompte ({pctAcompte} %), après confirmation</span><span>{fcfa(acompte)}</span></p>
+                      <p className="maintenant"><span>À payer maintenant</span><span>0 FCFA</span></p>
+                    </>
+                  ) : (
+                    <p className="resa-recap-vide">{fcfa(residence.price)} / nuit · choisissez vos dates pour voir le total.</p>
+                  )}
+                </div>
+              </div>
+            </aside>
+          )}
         </div>
       </div>
     </div>

@@ -53,7 +53,7 @@
 
 .stats-kpi--hero {
   grid-column: span 2;
-  background: linear-gradient(135deg, #1a1a2e, #2d2a4a);
+  background: linear-gradient(135deg, var(--green-deep), #2d2a4a);
   border-color: transparent;
   color: #f5f5f5;
 }
@@ -77,7 +77,7 @@
 
 .stats-kpi--hero .stats-kpi-value {
   font-size: 2rem;
-  color: #f5d77a;
+  color: var(--gold-ink);
 }
 
 .stats-kpi-sub {

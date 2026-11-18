@@ -6,7 +6,7 @@ const AdminResidencesPage = () => (
     <div className="admin-page-header">
       <div>
         <h1>Résidences</h1>
-        <p>Statuts, maintenance, ajout et suppression de résidences.</p>
+        <p>Vos logements, leur disponibilité, la maintenance et la durée des séjours.</p>
       </div>
     </div>
     <AdminPanel />

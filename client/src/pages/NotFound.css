@@ -16,7 +16,7 @@
   font-size: 4.5rem;
   font-weight: 800;
   line-height: 1;
-  color: #d4af37;
+  color: var(--gold);
 }
 
 .not-found h1 {

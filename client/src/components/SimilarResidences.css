@@ -52,7 +52,7 @@
 }
 
 .similar-content strong {
-  color: #1a1a2e;
+  color: var(--green-deep);
   font-size: 1rem;
 }
 
@@ -61,14 +61,14 @@
 }
 
 .similar-content svg {
-  color: #d4af37;
+  color: var(--gold);
   margin-right: 4px;
 }
 
 .similar-price {
   margin-top: 6px;
   font-weight: 700;
-  color: #1a1a2e;
+  color: var(--green-deep);
 }
 
 .similar-price small {

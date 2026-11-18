@@ -1166,3 +1166,45 @@ test('remboursement partiel (50 % par défaut) : paiement sortant vers l\'adress
   assert.equal(r.acompte.remboursement.methode, 'retour');
   assert.equal(envois.length, 2, 'pas de paiement sortant pour un remboursement intégral');
 });
+
+test('établissement : réglable par l\'admin, partie publique sans l\'email des alertes', async (t) => {
+  const Settings = require('../services/SettingsService');
+  t.after(async () => { await db.collection('parametres').deleteMany({}); await Settings.charger(); });
+  const pub = await api('/api/etablissement');
+  assert.equal(pub.status, 200);
+  assert.equal(pub.body.data.nom, 'Sankofart Résidence');
+  assert.equal(pub.body.data.acompte.pourcentage, 30);
+  assert.equal('emailNotifications' in pub.body.data, false, 'champ privé non exposé');
+
+  assert.equal((await api('/api/admin/etablissement', { method: 'PUT', body: { nom: 'X' } })).status, 401);
+  const headersAdmin = await connexionAdmin();
+  const mauvaisLien = await api('/api/admin/etablissement', { method: 'PUT', headers: headersAdmin, body: { facebook: 'facebook.com/sankofart' } });
+  assert.equal(mauvaisLien.status, 400);
+  assert.match(mauvaisLien.body.message, /https/);
+  assert.equal((await api('/api/admin/etablissement', { method: 'PUT', headers: headersAdmin, body: { nom: '  ' } })).status, 400);
+  const ok = await api('/api/admin/etablissement', { method: 'PUT', headers: headersAdmin, body: { instagram: 'https://www.instagram.com/sankofart', emailNotifications: 'alertes@example.com', inconnu: 'ignoré' } });
+  assert.equal(ok.status, 200);
+  assert.equal(ok.body.data.instagram, 'https://www.instagram.com/sankofart');
+  assert.equal(ok.body.data.emailNotifications, 'alertes@example.com');
+  const apres = (await api('/api/etablissement')).body.data;
+  assert.equal(apres.instagram, 'https://www.instagram.com/sankofart');
+  assert.equal(apres.emailNotifications, undefined);
+  // Les alertes partent à l'adresse réglée dans le back-office
+  assert.equal(ReservationService.emailService.destinataireAdmin, 'alertes@example.com');
+});
+
+test('disponibilités par dates : résidences libres, dates contrôlées ; statut daté', async () => {
+  const mauvais = await api('/api/residences/disponibles?arrivee=2026-12-10&depart=2026-12-05');
+  assert.equal(mauvais.status, 400);
+  const { id, headersAdmin } = await reservationConfirmee(2, 600, 604, 'dispo@example.com');
+  await api(`/api/reservations/${id}/status`, { method: 'PUT', headers: headersAdmin, body: { statut: 'confirmee' } });
+  const debut = jourDansNJours(601); const fin = jourDansNJours(603);
+  const libres = (await api(`/api/residences/disponibles?arrivee=${debut}&depart=${fin}`)).body.data.ids;
+  assert.ok(Array.isArray(libres));
+  assert.equal(libres.includes(2), false, 'résidence réservée sur ces dates exclue');
+  assert.equal(libres.includes(1), true);
+  const apres = (await api(`/api/residences/disponibles?arrivee=${jourDansNJours(604)}&depart=${jourDansNJours(606)}`)).body.data.ids;
+  assert.equal(apres.includes(2), true, 'libre le jour du départ');
+  const vue = (await api('/api/reservations', { headers: headersAdmin })).body.data.find(r => r.id === id);
+  assert.ok(vue.statutLe, 'date du dernier changement de statut');
+});

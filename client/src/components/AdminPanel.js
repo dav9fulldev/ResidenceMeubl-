@@ -1,32 +1,51 @@
 import React, { useState } from 'react';
-import { FaCog, FaSave, FaTimes, FaPlus, FaTrash } from 'react-icons/fa';
+import { useNavigate } from 'react-router-dom';
+import {
+  FaPlus, FaTrash, FaSearch, FaTools, FaCheck, FaRegCalendarAlt, FaPen, FaUsers, FaBed, FaTimes, FaSave,
+} from 'react-icons/fa';
 import { useResidences } from '../context/ResidencesContext';
 import AddResidenceForm from './AddResidenceForm';
 import './AdminPanel.css';
 
-const AdminPanel = () => {
-  const {
-    residences,
-    updateResidenceStatus,
-    updateStayLimits,
-    addResidence,
-    deleteResidence
-  } = useResidences();
+const STATUTS = {
+  disponible: { libelle: 'Disponible', classe: 'confirmee' },
+  'réservé': { libelle: 'Dates prises', classe: 'attente' },
+  'occupé': { libelle: 'Occupée', classe: 'demande' },
+  maintenance: { libelle: 'Maintenance', classe: 'maintenance' },
+};
 
-  const formatDate = (d) => (d ? new Date(d).toLocaleDateString('fr-FR') : '—');
+const formatDate = (d) => (d ? new Date(d).toLocaleDateString('fr-FR') : '—');
+
+/**
+ * Gestion des résidences : cartes visuelles, filtres par statut, maintenance en un clic,
+ * panneau de modification (statut, durée des séjours).
+ */
+const AdminPanel = () => {
+  const navigate = useNavigate();
+  const { residences, updateResidenceStatus, updateStayLimits, addResidence, deleteResidence } = useResidences();
 
   const [actionError, setActionError] = useState('');
+  const [notice, setNotice] = useState('');
   const [saving, setSaving] = useState(false);
-
+  const [filtre, setFiltre] = useState('');
+  const [recherche, setRecherche] = useState('');
   const [editingResidence, setEditingResidence] = useState(null);
   const [showAddForm, setShowAddForm] = useState(false);
-  const [editForm, setEditForm] = useState({
-    status: '',
-    currentOccupant: '',
-    checkIn: '',
-    checkOut: '',
-    nextAvailable: ''
-  });
+  const [editForm, setEditForm] = useState({});
+
+  const runAction = async (action, ok = '') => {
+    setSaving(true); setActionError(''); setNotice('');
+    try {
+      await action();
+      if (ok) setNotice(ok);
+      return true;
+    } catch (error) {
+      setActionError(error.message);
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const handleEdit = (residence) => {
     setEditingResidence(residence);
@@ -41,258 +60,189 @@ const AdminPanel = () => {
     });
   };
 
-  // Exécute une action admin et affiche l'erreur éventuelle
-  const runAction = async (action) => {
-    setSaving(true);
-    setActionError('');
-    try {
-      await action();
-      return true;
-    } catch (error) {
-      setActionError(error.message);
-      return false;
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const handleDelete = (residence) => {
     if (window.confirm(`Supprimer définitivement « ${residence.name} » ?`)) {
-      runAction(() => deleteResidence(residence.id));
+      runAction(() => deleteResidence(residence.id), `« ${residence.name} » supprimée.`);
+      if (editingResidence?.id === residence.id) setEditingResidence(null);
     }
   };
 
   const handleAdd = async (newResidence) => {
-    const ok = await runAction(() => addResidence(newResidence));
+    const ok = await runAction(() => addResidence(newResidence), 'Résidence ajoutée.');
     if (ok) setShowAddForm(false);
   };
 
+  const basculerMaintenance = (residence) => {
+    const enMaintenance = residence.availability.status === 'maintenance';
+    runAction(
+      () => updateResidenceStatus(residence.id, enMaintenance ? 'disponible' : 'maintenance'),
+      enMaintenance ? `« ${residence.name} » est de nouveau réservable.` : `« ${residence.name} » est en maintenance : plus de réservation possible.`
+    );
+  };
+
   const handleSave = async () => {
-    if (editingResidence && editForm.status) {
-      const a = editingResidence.availability;
-      const statutChange = editForm.status !== a.status || !a.automatic;
-      const sejourChange = Number(editForm.minStay) !== a.minStay || Number(editForm.maxStay) !== a.maxStay;
-      const ok = await runAction(async () => {
-        if (sejourChange) await updateStayLimits(editingResidence.id, editForm.minStay, editForm.maxStay);
-        // Un statut « Réservé » calculé automatiquement n'est pas transformé en statut manuel
-        if (statutChange) {
-          await updateResidenceStatus(editingResidence.id, editForm.status, {
-            currentOccupant: editForm.currentOccupant,
-            checkIn: editForm.checkIn,
-            checkOut: editForm.checkOut,
-            nextAvailable: editForm.nextAvailable
-          });
-        }
-      });
-      if (!ok) return;
-      setEditingResidence(null);
-      setEditForm({
-        status: '',
-        currentOccupant: '',
-        checkIn: '',
-        checkOut: '',
-        nextAvailable: ''
-      });
+    if (!editingResidence || !editForm.status) return;
+    if (Number(editForm.minStay) > Number(editForm.maxStay)) {
+      setActionError('Le séjour minimum doit être inférieur ou égal au maximum.');
+      return;
     }
+    const a = editingResidence.availability;
+    const statutChange = editForm.status !== a.status || !a.automatic;
+    const sejourChange = Number(editForm.minStay) !== a.minStay || Number(editForm.maxStay) !== a.maxStay;
+    const ok = await runAction(async () => {
+      if (sejourChange) await updateStayLimits(editingResidence.id, editForm.minStay, editForm.maxStay);
+      // Un statut calculé automatiquement depuis une réservation n'est pas transformé en statut manuel
+      if (statutChange) {
+        await updateResidenceStatus(editingResidence.id, editForm.status, {
+          currentOccupant: editForm.currentOccupant,
+          checkIn: editForm.checkIn,
+          checkOut: editForm.checkOut,
+          nextAvailable: editForm.nextAvailable,
+        });
+      }
+    }, 'Modifications enregistrées.');
+    if (ok) setEditingResidence(null);
   };
 
-  const handleCancel = () => {
-    setEditingResidence(null);
-    setEditForm({
-      status: '',
-      currentOccupant: '',
-      checkIn: '',
-      checkOut: '',
-      nextAvailable: ''
-    });
-  };
+  const compte = (s) => residences.filter(r => r.availability.status === s).length;
+  const q = recherche.trim().toLowerCase();
+  const visibles = residences
+    .filter(r => !filtre || r.availability.status === filtre)
+    .filter(r => !q || `${r.name} ${r.reference} ${r.location} ${r.neighborhood}`.toLowerCase().includes(q));
 
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'disponible': return '#10b981';
-      case 'occupé': return '#ef4444';
-      case 'réservé': return '#f59e0b';
-      case 'maintenance': return '#8b5cf6';
-      default: return '#6b7280';
-    }
-  };
+  const champ = (cle) => ({ value: editForm[cle] ?? '', onChange: (e) => setEditForm(prev => ({ ...prev, [cle]: e.target.value })) });
 
   return (
     <div className="admin-panel">
-
-      {actionError && (
-        <div className="error-message" role="alert">{actionError}</div>
-      )}
-
-      <div className="admin-content">
-        <div className="admin-actions">
-          <button 
-            className="btn btn-primary"
-            onClick={() => setShowAddForm(true)}
-          >
-            <FaPlus />
-            Ajouter une résidence
-          </button>
-        </div>
-
-        <div className="residences-management">
-          <div className="residences-list">
-            {residences.map((residence) => (
-              <div key={residence.id} className="residence-admin-card">
-                <div className="residence-admin-info">
-                  <div className="residence-admin-header">
-                    <h5>{residence.name}</h5>
-                    <div 
-                      className="status-indicator"
-                      style={{ backgroundColor: getStatusColor(residence.availability.status) }}
-                    >
-                      {residence.availability.status}
-                    </div>
-                  </div>
-                  <p className="residence-reference">Réf: {residence.reference}</p>
-                  <p className="residence-location">{residence.location}</p>
-                  <p className="residence-stay">
-                    Séjour : {residence.availability.minStay === 1 ? '1 nuit' : `${residence.availability.minStay} nuits`} min. · {residence.availability.maxStay} max.
-                  </p>
-                </div>
-
-                <div className="residence-admin-actions">
-                  {editingResidence?.id === residence.id ? (
-                    <div className="edit-form">
-                      {residence.availability.automatic && residence.availability.reservationId && (
-                        <div className="auto-status-notice">
-                          <p>
-                            <strong>{residence.availability.status === 'occupé' ? 'Occupée' : 'Réservée'}</strong> par{' '}
-                            {residence.availability.currentOccupant}, du {formatDate(residence.availability.checkIn)} au{' '}
-                            {formatDate(residence.availability.checkOut)} (réservation confirmée).
-                          </p>
-                          <p>
-                            Elle se libère si le client demande l'annulation depuis « Mes réservations » et que vous
-                            l'acceptez (Réservations → Demandes d'annulation).
-                          </p>
-                        </div>
-                      )}
-                      <div className="stay-limits">
-                        <label>
-                          Séjour min. (nuits)
-                          <input type="number" min="1" max="365" value={editForm.minStay}
-                            onChange={(e) => setEditForm(prev => ({ ...prev, minStay: e.target.value }))} className="form-input" />
-                        </label>
-                        <label>
-                          Séjour max. (nuits)
-                          <input type="number" min="1" max="365" value={editForm.maxStay}
-                            onChange={(e) => setEditForm(prev => ({ ...prev, maxStay: e.target.value }))} className="form-input" />
-                        </label>
-                      </div>
-                      <select
-                        value={editForm.status}
-                        onChange={(e) => setEditForm(prev => ({ ...prev, status: e.target.value }))}
-                        className="form-select"
-                      >
-                        <option value="">Sélectionner un statut</option>
-                        <option value="disponible">Disponible</option>
-                        <option value="occupé">Occupé</option>
-                        <option value="réservé">Réservé</option>
-                        <option value="maintenance">Maintenance</option>
-                      </select>
-
-                      {editForm.status === 'occupé' && (
-                        <>
-                          <input
-                            type="text"
-                            placeholder="Nom de l'occupant"
-                            value={editForm.currentOccupant}
-                            onChange={(e) => setEditForm(prev => ({ ...prev, currentOccupant: e.target.value }))}
-                            className="form-input"
-                          />
-                          <input
-                            type="date"
-                            placeholder="Date de libération"
-                            value={editForm.nextAvailable}
-                            onChange={(e) => setEditForm(prev => ({ ...prev, nextAvailable: e.target.value }))}
-                            className="form-input"
-                          />
-                        </>
-                      )}
-
-                      {editForm.status === 'réservé' && (
-                        <>
-                          <input
-                            type="text"
-                            placeholder="Nom du client"
-                            value={editForm.currentOccupant}
-                            onChange={(e) => setEditForm(prev => ({ ...prev, currentOccupant: e.target.value }))}
-                            className="form-input"
-                          />
-                          <input
-                            type="date"
-                            placeholder="Date de check-in"
-                            value={editForm.checkIn}
-                            onChange={(e) => setEditForm(prev => ({ ...prev, checkIn: e.target.value }))}
-                            className="form-input"
-                          />
-                          <input
-                            type="date"
-                            placeholder="Date de check-out"
-                            value={editForm.checkOut}
-                            onChange={(e) => setEditForm(prev => ({ ...prev, checkOut: e.target.value }))}
-                            className="form-input"
-                          />
-                        </>
-                      )}
-
-                      <div className="edit-actions">
-                        <button
-                          className="btn btn-primary btn-sm"
-                          onClick={handleSave}
-                          disabled={saving}
-                        >
-                          <FaSave />
-                          Sauvegarder
-                        </button>
-                        <button 
-                          className="btn btn-secondary btn-sm"
-                          onClick={handleCancel}
-                        >
-                          <FaTimes />
-                          Annuler
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="residence-actions">
-                      <button 
-                        className="btn btn-outline btn-sm"
-                        onClick={() => handleEdit(residence)}
-                      >
-                        <FaCog />
-                        Modifier
-                      </button>
-                      <button 
-                        className="btn btn-danger btn-sm"
-                        onClick={() => handleDelete(residence)}
-                        disabled={saving}
-                        title="Supprimer la résidence"
-                        aria-label={`Supprimer ${residence.name}`}
-                      >
-                        <FaTrash />
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+      <div className="res-outils">
+        <label className="resa-recherche">
+          <FaSearch aria-hidden="true" />
+          <input type="search" placeholder="Nom, quartier, référence…" value={recherche} onChange={(e) => setRecherche(e.target.value)} aria-label="Rechercher une résidence" />
+        </label>
+        <button type="button" className="adm-btn principal" onClick={() => setShowAddForm(true)}>
+          <FaPlus /> Ajouter une résidence
+        </button>
       </div>
 
-      {/* Formulaire d'ajout de résidence */}
-      {showAddForm && (
-        <AddResidenceForm
-          onAddResidence={handleAdd}
-          onClose={() => setShowAddForm(false)}
-        />
-      )}
+      <div className="adm-onglets" role="tablist" aria-label="Filtrer par statut">
+        {[['', 'Toutes', residences.length], ...Object.entries(STATUTS).map(([s, v]) => [s, v.libelle, compte(s)])].map(([valeur, libelle, n]) => (
+          <button key={valeur || 'toutes'} type="button" role="tab" aria-selected={filtre === valeur}
+            className={`adm-onglet ${filtre === valeur ? 'actif' : ''}`} onClick={() => setFiltre(valeur)}>
+            {libelle} <span className="adm-compte">{n}</span>
+          </button>
+        ))}
+      </div>
+
+      {actionError && <div className="res-message erreur" role="alert">{actionError}</div>}
+      {notice && <div className="res-message ok" role="status">{notice}</div>}
+
+      <div className={`adm-maitre-detail ${editingResidence ? '' : 'sans-detail'}`}>
+        <div className="res-grille">
+          {visibles.length === 0 && <p className="adm-vide">Aucune résidence ne correspond.</p>}
+          {visibles.map((residence) => {
+            const st = STATUTS[residence.availability.status] || { libelle: residence.availability.status, classe: 'neutre' };
+            const maintenance = residence.availability.status === 'maintenance';
+            return (
+              <article key={residence.id} className={`adm-carte res-carte ${maintenance ? 'en-maintenance' : ''} ${editingResidence?.id === residence.id ? 'choisie' : ''}`}>
+                <div className="res-photo">
+                  {residence.images?.[0] && <img src={residence.images[0]} alt="" loading="lazy" />}
+                  <span className={`adm-badge ${st.classe}`}>{st.libelle}</span>
+                  {maintenance && <span className="res-voile"><FaTools /> Non réservable</span>}
+                </div>
+                <div className="res-corps">
+                  <div className="res-tete">
+                    <h3>{residence.name}</h3>
+                    <span className="res-prix">{Number(residence.price).toLocaleString('fr-FR')} <small>FCFA / nuit</small></span>
+                  </div>
+                  <p className="res-lieu">{residence.location} · <span>Réf. {residence.reference}</span></p>
+                  <ul className="res-specs">
+                    <li><FaBed aria-hidden="true" /> {residence.bedrooms} ch.</li>
+                    <li><FaUsers aria-hidden="true" /> {residence.maxGuests} pers.</li>
+                    <li><FaRegCalendarAlt aria-hidden="true" /> {residence.availability.minStay}–{residence.availability.maxStay} nuits</li>
+                  </ul>
+                  {residence.availability.automatic && residence.availability.checkIn && (
+                    <p className="res-sejour">
+                      {residence.availability.status === 'occupé' ? 'Occupée' : 'Prochain séjour'} : {formatDate(residence.availability.checkIn)} → {formatDate(residence.availability.checkOut)}
+                    </p>
+                  )}
+                  <div className="res-actions">
+                    <button type="button" className="adm-btn" onClick={() => handleEdit(residence)}><FaPen /> Modifier</button>
+                    <button type="button" className="adm-btn" onClick={() => navigate('/admin/calendrier')} aria-label={`Calendrier de ${residence.name}`}><FaRegCalendarAlt /></button>
+                    <button type="button" className={`adm-btn ${maintenance ? 'principal' : ''}`} onClick={() => basculerMaintenance(residence)} disabled={saving}
+                      aria-label={maintenance ? `Remettre ${residence.name} en location` : `Passer ${residence.name} en maintenance`}
+                      title={maintenance ? 'Remettre en location' : 'Passer en maintenance'}>
+                      {maintenance ? <FaCheck /> : <FaTools />}
+                    </button>
+                    <button type="button" className="adm-btn discret res-suppr" onClick={() => handleDelete(residence)} disabled={saving}
+                      aria-label={`Supprimer ${residence.name}`} title="Supprimer la résidence"><FaTrash /></button>
+                  </div>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+
+        {editingResidence && (
+          <aside className="adm-carte adm-panneau res-panneau" aria-label={`Modifier ${editingResidence.name}`}>
+            <div className="cal-panneau-tete">
+              <div>
+                <p className="surtitre">Modifier</p>
+                <h2>{editingResidence.name}</h2>
+              </div>
+              <button type="button" className="resa-fermer" onClick={() => setEditingResidence(null)} aria-label="Fermer"><FaTimes /></button>
+            </div>
+
+            {editingResidence.availability.automatic && editingResidence.availability.reservationId && (
+              <div className="res-info-auto">
+                <strong>{editingResidence.availability.status === 'occupé' ? 'Occupée' : 'Réservée'}</strong> par {editingResidence.availability.currentOccupant},
+                du {formatDate(editingResidence.availability.checkIn)} au {formatDate(editingResidence.availability.checkOut)} (réservation confirmée).
+                Elle se libère si le client demande l'annulation et que vous l'acceptez.
+              </div>
+            )}
+
+            <div className="cal-bloc">
+              <h3>Durée des séjours</h3>
+              <div className="cal-champs">
+                <label>Minimum (nuits)<input type="number" min="1" max="365" {...champ('minStay')} /></label>
+                <label>Maximum (nuits)<input type="number" min="1" max="365" {...champ('maxStay')} /></label>
+              </div>
+            </div>
+
+            <div className="cal-bloc">
+              <h3>Statut</h3>
+              <div className="res-statuts" role="radiogroup" aria-label="Statut">
+                {Object.entries(STATUTS).map(([s, v]) => (
+                  <label key={s} className={`res-statut ${editForm.status === s ? 'actif' : ''}`}>
+                    <input type="radio" name="statut" value={s} checked={editForm.status === s} onChange={() => setEditForm(prev => ({ ...prev, status: s }))} />
+                    <span className={`adm-badge ${v.classe}`}>{v.libelle}</span>
+                  </label>
+                ))}
+              </div>
+              {editForm.status === 'occupé' && (
+                <div className="cal-champs">
+                  <label>Occupant<input type="text" {...champ('currentOccupant')} /></label>
+                  <label>Libre le<input type="date" {...champ('nextAvailable')} /></label>
+                </div>
+              )}
+              {editForm.status === 'réservé' && (
+                <div className="cal-champs">
+                  <label>Client<input type="text" {...champ('currentOccupant')} /></label>
+                  <label>Arrivée<input type="date" {...champ('checkIn')} /></label>
+                  <label>Départ<input type="date" {...champ('checkOut')} /></label>
+                </div>
+              )}
+              <p className="res-aide">« Dates prises » et « Occupée » se calculent seuls à partir des réservations confirmées.</p>
+            </div>
+
+            <div className="resa-actions">
+              <button type="button" className="adm-btn" onClick={() => setEditingResidence(null)}>Annuler</button>
+              <button type="button" className="adm-btn principal" onClick={handleSave} disabled={saving}><FaSave /> Enregistrer</button>
+            </div>
+          </aside>
+        )}
+      </div>
+
+      {showAddForm && <AddResidenceForm onAddResidence={handleAdd} onClose={() => setShowAddForm(false)} />}
     </div>
   );
 };

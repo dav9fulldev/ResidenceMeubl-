@@ -3,11 +3,12 @@ import { Link } from 'react-router-dom';
 
 import { useFavorites } from '../context/FavoritesContext';
 import ResidenceCard from '../components/ResidenceCard';
-import { EMAIL } from '../components/Footer';
+import useEtablissement from '../hooks/useEtablissement';
 import './Favorites.css';
 
 const Favorites = () => {
   const { favorites } = useFavorites();
+  const { email: EMAIL } = useEtablissement();
 
   if (favorites.length === 0) {
     return (

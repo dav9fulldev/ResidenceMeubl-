@@ -44,7 +44,7 @@
   align-items: center;
   padding: 25px 30px;
   border-bottom: 1px solid var(--border);
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
   border-radius: 20px 20px 0 0;
 }
 
@@ -119,9 +119,9 @@
 .form-group select:focus,
 .form-group textarea:focus {
   outline: none;
-  border-color: #667eea;
+  border-color: var(--primary-color);
   background: var(--surface);
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+  box-shadow: 0 0 0 3px rgba(36, 60, 53, 0.1);
 }
 
 .form-group input.error,
@@ -158,13 +158,13 @@
 }
 
 .image-input:hover {
-  border-color: #667eea;
+  border-color: var(--primary-color);
   background: var(--surface-2);
 }
 
 .upload-icon {
   font-size: 1.2rem;
-  color: #667eea;
+  color: var(--primary-color);
 }
 
 .form-group small {
@@ -186,9 +186,9 @@
 
 .amenities-select:focus {
   outline: none;
-  border-color: #667eea;
+  border-color: var(--primary-color);
   background: var(--surface);
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+  box-shadow: 0 0 0 3px rgba(36, 60, 53, 0.1);
 }
 
 .selected-amenities {
@@ -214,19 +214,19 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
   color: white;
   padding: 6px 12px;
   border-radius: 20px;
   font-size: 0.85rem;
   font-weight: 500;
-  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
+  box-shadow: 0 2px 8px rgba(36, 60, 53, 0.2);
   transition: all 0.3s ease;
 }
 
 .amenity-tag:hover {
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+  box-shadow: 0 4px 12px rgba(36, 60, 53, 0.3);
 }
 
 .remove-amenity-btn {
@@ -262,7 +262,7 @@
 }
 
 .image-upload-area:hover {
-  border-color: #667eea;
+  border-color: var(--primary-color);
   background: #f0f4ff;
   transform: translateY(-2px);
 }
@@ -374,13 +374,13 @@
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
   color: white;
 }
 
 .btn-primary:hover {
   transform: translateY(-2px);
-  box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3);
+  box-shadow: 0 10px 25px rgba(36, 60, 53, 0.3);
 }
 
 .btn-secondary {

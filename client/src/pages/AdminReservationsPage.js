@@ -6,7 +6,7 @@ const AdminReservationsPage = () => (
     <div className="admin-page-header">
       <div>
         <h1>Réservations</h1>
-        <p>Confirmez, annulez et traitez les demandes d'annulation des clients.</p>
+        <p>Confirmez les demandes, suivez les acomptes et traitez les annulations.</p>
       </div>
     </div>
     <AdminReservations />

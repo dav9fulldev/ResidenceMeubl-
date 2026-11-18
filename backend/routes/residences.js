@@ -129,6 +129,25 @@ router.get('/quartiers/:ville', async (req, res) => {
 });
 
 /**
+ * @route   GET /api/residences/disponibles?arrivee=AAAA-MM-JJ&depart=AAAA-MM-JJ
+ * @desc    Résidences libres sur une période (recherche par dates de l'accueil)
+ * @access  Public
+ */
+router.get('/disponibles', async (req, res) => {
+  const { arrivee, depart } = req.query;
+  const date = /^\d{4}-\d{2}-\d{2}$/;
+  if (!date.test(String(arrivee || '')) || !date.test(String(depart || '')) || String(depart) <= String(arrivee)) {
+    return res.status(400).json({ success: false, message: 'Dates invalides (arrivee et depart au format AAAA-MM-JJ, départ après l\'arrivée)' });
+  }
+  try {
+    res.json({ success: true, data: { arrivee, depart, ids: await ReservationService.residencesLibres(arrivee, depart) } });
+  } catch (error) {
+    console.error('Erreur disponibilités :', error);
+    res.status(500).json({ success: false, message: 'Erreur lors de la recherche des disponibilités' });
+  }
+});
+
+/**
  * @route   POST /api/residences/check-disponibilite
  * @desc    Vérifier la disponibilité d'une résidence
  * @access  Public

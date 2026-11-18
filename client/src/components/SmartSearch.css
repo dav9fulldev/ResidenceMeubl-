@@ -1,5 +1,5 @@
 .smart-search {
-  background: linear-gradient(135deg, #1a1a2e 0%, #2d2a4a 100%);
+  background: linear-gradient(135deg, var(--green-deep) 0%, #2d2a4a 100%);
   color: white;
   border-radius: 16px;
   padding: 28px;
@@ -13,7 +13,7 @@
   gap: 10px;
   margin: 0 0 8px;
   font-size: 1.4rem;
-  color: #f5d77a;
+  color: var(--gold-ink);
 }
 
 .smart-search-hint {
@@ -48,7 +48,7 @@
 
 .smart-search-form input:focus {
   outline: none;
-  border-color: #d4af37;
+  border-color: var(--gold);
 }
 
 .smart-search-form .btn-outline {
@@ -77,8 +77,8 @@
 }
 
 .example-chip:hover:not(:disabled) {
-  border-color: #d4af37;
-  color: #f5d77a;
+  border-color: var(--gold);
+  color: var(--gold-ink);
 }
 
 .smart-search .error-message {
@@ -90,7 +90,7 @@
   padding: 16px 24px;
   background: var(--surface);
   border-radius: 8px;
-  border-left: 4px solid #d4af37;
+  border-left: 4px solid var(--gold);
 }
 
 .smart-search-summary p {
@@ -132,7 +132,7 @@
   bottom: 12px;
   left: 12px;
   background: rgba(26, 26, 46, 0.85);
-  color: #f5d77a;
+  color: var(--gold-ink);
   font-size: 0.8rem;
   font-weight: 600;
   padding: 4px 10px;
@@ -158,8 +158,8 @@
   height: 44px;
   border-radius: 50%;
   border: none;
-  background: #d4af37;
-  color: #1a1a2e;
+  background: var(--gold);
+  color: var(--green-deep);
   font-size: 1.1rem;
   display: inline-flex;
   align-items: center;
@@ -169,7 +169,7 @@
 }
 
 .mic-button:hover:not(:disabled) {
-  background: #f5d77a;
+  background: var(--gold-ink);
 }
 
 .mic-button.active {
@@ -184,7 +184,7 @@
 
 .voice-status {
   margin: 12px 0 0;
-  color: #f5d77a;
+  color: var(--gold-ink);
 }
 
 @keyframes mic-pulse {
@@ -242,6 +242,6 @@
 
 .smart-search-form .filters-button.open {
   background: rgba(255, 255, 255, 0.12);
-  border-color: #d4af37;
-  color: #f5d77a;
+  border-color: var(--gold);
+  color: var(--gold-ink);
 }

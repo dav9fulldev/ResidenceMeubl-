@@ -1,3 +1,4 @@
+const Settings = require('./SettingsService');
 const nodemailer = require('nodemailer');
 const AuthService = require('./AuthService');
 
@@ -40,6 +41,15 @@ class EmailService {
     return process.env.EMAIL_FROM || process.env.EMAIL_USER;
   }
 
+  // Destinataire des alertes : réglé dans le back-office, sinon ADMIN_EMAIL, sinon le compte d'envoi
+  get destinataireAdmin() {
+    return Settings.etablissement().emailNotifications || process.env.ADMIN_EMAIL || process.env.EMAIL_USER;
+  }
+
+  get nomEtablissement() {
+    return Settings.etablissement().nom || 'Sankofart Résidence';
+  }
+
   // Initialiser le transporteur SMTP (utilisé seulement sans Brevo)
   initTransporter() {
     try {
@@ -73,7 +83,7 @@ class EmailService {
           Accept: 'application/json',
         },
         body: JSON.stringify({
-          sender: { name: 'Sankofart Résidence', email: this.expediteur },
+          sender: { name: this.nomEtablissement, email: this.expediteur },
           to: [{ email: to }],
           ...(replyTo ? { replyTo: { email: replyTo } } : {}),
           subject,
@@ -93,7 +103,7 @@ class EmailService {
       throw new Error('Transporteur email non initialisé');
     }
     await this.transporter.sendMail({
-      from: `"Sankofart Résidence" <${this.expediteur}>`,
+      from: `"${this.nomEtablissement}" <${this.expediteur}>`,
       to,
       replyTo,
       subject,
@@ -109,7 +119,7 @@ class EmailService {
       // Email à l'administrateur et accusé de réception au client, en parallèle
       await Promise.all([
         this.envoyer({
-          to: process.env.ADMIN_EMAIL || process.env.EMAIL_USER,
+          to: this.destinataireAdmin,
           replyTo: info.client.email,
           subject: `🆕 Nouvelle réservation - ${info.residence.nom}`,
           html: this.generateAdminEmailHTML(info),
@@ -401,7 +411,7 @@ class EmailService {
   // Prévenir l'admin qu'un client demande une annulation
   async sendDemandeAnnulationAdmin(r) {
     await this.envoyer({
-      to: process.env.ADMIN_EMAIL || process.env.EMAIL_USER,
+      to: this.destinataireAdmin,
       replyTo: r.client.email,
       subject: `↩️ Demande d'annulation - ${r.residenceInfo?.nom} (${r.client.prenom} ${r.client.nom})`,
       html: this.emailSimple({
@@ -481,7 +491,7 @@ class EmailService {
   async sendAcompteRecuAdmin(r) {
     const a = r.acompte;
     await this.envoyer({
-      to: process.env.ADMIN_EMAIL || process.env.EMAIL_USER,
+      to: this.destinataireAdmin,
       replyTo: r.client.email,
       subject: `💰 Acompte reçu - ${r.client.prenom} ${r.client.nom} (${Number(a.montant).toLocaleString('fr-FR')} FCFA)`,
       html: this.emailSimple({

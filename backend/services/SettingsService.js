@@ -12,11 +12,34 @@ const DEFINITIONS = {
   nonRemboursableAvantArriveeJours: { env: 'ACOMPTE_NON_REMBOURSABLE_AVANT_ARRIVEE_JOURS', defaut: 3, min: 0, max: 365 },
 };
 
+// Identité de l'établissement (textes) : affichée sur le site, dans les emails et le back-office
+const TEXTES = {
+  nom: { defaut: 'Sankofart Résidence', max: 80, requis: true },
+  slogan: { defaut: 'Résidences meublées d\'exception à Abidjan', max: 160 },
+  telephone: { defaut: '+225 27 22 49 28 90', max: 30, type: 'tel' },
+  whatsapp: { defaut: '', max: 30, type: 'tel' },
+  email: { defaut: 'contact@sankofart-residence.com', max: 120, type: 'email' },
+  adresse: { defaut: 'Abidjan, Côte d\'Ivoire', max: 160 },
+  facebook: { defaut: '', max: 200, type: 'url' },
+  instagram: { defaut: '', max: 200, type: 'url' },
+  tiktok: { defaut: '', max: 200, type: 'url' },
+  x: { defaut: '', max: 200, type: 'url' },
+  // Privé : destinataire des alertes (nouvelle réservation, annulation…)
+  emailNotifications: { defaut: '', max: 120, type: 'email', prive: true },
+};
+
+const FORMATS = {
+  email: /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/,
+  tel: /^[+0-9 ().-]{6,30}$/,
+  url: /^https:\/\/[^\s]+$/,
+};
+
 class ErreurParametre extends Error {}
 
 class SettingsService {
   constructor() {
     this.cache = {};
+    this.textes = {};
   }
 
   defaut(cle) {
@@ -34,10 +57,45 @@ class SettingsService {
   }
 
   async charger() {
-    const doc = await db.collection('parametres').findOne({ _id: 'acompte' });
+    const [doc, etab] = await Promise.all([
+      db.collection('parametres').findOne({ _id: 'acompte' }),
+      db.collection('parametres').findOne({ _id: 'etablissement' }),
+    ]);
     this.cache = {};
     if (doc) for (const k of Object.keys(DEFINITIONS)) if (Number.isInteger(doc[k])) this.cache[k] = doc[k];
+    this.textes = {};
+    if (etab) for (const k of Object.keys(TEXTES)) if (typeof etab[k] === 'string') this.textes[k] = etab[k];
     return this.tous();
+  }
+
+  /** Identité complète (back-office) ; `publique` retire les champs privés. */
+  etablissement({ publique = false } = {}) {
+    return Object.fromEntries(Object.entries(TEXTES)
+      .filter(([, d]) => !(publique && d.prive))
+      .map(([k, d]) => [k, this.textes[k] ?? d.defaut]));
+  }
+
+  async modifierEtablissement(valeurs = {}) {
+    const maj = {};
+    for (const [k, v] of Object.entries(valeurs)) {
+      const d = TEXTES[k];
+      if (!d) continue;
+      const texte = String(v ?? '').trim();
+      if (d.requis && !texte) throw new ErreurParametre(`Le champ « ${k} » est obligatoire`);
+      if (texte.length > d.max) throw new ErreurParametre(`« ${k} » : ${d.max} caractères au maximum`);
+      if (texte && d.type && !FORMATS[d.type].test(texte)) {
+        const attendu = { email: 'une adresse email valide', tel: 'un numéro de téléphone valide', url: 'une adresse commençant par https://' }[d.type];
+        throw new ErreurParametre(`« ${k} » : ${attendu} est attendue`);
+      }
+      maj[k] = texte;
+    }
+    await db.collection('parametres').updateOne(
+      { _id: 'etablissement' },
+      { $set: { ...maj, modifieLe: new Date() } },
+      { upsert: true }
+    );
+    await this.charger();
+    return this.etablissement();
   }
 
   async modifier(valeurs = {}) {
@@ -63,4 +121,5 @@ class SettingsService {
 const service = new SettingsService();
 service.ErreurParametre = ErreurParametre;
 service.DEFINITIONS = DEFINITIONS;
+service.TEXTES = TEXTES;
 module.exports = service;

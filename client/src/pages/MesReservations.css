@@ -44,9 +44,9 @@
 }
 
 .acces-tabs button.active {
-  background: #1a1a2e;
-  border-color: #1a1a2e;
-  color: #f5d77a;
+  background: var(--green-deep);
+  border-color: var(--green-deep);
+  color: var(--gold-ink);
 }
 
 .acces-form {
@@ -79,7 +79,7 @@
 .acces-form input:focus,
 .cancel-form textarea:focus {
   outline: none;
-  border-color: #d4af37;
+  border-color: var(--gold);
 }
 
 .acces-form .btn {
@@ -214,8 +214,8 @@
   margin-top: 10px;
   padding: 12px;
   border-radius: 10px;
-  background: rgba(212, 175, 55, 0.12);
-  border: 1px solid rgba(212, 175, 55, 0.4);
+  background: rgba(196, 154, 98, 0.12);
+  border: 1px solid rgba(196, 154, 98, 0.4);
 }
 
 .acompte-bloc p {
