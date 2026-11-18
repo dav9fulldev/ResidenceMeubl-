@@ -27,14 +27,28 @@ if (process.env.NODE_ENV !== 'test') {
   app.use(morgan(':client-ip - :remote-user [:date[clf]] ":method :url HTTP/:http-version" :status :res[content-length] ":referrer" ":user-agent"'));
 }
 
+// ✅ En-têtes de sécurité (API JSON : rien à afficher dans une page, ni à intégrer en iframe)
+app.disable('x-powered-by');
+app.use((req, res, next) => {
+  res.set({
+    'X-Content-Type-Options': 'nosniff',
+    'X-Frame-Options': 'DENY',
+    'Content-Security-Policy': "default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
+    'Referrer-Policy': 'no-referrer',
+    'Cross-Origin-Opener-Policy': 'same-origin',
+    'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
+    ...(process.env.NODE_ENV === 'production' ? { 'Strict-Transport-Security': 'max-age=63072000; includeSubDomains' } : {}),
+  });
+  next();
+});
+
 // ✅ Configuration CORS
 const allowedOrigins = [
   // FRONTEND_URL peut contenir plusieurs adresses séparées par des virgules
   ...(process.env.FRONTEND_URL || 'https://sankofart-residence.vercel.app')
     .split(',').map(url => url.trim().replace(/\/$/, '')).filter(Boolean),
-  'http://localhost:3000', // Pour le développement
-  'http://localhost:3001', // Développement (3000 parfois occupé)
-  'http://localhost:5173'  // Pour Vite
+  // Adresses de développement : jamais en production
+  ...(process.env.NODE_ENV === 'production' ? [] : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:5173']),
 ];
 
 app.use(cors({
@@ -51,7 +65,7 @@ app.use(cors({
       callback(null, false);
     }
   },
-  credentials: true
+  credentials: false // authentification par jeton (en-tête), aucun cookie
 }));
 
 // Webhook PI-SPI : corps brut indispensable pour vérifier la signature X-Signature
@@ -88,8 +102,10 @@ app.post('/api/paiements/geniuspay/webhook', express.raw({ type: '*/*', limit: '
   PaymentService.traiterEvenementGeniusPay(corps).catch(e => console.error('⚠️ Webhook GeniusPay :', e.message));
 });
 
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+// Taille maximale des requêtes : 100 ko pour le public, 2 Mo pour le back-office (fiches résidences)
+app.use('/api/admin', express.json({ limit: '2mb' }));
+app.use(express.json({ limit: '100kb' }));
+app.use(express.urlencoded({ extended: false, limit: '100kb' }));
 
 // ✅ Limiter les requêtes globales pour protéger contre le spam
 const globalLimiter = rateLimit({
@@ -166,6 +182,13 @@ app.use('*', (req, res) => {
 
 // ✅ Gestion globale des erreurs
 app.use((error, req, res, next) => {
+  // Requête trop volumineuse ou JSON mal formé : erreur du client, sans trace ni détail interne
+  if (error.type === 'entity.too.large') {
+    return res.status(413).json({ success: false, message: 'Requête trop volumineuse' });
+  }
+  if (error.type === 'entity.parse.failed') {
+    return res.status(400).json({ success: false, message: 'Requête invalide' });
+  }
   console.error('❌ Erreur globale:', error);
   
   if (error.message === 'Non autorisé par CORS') {
