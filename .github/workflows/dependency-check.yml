@@ -28,7 +28,7 @@ jobs:
     env:
       DC_VERSION: "13.0.0"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Base de vulnérabilités conservée entre les exécutions (mise à jour incrémentale)
       - name: Cache de la base NVD
