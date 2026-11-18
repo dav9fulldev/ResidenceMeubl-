@@ -1,0 +1,45 @@
+name: OWASP ZAP (analyse passive)
+
+# Observe le site et l'API en production comme un visiteur, sans envoyer d'attaque :
+# en-têtes de sécurité, cookies, fuites d'informations, contenu mixte…
+# Le résultat est un rapport téléchargeable ; l'analyse ne bloque rien.
+on:
+  schedule:
+    - cron: '0 7 * * 1'   # chaque lundi
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  zap:
+    name: ZAP ${{ matrix.cible.nom }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        cible:
+          - { nom: site, url: "https://residencemeublee.vercel.app" }
+          - { nom: api, url: "https://sankofart-residence-api.onrender.com/api/residences" }
+    steps:
+      - uses: actions/checkout@v4
+
+      # L'API gratuite de Render s'endort : on la réveille avant l'analyse
+      - name: Réveil de la cible
+        run: |
+          for i in $(seq 1 12); do
+            curl -s -o /dev/null -w '%{http_code}\n' --max-time 30 "${{ matrix.cible.url }}" | grep -q '^200$' && exit 0
+            sleep 10
+          done
+          echo "::warning::La cible ne répond pas encore, l'analyse continue."
+
+      - name: Analyse passive ZAP
+        uses: zaproxy/action-baseline@v0.15.0
+        with:
+          target: ${{ matrix.cible.url }}
+          rules_file_name: .zap/rules.tsv
+          cmd_options: '-I'
+          fail_action: false
+          allow_issue_writing: false
+          artifact_name: rapport-zap-${{ matrix.cible.nom }}

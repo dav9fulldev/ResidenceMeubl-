@@ -1,0 +1,2 @@
+# Règles ZAP : IGNORE (faux positif accepté), WARN ou FAIL. Format : identifiant<TAB>action<TAB>commentaire
+# Exemple : 10049	IGNORE	Contenu non mis en cache : voulu pour /admin

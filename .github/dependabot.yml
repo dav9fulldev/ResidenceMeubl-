@@ -1,0 +1,31 @@
+# Mises à jour automatiques des dépendances (PR ouvertes par Dependabot)
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /backend
+    schedule:
+      interval: weekly
+      day: monday
+      time: "07:00"
+      timezone: Africa/Abidjan
+    open-pull-requests-limit: 5
+    groups:
+      correctifs-backend:
+        update-types: [minor, patch]
+
+  - package-ecosystem: npm
+    directory: /client
+    schedule:
+      interval: weekly
+      day: monday
+      time: "07:00"
+      timezone: Africa/Abidjan
+    open-pull-requests-limit: 5
+    groups:
+      correctifs-client:
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
