@@ -243,3 +243,48 @@
   text-align: right;
   margin: 0 0 8px;
 }
+
+/* Retour de la page de paiement GeniusPay */
+.mes-reservations-page .retour-paiement {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 16px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  font-weight: 500;
+}
+
+.mes-reservations-page .retour-paiement p { margin: 0; flex: 1; }
+.mes-reservations-page .retour-paiement.verif,
+.mes-reservations-page .retour-paiement.attente { background: var(--gold-soft); color: var(--text); }
+.mes-reservations-page .retour-paiement.paye { background: #E3F2EA; color: #1E6B47; }
+.mes-reservations-page .retour-paiement.echec { background: #FDECE6; color: #A33A1C; }
+:root[data-theme="dark"] .mes-reservations-page .retour-paiement.paye { background: rgba(70, 190, 130, 0.14); color: #7FD6A8; }
+:root[data-theme="dark"] .mes-reservations-page .retour-paiement.echec { background: rgba(240, 110, 80, 0.14); color: #F4A28C; }
+
+.mes-reservations-page .retour-fermer {
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font-size: 1.3rem;
+  cursor: pointer;
+}
+
+.mes-reservations-page .retour-spinner {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  border: 2px solid var(--gold);
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: retour-tourne 0.8s linear infinite;
+}
+
+@keyframes retour-tourne { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .mes-reservations-page .retour-spinner { animation: none; } }
+
+.mes-reservations-page .acompte-moyens-acceptes { margin: 6px 0 0; font-size: 0.8rem; color: var(--text-muted); }

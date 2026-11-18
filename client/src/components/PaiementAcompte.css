@@ -341,3 +341,63 @@
 .acompte-recap-succes { list-style: none; margin: 14px 0 18px; padding: 12px 14px; border-radius: 12px; background: var(--surface-2); text-align: left; }
 .acompte-recap-succes li { display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; font-size: 0.9rem; }
 .acompte-recap-succes span { color: var(--text-muted); }
+
+/* Choix du moyen de paiement */
+.acompte-choix { display: flex; flex-direction: column; gap: 10px; }
+.acompte-choix-titre { margin: 4px 0 2px; font-weight: 700; color: var(--text); }
+
+.acompte-moyen {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  min-height: 72px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.acompte-moyen:hover, .acompte-moyen:focus-visible { border-color: var(--gold); box-shadow: 0 0 0 3px var(--gold-soft); outline: none; }
+.acompte-moyen b { display: block; font-size: 0.98rem; }
+.acompte-moyen small { display: block; margin-top: 2px; color: var(--text-muted); font-size: 0.8rem; line-height: 1.4; }
+
+.acompte-moyen-icone {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.15rem;
+}
+
+.acompte-moyen-icone.gp { background: #3B2A6B; color: #fff; }
+.acompte-moyen-icone.pi { background: #F2B705; color: #1F2A26; }
+
+.acompte-retour-choix {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--gold-ink);
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.acompte-genius { display: flex; flex-direction: column; gap: 10px; }
+.acompte-genius-modes { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.acompte-genius-modes li { padding: 4px 10px; border-radius: 999px; background: var(--surface-2); font-size: 0.8rem; color: var(--text); }
+.acompte-genius .acompte-valider { display: inline-flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none; }

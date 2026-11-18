@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { FaQrcode, FaMobileAlt, FaCheckCircle, FaTimes, FaCamera, FaImage, FaPaste } from 'react-icons/fa';
+import { FaQrcode, FaMobileAlt, FaCheckCircle, FaTimes, FaCamera, FaImage, FaPaste, FaArrowLeft, FaLock, FaUniversity, FaWallet } from 'react-icons/fa';
 import { API_ENDPOINTS, apiRequest } from '../config/api';
 import { aliasDepuisQr, lireQrDepuisFichier, lireQrDepuisVideo, cameraDisponible } from '../utils/pispiQr';
 
@@ -32,6 +32,9 @@ const fcfa = (n) => `${Number(n || 0).toLocaleString('fr-FR')} FCFA`;
 export const preparerPaiementDirect = (reservation) => {
   const alias = lireAliasMemorise();
   const mobile = window.matchMedia?.('(max-width: 768px)').matches;
+  const moyens = reservation.acompte?.moyens || ['pispi'];
+  // Un seul geste seulement si PI-SPI est le seul moyen proposé (sinon le client choisit)
+  if (moyens.length !== 1 || moyens[0] !== 'pispi') return null;
   if (!mobile || !UUID_V4.test(alias) || !reservation.acompte?.appUrl) return null;
   const fenetre = window.open('', '_blank');
   return { alias, fenetre };
@@ -39,6 +42,10 @@ export const preparerPaiementDirect = (reservation) => {
 
 const PaiementAcompte = ({ reservation, token, onPaye, onFermer, direct = null }) => {
   const a = reservation.acompte;
+  const moyens = a.moyens?.length ? a.moyens : ['pispi'];
+  // Moyen choisi : direct s'il n'y en a qu'un, sinon le client choisit
+  const [fournisseur, setFournisseur] = useState(direct ? 'pispi' : (moyens.length === 1 ? moyens[0] : null));
+  const geniusEnCours = a.enCours?.methode === 'geniuspay' && a.enCours.checkoutUrl ? a.enCours : null;
   const mobile = typeof window !== 'undefined' && window.matchMedia?.('(max-width: 768px)').matches;
   const [methode, setMethode] = useState(mobile ? 'demande' : 'qr');
   const [alias, setAlias] = useState(lireAliasMemorise);
@@ -193,6 +200,20 @@ const PaiementAcompte = ({ reservation, token, onPaye, onFermer, direct = null }
     }
   };
 
+  // GeniusPay : création de la page de paiement puis redirection (retour sur « Mes réservations »)
+  const payerGeniusPay = async () => {
+    setErreur('');
+    setEnvoi(true);
+    try {
+      const r = await apiRequest(urlAcompte, { method: 'POST', token, body: { methode: 'geniuspay' } });
+      if (!r.data?.checkoutUrl) throw new Error('La page de paiement n\'a pas pu être ouverte. Réessayez.');
+      window.location.assign(r.data.checkoutUrl);
+    } catch (err) {
+      setErreur(err.message);
+      setEnvoi(false);
+    }
+  };
+
   const simuler = async () => {
     try {
       const r = await apiRequest(`${urlAcompte}/${paiement.txId}/simuler`, { method: 'POST', token });
@@ -224,7 +245,7 @@ const PaiementAcompte = ({ reservation, token, onPaye, onFermer, direct = null }
           <div className="acompte-succes" role="status">
             <FaCheckCircle />
             <h3>Acompte reçu, votre séjour est garanti</h3>
-            <p>{fcfa(a.montant)} ont bien été payés par PI-SPI. Un reçu vous a été envoyé par email.</p>
+            <p>{fcfa(a.montant)} ont bien été payés{a.methode === 'geniuspay' ? ' via GeniusPay' : ' par PI-SPI'}. Un reçu vous a été envoyé par email.</p>
             <ul className="acompte-recap-succes">
               <li><span>Résidence</span><b>{reservation.residence.nom}</b></li>
               <li><span>Dates</span><b>{new Date(reservation.dates.arrivee).toLocaleDateString('fr-FR')} → {new Date(reservation.dates.depart).toLocaleDateString('fr-FR')}</b></li>
@@ -232,8 +253,46 @@ const PaiementAcompte = ({ reservation, token, onPaye, onFermer, direct = null }
             </ul>
             <button type="button" className="btn btn-primary" onClick={onFermer}>Fermer</button>
           </div>
+        ) : !paiement && fournisseur === null ? (
+          <div className="acompte-choix">
+            <p className="acompte-choix-titre">Comment souhaitez-vous payer ?</p>
+            {moyens.includes('geniuspay') && (
+              <button type="button" className="acompte-moyen" onClick={() => setFournisseur('geniuspay')}>
+                <span className="acompte-moyen-icone gp"><FaWallet /></span>
+                <span><b>Mobile Money ou carte</b><small>Wave, Orange Money, MTN, Moov, carte bancaire · via GeniusPay</small></span>
+              </button>
+            )}
+            {moyens.includes('pispi') && (
+              <button type="button" className="acompte-moyen" onClick={() => setFournisseur('pispi')}>
+                <span className="acompte-moyen-icone pi"><FaUniversity /></span>
+                <span><b>Application bancaire (PI-SPI)</b><small>QR code ou demande de paiement, paiement instantané BCEAO</small></span>
+              </button>
+            )}
+            {erreur && <p className="error-message" role="alert">{erreur}</p>}
+          </div>
+        ) : !paiement && fournisseur === 'geniuspay' ? (
+          <div className="acompte-genius">
+            {moyens.length > 1 && <button type="button" className="acompte-retour-choix" onClick={() => setFournisseur(null)}><FaArrowLeft /> Autre moyen de paiement</button>}
+            <ul className="acompte-genius-modes" aria-label="Moyens acceptés">
+              {['Wave', 'Orange Money', 'MTN MoMo', 'Moov Money', 'Carte bancaire'].map(m => <li key={m}>{m}</li>)}
+            </ul>
+            <p className="acompte-aide">Vous allez être redirigé vers la page de paiement sécurisée GeniusPay pour choisir votre moyen de paiement. Une fois le paiement validé, vous revenez automatiquement ici.</p>
+            {geniusEnCours ? (
+              <>
+                <a className="btn btn-primary acompte-valider" href={geniusEnCours.checkoutUrl}>Reprendre mon paiement de {fcfa(a.montant)}</a>
+                <p className="acompte-astuce">Un paiement est déjà ouvert : il reste valable jusqu'au {new Date(geniusEnCours.expireLe).toLocaleString('fr-FR', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}.</p>
+              </>
+            ) : (
+              <button type="button" className="btn btn-primary acompte-valider" onClick={payerGeniusPay} disabled={envoi}>
+                <FaLock aria-hidden="true" /> {envoi ? 'Ouverture du paiement…' : `Payer ${fcfa(a.montant)}`}
+              </button>
+            )}
+            {erreur && <p className="error-message" role="alert">{erreur}</p>}
+            {a.conditions && <p className="acompte-conditions">{a.conditions}</p>}
+          </div>
         ) : !paiement ? (
           <>
+            {moyens.length > 1 && <button type="button" className="acompte-retour-choix" onClick={() => setFournisseur(null)}><FaArrowLeft /> Autre moyen de paiement</button>}
             {aliasMemorise && UUID_V4.test(aliasMemorise) && (
               <div className="acompte-rapide">
                 <button type="button" className="btn btn-primary acompte-valider" onClick={() => demarrer(aliasMemorise)} disabled={envoi}>
@@ -361,7 +420,9 @@ const PaiementAcompte = ({ reservation, token, onPaye, onFermer, direct = null }
           </>
         )}
         {a.conditions && statut !== 'paye' && <p className="acompte-conditions">ℹ️ {a.conditions}</p>}
-        <p className="acompte-pied">Paiement instantané sécurisé PI-SPI (BCEAO)</p>
+        <p className="acompte-pied">
+          {fournisseur === 'geniuspay' ? 'Paiement sécurisé GeniusPay' : fournisseur === 'pispi' ? 'Paiement instantané sécurisé PI-SPI (BCEAO)' : 'Paiement sécurisé · aucune donnée bancaire n\'est conservée sur notre site'}
+        </p>
       </div>
     </div>
   );

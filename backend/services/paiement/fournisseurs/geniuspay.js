@@ -1,21 +1,20 @@
+const GeniusPay = require('../GeniusPayClient');
+
 /**
- * GeniusPay : intégration prévue (paiements Mobile Money et cartes).
- *
- * Pour l'activer plus tard :
- *  1. écrire le client de l'API (comme PiSpiClient) et ses identifiants dans les variables d'environnement ;
- *  2. compléter ici `estConfigure`, `problemes`, `modes`, `capacites` et passer `aVenir` à false ;
- *  3. brancher le démarrage, la vérification et le remboursement du paiement dans PaymentService / RefundService.
- * Tant que `aVenir` vaut true, le moyen apparaît dans le back-office mais ne peut pas être activé.
+ * GeniusPay : page de paiement hébergée (Wave, Orange Money, MTN, Moov, carte bancaire).
+ * Pas d'API de remboursement : un acompte GeniusPay à rendre est signalé « à rembourser »
+ * dans le back-office et se rembourse depuis le tableau de bord GeniusPay.
  */
 module.exports = {
   id: 'geniuspay',
   nom: 'GeniusPay',
   organisme: 'Agrégateur de paiement',
-  description: 'Mobile Money et cartes bancaires via un agrégateur. Intégration prévue.',
-  modes: ['Mobile Money', 'Carte bancaire'],
+  description: 'Le client est redirigé vers une page de paiement sécurisée GeniusPay et choisit Wave, Orange Money, MTN, Moov ou sa carte bancaire.',
+  modes: ['Wave', 'Orange Money', 'MTN MoMo', 'Moov Money', 'Carte bancaire'],
   capacites: { acompte: true, remboursementAutomatique: false, remboursementPartiel: false },
-  aVenir: true,
-  variables: [],
-  problemes: () => ['Intégration en cours de développement'],
-  estConfigure: () => false,
+  aVenir: false,
+  variables: ['GENIUSPAY_API_KEY', 'GENIUSPAY_API_SECRET', 'GENIUSPAY_WEBHOOK_SECRET'],
+  problemes: () => GeniusPay.problemesConfiguration(),
+  estConfigure: () => GeniusPay.estConfigure(),
+  environnement: () => GeniusPay.environnement,
 };

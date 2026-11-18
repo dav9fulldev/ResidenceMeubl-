@@ -66,6 +66,11 @@ class RefundService {
       pourcentage,
       montant, depuis: r.acompte.remboursement?.depuis || maintenant, tentatives: (r.acompte.remboursement?.tentatives || 0) + 1, derniereTentative: maintenant };
 
+    // GeniusPay n'offre pas d'API de remboursement : à faire depuis son tableau de bord
+    if (r.acompte.methode === 'geniuspay') {
+      return this.majRemboursement(r.id, { ...base, statut: 'a_rembourser', raison: `À rembourser depuis le tableau de bord GeniusPay (paiement ${r.acompte.end2endId || r.acompte.txId})` });
+    }
+
     if (acompte.mode() === 'simulation') {
       const maj = await this.majRemboursement(r.id, { ...base, statut: 'rembourse', le: maintenant, reference: 'SIMULATION', automatique: true, methode: pourcentage >= 100 ? 'retour' : 'paiement' });
       this.prevenir(maj);

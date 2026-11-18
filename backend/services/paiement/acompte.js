@@ -31,6 +31,18 @@ function mode() {
   return m;
 }
 
+/**
+ * Moyens de paiement proposés au client pour l'acompte.
+ * PI-SPI : selon mode() ; GeniusPay : configuré et activé dans le back-office.
+ */
+function moyensDisponibles() {
+  const moyens = [];
+  if (['pispi', 'simulation'].includes(mode())) moyens.push('pispi');
+  const GeniusPay = require('./GeniusPayClient');
+  if (GeniusPay.estConfigure() && Settings.moyenActif('geniuspay')) moyens.push('geniuspay');
+  return moyens;
+}
+
 const pourcentage = () => Settings.get('acomptePourcentage');
 const pourcentageRembourse = () => Settings.get('remboursementPourcentage');
 const montantRembourse = (montantAcompte, pct = pourcentageRembourse()) => (pct >= 100
@@ -106,13 +118,15 @@ function etatAcompte(r) {
   const paye = Boolean(r.acompte?.paye);
   const montant = paye ? r.acompte.montant : montantAcompte(r.prixTotal);
   const enCours = paiementEnCours(r);
-  const possible = mode() !== 'desactive'
+  const moyens = moyensDisponibles();
+  const possible = moyens.length > 0
     && r.statut === 'confirmee'
     && !paye
     && r.dates?.depart > aujourdhui()
     && r.demandeAnnulation?.statut !== 'en_attente';
   return {
     mode: mode(),
+    moyens,
     pourcentage: paye ? r.acompte.pourcentage ?? pourcentage() : pourcentage(),
     montant,
     paye,
@@ -123,7 +137,7 @@ function etatAcompte(r) {
     politique: politiqueRemboursement(r, r.demandeAnnulation?.statut === 'en_attente' ? r.demandeAnnulation.dateDemande : new Date()),
     conditions: conditionsRemboursement(),
     appUrl: /^https:\/\//.test((process.env.PISPI_APP_URL || '').trim()) ? process.env.PISPI_APP_URL.trim() : null,
-    enCours: enCours ? { txId: enCours.txId, methode: enCours.methode, expireLe: enCours.expireLe } : null,
+    enCours: enCours ? { txId: enCours.txId, methode: enCours.methode, expireLe: enCours.expireLe, checkoutUrl: enCours.checkoutUrl || null } : null,
     doublons: (r.paiements || []).filter(p => p.statut === 'doublon').map(p => ({ txId: p.txId, montant: p.montant, payeLe: p.payeLe })),
   };
 }
@@ -138,6 +152,6 @@ module.exports = {
   politiqueRemboursement,
   pourcentageRembourse,
   montantRembourse,
-  mode, pourcentage, montantAcompte, etatAcompte, paiementEnCours, genererTxId,
+  mode, moyensDisponibles, pourcentage, montantAcompte, etatAcompte, paiementEnCours, genererTxId,
   DUREE_QR_MS, DUREE_DEMANDE_MS, MARGE_VERIFICATION_MS,
 };

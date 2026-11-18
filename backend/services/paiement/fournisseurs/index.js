@@ -28,6 +28,7 @@ function etat(f) {
     activable: configure,
     actif: configure && Settings.moyenActif(f.id),
     variables: f.variables,
+    environnement: configure && f.environnement ? f.environnement() : null,
   };
 }
 

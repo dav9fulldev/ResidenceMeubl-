@@ -301,9 +301,9 @@ const AdminReservations = () => {
           {/* Acompte */}
           {(selection.statut === 'confirmee' || selection.acompte?.paye) && selection.acompte && (
             <div className="resa-bloc">
-              <h3>Acompte PI-SPI</h3>
+              <h3>Acompte{selection.acompte.methode === 'geniuspay' ? ' · GeniusPay' : selection.acompte.paye ? ' · PI-SPI' : ''}</h3>
               {selection.acompte.paye
-                ? <p><b>{fcfa(selection.acompte.montant)}</b> payés le {formatDate(selection.acompte.payeLe)}.</p>
+                ? <p><b>{fcfa(selection.acompte.montant)}</b> payés le {formatDate(selection.acompte.payeLe)}{selection.acompte.methode === 'geniuspay' && selection.acompte.end2endId ? ` (réf. GeniusPay ${selection.acompte.end2endId})` : ''}.</p>
                 : <p><b>{fcfa(selection.acompte.montant)}</b> à payer par le client depuis « Mes réservations ».</p>}
               {selection.acompte.remboursement?.statut === 'en_cours' && (
                 <p>Remboursement de {fcfa(selection.acompte.remboursement.montant ?? selection.acompte.montant)} en cours via PI-SPI…</p>
@@ -323,7 +323,9 @@ const AdminReservations = () => {
                 <div className="resa-probleme">
                   <p><FaExclamationTriangle /> Remboursement de {fcfa(selection.acompte.remboursement.montant ?? selection.acompte.montant)} non effectué{selection.acompte.remboursement.raison ? ` : ${selection.acompte.remboursement.raison}` : ''}.</p>
                   <div className="resa-actions-ligne">
-                    <button type="button" className="adm-btn principal" onClick={() => relancer(selection)}>Relancer via PI-SPI</button>
+                    {selection.acompte.methode !== 'geniuspay' && (
+                      <button type="button" className="adm-btn principal" onClick={() => relancer(selection)}>Relancer via PI-SPI</button>
+                    )}
                     <button type="button" className="adm-btn" onClick={() => rembourser(selection)}>Remboursé autrement</button>
                   </div>
                 </div>
