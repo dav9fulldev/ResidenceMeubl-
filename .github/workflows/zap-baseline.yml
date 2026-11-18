@@ -23,7 +23,7 @@ jobs:
           - { nom: site, url: "https://residencemeublee.vercel.app" }
           - { nom: api, url: "https://sankofart-residence-api.onrender.com/api/residences" }
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # L'API gratuite de Render s'endort : on la réveille avant l'analyse
       - name: Réveil de la cible
