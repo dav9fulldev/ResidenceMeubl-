@@ -29,19 +29,23 @@ const fcfa = (n) => `${Number(n || 0).toLocaleString('fr-FR')} FCFA`;
  * est configurée, on ouvre l'onglet tout de suite (pendant le geste, sinon le navigateur bloque),
  * puis on envoie la demande et on y charge l'application.
  */
-export const preparerPaiementDirect = (reservation) => {
+export const preparerPaiementDirect = (reservation, objet = 'acompte') => {
   const alias = lireAliasMemorise();
   const mobile = window.matchMedia?.('(max-width: 768px)').matches;
-  const moyens = reservation.acompte?.moyens || ['pispi'];
+  const cible = reservation[objet];
+  const moyens = cible?.moyens || ['pispi'];
   // Un seul geste seulement si PI-SPI est le seul moyen proposé (sinon le client choisit)
   if (moyens.length !== 1 || moyens[0] !== 'pispi') return null;
-  if (!mobile || !UUID_V4.test(alias) || !reservation.acompte?.appUrl) return null;
+  if (!mobile || !UUID_V4.test(alias) || !cible?.appUrl) return null;
   const fenetre = window.open('', '_blank');
   return { alias, fenetre };
 };
 
-const PaiementAcompte = ({ reservation, token, onPaye, onFermer, direct = null }) => {
-  const a = reservation.acompte;
+const PaiementAcompte = ({ reservation, token, onPaye, onFermer, direct = null, objet = 'acompte' }) => {
+  const solde = objet === 'solde';
+  // Ce qu'on paie : l'acompte ou le solde du séjour (même circuit de paiement)
+  const a = solde ? reservation.solde : reservation.acompte;
+  const acompteRegle = Number(reservation.acompte?.montant) || 0;
   const moyens = a.moyens?.length ? a.moyens : ['pispi'];
   // Moyen choisi : direct s'il n'y en a qu'un, sinon le client choisit
   const [fournisseur, setFournisseur] = useState(direct ? 'pispi' : (moyens.length === 1 ? moyens[0] : null));
@@ -73,9 +77,9 @@ const PaiementAcompte = ({ reservation, token, onPaye, onFermer, direct = null }
       try {
         const r = await apiRequest(`${urlAcompte}/${paiement.txId}`, { token });
         setStatut(r.data.statut);
-        if (r.data.statut === 'paye' || r.data.acompte?.paye) {
+        if (r.data.statut === 'paye' || (!solde && r.data.acompte?.paye)) {
           setStatut('paye');
-          onPaye?.(r.data.acompte);
+          onPaye?.(r.data[objet]);
         } else if (['refuse', 'expire'].includes(r.data.statut)) {
           setMessage(r.data.raison || 'Le paiement n\'a pas abouti.');
         }
@@ -186,7 +190,7 @@ const PaiementAcompte = ({ reservation, token, onPaye, onFermer, direct = null }
     try {
       const r = await apiRequest(urlAcompte, {
         method: 'POST', token,
-        body: (aliasForce || methode === 'demande') ? { methode: 'demande', payeurAlias: aliasPropre } : { methode },
+        body: (aliasForce || methode === 'demande') ? { methode: 'demande', payeurAlias: aliasPropre, objet } : { methode, objet },
       });
       setPaiement(r.data);
       setStatut('en_attente');
@@ -205,7 +209,7 @@ const PaiementAcompte = ({ reservation, token, onPaye, onFermer, direct = null }
     setErreur('');
     setEnvoi(true);
     try {
-      const r = await apiRequest(urlAcompte, { method: 'POST', token, body: { methode: 'geniuspay' } });
+      const r = await apiRequest(urlAcompte, { method: 'POST', token, body: { methode: 'geniuspay', objet } });
       if (!r.data?.checkoutUrl) throw new Error('La page de paiement n\'a pas pu être ouverte. Réessayez.');
       window.location.assign(r.data.checkoutUrl);
     } catch (err) {
@@ -218,7 +222,7 @@ const PaiementAcompte = ({ reservation, token, onPaye, onFermer, direct = null }
     try {
       const r = await apiRequest(`${urlAcompte}/${paiement.txId}/simuler`, { method: 'POST', token });
       setStatut('paye');
-      onPaye?.(r.data.acompte);
+      onPaye?.(r.data[objet]);
     } catch (err) {
       setErreur(err.message);
     }
@@ -234,22 +238,32 @@ const PaiementAcompte = ({ reservation, token, onPaye, onFermer, direct = null }
     <div className="acompte-modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="acompte-titre" onClick={onFermer}>
       <div className="acompte-modal" onClick={(e) => e.stopPropagation()}>
         <button type="button" className="acompte-fermer" onClick={onFermer} aria-label="Fermer"><FaTimes /></button>
-        <h2 id="acompte-titre">Payer l'acompte</h2>
-        <dl className="acompte-montants">
-          <div><dt>Séjour à {reservation.residence.nom}</dt><dd>{fcfa(reservation.prixTotal)}</dd></div>
-          <div className="acompte-ligne"><dt>Acompte à payer maintenant ({a.pourcentage} %)</dt><dd>{fcfa(a.montant)}</dd></div>
-          <div className="solde"><dt>Solde restant</dt><dd>{fcfa(Number(reservation.prixTotal) - Number(a.montant))}</dd></div>
-        </dl>
+        <h2 id="acompte-titre">{solde ? 'Payer le solde du séjour' : 'Payer l\'acompte'}</h2>
+        {solde ? (
+          <dl className="acompte-montants">
+            <div><dt>Séjour à {reservation.residence.nom}</dt><dd>{fcfa(reservation.prixTotal)}</dd></div>
+            <div className="solde"><dt>Acompte déjà réglé</dt><dd>− {fcfa(acompteRegle)}</dd></div>
+            <div className="acompte-ligne"><dt>Solde à payer maintenant</dt><dd>{fcfa(a.montant)}</dd></div>
+          </dl>
+        ) : (
+          <dl className="acompte-montants">
+            <div><dt>Séjour à {reservation.residence.nom}</dt><dd>{fcfa(reservation.prixTotal)}</dd></div>
+            <div className="acompte-ligne"><dt>Acompte à payer maintenant ({a.pourcentage} %)</dt><dd>{fcfa(a.montant)}</dd></div>
+            <div className="solde"><dt>Solde restant</dt><dd>{fcfa(Number(reservation.prixTotal) - Number(a.montant))}</dd></div>
+          </dl>
+        )}
 
         {statut === 'paye' ? (
           <div className="acompte-succes" role="status">
             <FaCheckCircle />
-            <h3>Acompte reçu, votre séjour est garanti</h3>
-            <p>{fcfa(a.montant)} ont bien été payés{a.methode === 'geniuspay' ? ' via GeniusPay' : ' par PI-SPI'}. Un reçu vous a été envoyé par email.</p>
+            <h3>{solde ? 'Séjour entièrement réglé' : 'Acompte reçu, votre séjour est garanti'}</h3>
+            <p>{fcfa(a.montant)} ont bien été payés{a.methode === 'geniuspay' ? ' via GeniusPay' : a.methode ? ' par PI-SPI' : ''}. {solde ? 'Rien ne vous sera demandé à l\'arrivée. ' : ''}Un reçu vous a été envoyé par email.</p>
             <ul className="acompte-recap-succes">
               <li><span>Résidence</span><b>{reservation.residence.nom}</b></li>
               <li><span>Dates</span><b>{new Date(reservation.dates.arrivee).toLocaleDateString('fr-FR')} → {new Date(reservation.dates.depart).toLocaleDateString('fr-FR')}</b></li>
-              <li><span>Solde restant</span><b>{fcfa(Number(reservation.prixTotal) - Number(a.montant))}</b></li>
+              {solde
+                ? <li><span>Total réglé</span><b>{fcfa(reservation.prixTotal)}</b></li>
+                : <li><span>Solde restant</span><b>{fcfa(Number(reservation.prixTotal) - Number(a.montant))}</b></li>}
             </ul>
             <button type="button" className="btn btn-primary" onClick={onFermer}>Fermer</button>
           </div>
@@ -288,7 +302,7 @@ const PaiementAcompte = ({ reservation, token, onPaye, onFermer, direct = null }
               </button>
             )}
             {erreur && <p className="error-message" role="alert">{erreur}</p>}
-            {a.conditions && <p className="acompte-conditions">{a.conditions}</p>}
+            {!solde && a.conditions && <p className="acompte-conditions">{a.conditions}</p>}
           </div>
         ) : !paiement ? (
           <>
@@ -419,7 +433,8 @@ const PaiementAcompte = ({ reservation, token, onPaye, onFermer, direct = null }
             </div>
           </>
         )}
-        {a.conditions && statut !== 'paye' && <p className="acompte-conditions">ℹ️ {a.conditions}</p>}
+        {!solde && a.conditions && statut !== 'paye' && <p className="acompte-conditions">ℹ️ {a.conditions}</p>}
+        {solde && statut !== 'paye' && <p className="acompte-conditions">ℹ️ Vous pouvez aussi régler ce solde à votre arrivée, sur place.</p>}
         <p className="acompte-pied">
           {fournisseur && <img className="acompte-pied-logo" src={`/images/paiement/${fournisseur === 'geniuspay' ? 'geniuspay' : 'pispi'}.png`} alt="" />}
           {fournisseur === 'geniuspay' ? 'Paiement sécurisé GeniusPay' : fournisseur === 'pispi' ? 'Paiement instantané sécurisé PI-SPI (BCEAO)' : 'Paiement sécurisé · aucune donnée bancaire n\'est conservée sur notre site'}

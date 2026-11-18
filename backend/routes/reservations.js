@@ -251,6 +251,42 @@ router.put('/:id/remboursement', requireAdmin, async (req, res) => {
   }
 });
 
+const erreurSolde = (res, error) => {
+  if (error instanceof ReservationService.ErreurClient) {
+    return res.status(error.status).json({ success: false, message: error.message });
+  }
+  console.error('Erreur solde :', error);
+  return res.status(500).json({ success: false, message: 'Erreur lors de l\'enregistrement du solde' });
+};
+
+/**
+ * @route   PUT /api/reservations/:id/solde
+ * @desc    Solde reçu sur place : { moyen: especes | mobile_money | carte | virement | autre, reference? }
+ * @access  Admin
+ */
+router.put('/:id/solde', requireAdmin, async (req, res) => {
+  try {
+    const solde = await ReservationService.enregistrerSoldeSurPlace(req.params.id, { moyen: req.body?.moyen, reference: req.body?.reference });
+    res.json({ success: true, data: { id: req.params.id, solde } });
+  } catch (error) {
+    erreurSolde(res, error);
+  }
+});
+
+/**
+ * @route   PUT /api/reservations/:id/solde/remboursement
+ * @desc    Le solde d'un séjour annulé a été rendu au client : { reference? }
+ * @access  Admin
+ */
+router.put('/:id/solde/remboursement', requireAdmin, async (req, res) => {
+  try {
+    const solde = await ReservationService.marquerSoldeRembourse(req.params.id, req.body?.reference);
+    res.json({ success: true, data: { id: req.params.id, solde } });
+  } catch (error) {
+    erreurSolde(res, error);
+  }
+});
+
 /**
  * @route   PUT /api/reservations/:id/annulation
  * @desc    Accepter ou refuser la demande d'annulation d'un client

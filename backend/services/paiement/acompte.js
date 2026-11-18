@@ -105,10 +105,52 @@ const montantAcompte = (prixTotal) => Math.ceil((Number(prixTotal) || 0) * pourc
 
 const aujourdhui = () => new Date().toISOString().slice(0, 10);
 
-// Paiement en cours (non expiré) d'une réservation
-function paiementEnCours(r) {
+// Paiement en cours (non expiré) d'une réservation, pour l'acompte ou le solde
+function paiementEnCours(r, objet = 'acompte') {
   const maintenant = Date.now();
-  return (r.paiements || []).find(p => p.statut === 'en_attente' && new Date(p.expireLe).getTime() > maintenant) || null;
+  return (r.paiements || []).find(p => (p.objet || 'acompte') === objet && p.statut === 'en_attente' && new Date(p.expireLe).getTime() > maintenant) || null;
+}
+
+const MOYENS_SUR_PLACE = { especes: 'Espèces', mobile_money: 'Mobile Money', carte: 'Carte bancaire', virement: 'Virement', autre: 'Autre' };
+
+/**
+ * Solde du séjour (prix total − acompte) : payable en ligne une fois l'acompte réglé,
+ * ou sur place à l'arrivée (enregistré par l'admin).
+ */
+function etatSolde(r) {
+  const prix = Number(r.prixTotal) || 0;
+  const acomptePaye = Boolean(r.acompte?.paye);
+  const montantAcompteRegle = acomptePaye ? Number(r.acompte.montant) || 0 : montantAcompte(prix);
+  const montant = Math.max(0, prix - montantAcompteRegle);
+  const s = r.solde || {};
+  const paye = Boolean(s.paye);
+  const enCours = paiementEnCours(r, 'solde');
+  const moyens = moyensDisponibles();
+  const possible = moyens.length > 0
+    && acomptePaye
+    && !paye
+    && montant > 0
+    && r.statut === 'confirmee'
+    && r.dates?.depart > aujourdhui()
+    && r.demandeAnnulation?.statut !== 'en_attente';
+  return {
+    mode: mode(),
+    montant: paye ? Number(s.montant) || montant : montant,
+    paye,
+    payeLe: paye ? s.payeLe : null,
+    enLigne: paye ? Boolean(s.enLigne) : null,
+    methode: paye ? s.methode || null : null,
+    moyenSurPlace: paye && !s.enLigne ? s.moyen || null : null,
+    libelleMoyen: paye && !s.enLigne ? MOYENS_SUR_PLACE[s.moyen] || 'Sur place' : null,
+    reference: paye ? s.reference || s.txId || null : null,
+    // Payable en ligne ; sinon à régler à l'arrivée
+    possible,
+    aRegler: acomptePaye && !paye && montant > 0 && r.statut === 'confirmee',
+    moyens,
+    appUrl: /^https:\/\//.test((process.env.PISPI_APP_URL || '').trim()) ? process.env.PISPI_APP_URL.trim() : null,
+    enCours: enCours ? { txId: enCours.txId, methode: enCours.methode, expireLe: enCours.expireLe, checkoutUrl: enCours.checkoutUrl || null } : null,
+    remboursement: s.remboursement || null,
+  };
 }
 
 /**
@@ -150,8 +192,9 @@ function genererTxId() {
 
 module.exports = {
   politiqueRemboursement,
+  conditionsRemboursement,
   pourcentageRembourse,
   montantRembourse,
-  mode, moyensDisponibles, pourcentage, montantAcompte, etatAcompte, paiementEnCours, genererTxId,
+  mode, moyensDisponibles, pourcentage, montantAcompte, etatAcompte, etatSolde, paiementEnCours, MOYENS_SUR_PLACE, genererTxId,
   DUREE_QR_MS, DUREE_DEMANDE_MS, MARGE_VERIFICATION_MS,
 };

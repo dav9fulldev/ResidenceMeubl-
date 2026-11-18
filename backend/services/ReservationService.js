@@ -52,6 +52,7 @@ const vueClient = (r) => ({
   peutDemanderAnnulation: peutDemanderAnnulation(r),
   peutMasquer: r.statut === 'annulee' || r.dates.depart <= aujourdhui(),
   acompte: { ...acompte.etatAcompte(r), remboursement: r.acompte?.remboursement || null },
+  solde: acompte.etatSolde(r),
 });
 
 /**
@@ -172,6 +173,7 @@ class ReservationService {
       prixTotal: reservation.prixTotal,
       demandeAnnulation: reservation.demandeAnnulation || null,
       acompte: { ...acompte.etatAcompte(reservation), remboursement: reservation.acompte?.remboursement || null },
+      solde: acompte.etatSolde(reservation),
     }));
   }
 
@@ -341,6 +343,13 @@ class ReservationService {
       await RefundService.rembourser(avant.id);
     }
 
+    // Solde déjà payé : remboursé intégralement par l'établissement (séjour non effectué)
+    if (nouveauStatut === 'annulee' && avant.solde?.paye && !avant.solde.remboursement) {
+      await this.collection.updateOne({ id: avant.id }, {
+        $set: { 'solde.remboursement': { statut: 'a_rembourser', montant: avant.solde.montant, depuis: new Date() } },
+      });
+    }
+
     // Une annulation décidée par l'admin clôt aussi une demande du client en attente
     if (nouveauStatut === 'annulee' && avant.demandeAnnulation?.statut === 'en_attente') {
       await this.collection.updateOne({ id: avant.id }, {
@@ -377,6 +386,78 @@ class ReservationService {
       confirmees: compte('confirmee'),
       annulees: compte('annulee')
     };
+  }
+
+  // ---------- Solde du séjour ----------
+
+  /** L'admin enregistre le solde reçu sur place (espèces, Mobile Money, carte, virement…). */
+  async enregistrerSoldeSurPlace(id, { moyen, reference = '' } = {}) {
+    if (!acompte.MOYENS_SUR_PLACE[moyen]) throw new ErreurClient('Moyen de paiement invalide');
+    const r = await this.collection.findOne({ id: String(id) }, { projection: { _id: 0 } });
+    if (!r) throw new ErreurClient('Réservation introuvable', 404);
+    if (r.statut !== 'confirmee') throw new ErreurClient('Seul le solde d\'un séjour confirmé peut être enregistré', 409);
+    if (r.solde?.paye) throw new ErreurClient('Le solde de ce séjour est déjà enregistré', 409);
+    const etat = acompte.etatSolde(r);
+    await this.collection.updateOne({ id: r.id, 'solde.paye': { $ne: true } }, {
+      $set: {
+        solde: {
+          paye: true, enLigne: false, moyen, montant: etat.montant, payeLe: new Date(),
+          reference: String(reference || '').trim().slice(0, 80) || null,
+          ...(r.solde?.rappelLe ? { rappelLe: r.solde.rappelLe } : {}),
+        },
+      },
+    });
+    const maj = await this.collection.findOne({ id: r.id }, { projection: { _id: 0 } });
+    return acompte.etatSolde(maj);
+  }
+
+  /** Le solde d'un séjour annulé a été rendu au client (hors ligne). */
+  async marquerSoldeRembourse(id, reference = '') {
+    const res = await this.collection.findOneAndUpdate(
+      { id: String(id), 'solde.remboursement.statut': 'a_rembourser' },
+      { $set: { 'solde.remboursement.statut': 'rembourse', 'solde.remboursement.le': new Date(), 'solde.remboursement.reference': String(reference || '').slice(0, 80) } },
+      { returnDocument: 'after', projection: { _id: 0 } }
+    );
+    if (!res) throw new ErreurClient('Aucun solde à rembourser pour cette réservation', 404);
+    return acompte.etatSolde(res);
+  }
+
+  /**
+   * Rappel par email du solde restant, une fois, dans les 3 jours avant l'arrivée
+   * (séjour confirmé, acompte payé, solde non réglé).
+   */
+  async envoyerRappelsSolde(joursAvant = 3) {
+    if (!this.emailService) return 0;
+    const limite = new Date(Date.now() + joursAvant * 86400000).toISOString().slice(0, 10);
+    const candidates = await this.collection.find({
+      statut: 'confirmee',
+      'acompte.paye': true,
+      'solde.paye': { $ne: true },
+      'solde.rappelLe': { $exists: false },
+      'dates.arrivee': { $gte: aujourdhui(), $lte: limite },
+    }, { projection: { _id: 0 } }).toArray();
+    let envoyes = 0;
+    for (const r of candidates) {
+      // Réserver l'envoi avant d'écrire (évite un double rappel si deux minuteries tournent)
+      const pris = await this.collection.updateOne({ id: r.id, 'solde.rappelLe': { $exists: false } }, { $set: { 'solde.rappelLe': new Date() } });
+      if (pris.modifiedCount !== 1) continue;
+      try {
+        await this.emailService.sendRappelSolde(r);
+        envoyes += 1;
+      } catch (error) {
+        console.error(`⚠️ Rappel de solde non envoyé (${r.id}) :`, error.message);
+        await this.collection.updateOne({ id: r.id }, { $unset: { 'solde.rappelLe': '' } });
+      }
+    }
+    return envoyes;
+  }
+
+  demarrerRappelsSolde(intervalleMs = 60 * 60 * 1000) {
+    if (this.minuterieRappels) return;
+    const lancer = () => this.envoyerRappelsSolde().catch(e => console.error('⚠️ Rappels de solde :', e.message));
+    lancer();
+    this.minuterieRappels = setInterval(lancer, intervalleMs);
+    this.minuterieRappels.unref?.();
   }
 
   // La résidence doit être réservable et aucune réservation non annulée ne doit chevaucher les dates

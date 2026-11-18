@@ -6,7 +6,60 @@ const AuthService = require('./AuthService');
 const urlSite = () => (process.env.FRONTEND_URL || '').split(',')[0].trim().replace(/\/$/, '');
 const urlAbsolue = (chemin) => (/^https?:\/\//.test(chemin) ? chemin : `${urlSite()}${chemin}`);
 
+// Couleur d'accent unique des emails (vert de la charte)
+const ACCENT = '#243C35';
+
+const fcfa = (n) => `${Math.round(Number(n) || 0).toLocaleString('fr-FR')} FCFA`;
+const date = (d) => (d ? new Date(d).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }) : '—');
+
+// ---------- Textes selon le moyen de paiement réellement utilisé ----------
+const NOMS_MOYENS = {
+  geniuspay: 'GeniusPay (Mobile Money ou carte bancaire)',
+  qr: 'PI-SPI, par QR code',
+  demande: 'PI-SPI, depuis votre application bancaire',
+};
+const nomMoyen = (methode) => NOMS_MOYENS[methode] || 'Paiement en ligne';
+const libelleMoyen = (methode) => (methode === 'geniuspay' ? 'via GeniusPay' : ['qr', 'demande'].includes(methode) ? 'par PI-SPI' : 'en ligne');
+
+function referencePaiement(a, { admin = false } = {}) {
+  if (a.methode === 'geniuspay') return a.end2endId || a.txId;
+  return admin && a.end2endId ? `${a.txId} · identifiant PI-SPI ${a.end2endId}` : a.txId;
+}
+
+// Moyens proposés au client, en une phrase (« via GeniusPay (…) ou par PI-SPI (…) »)
+function phraseMoyensDisponibles(moyens = []) {
+  const textes = moyens.map(m => (m === 'geniuspay'
+    ? 'via GeniusPay (Wave, Orange Money, MTN, Moov ou carte bancaire)'
+    : 'par PI-SPI depuis votre application bancaire'));
+  return textes.length ? textes.join(', ou ') : 'en ligne';
+}
+
+// Comment l'acompte d'un séjour annulé est (ou n'est pas) remboursé
+function phraseRemboursementAcompte(r) {
+  const a = r.acompte;
+  const rb = a.remboursement || {};
+  if (rb.statut === 'non_remboursable') {
+    return `Votre acompte de ${fcfa(a.montant)} n'est pas remboursable (${esc(String(rb.raison || '').toLowerCase())}), conformément aux conditions acceptées lors du paiement.`;
+  }
+  const montant = fcfa(rb.montant ?? a.montant);
+  const part = rb.pourcentage && rb.pourcentage < 100 ? ` (${rb.pourcentage} % de votre acompte, selon les conditions d'annulation)` : '';
+  if (a.methode === 'geniuspay') {
+    return `Votre acompte vous sera remboursé : ${montant}${part}, par notre équipe, sur le moyen utilisé lors du paiement. Nous vous confirmerons le remboursement.`;
+  }
+  return `Votre acompte vous est remboursé automatiquement : ${montant}${part}, sur le compte utilisé pour payer (PI-SPI). Vous recevrez une confirmation par email.`;
+}
+
+function libelleRemboursement(a) {
+  const rb = a.remboursement || {};
+  if (rb.methode === 'retour') return 'Sur le compte utilisé pour payer (PI-SPI)';
+  if (rb.methode === 'paiement') return 'Par virement PI-SPI vers votre compte';
+  return a.methode === 'geniuspay' ? 'Par notre équipe, sur le moyen utilisé lors du paiement' : 'Par notre équipe';
+}
+
+const acompteConditions = () => require('./paiement/acompte').conditionsRemboursement();
+
 // Échapper les données saisies par le client avant de les insérer dans le HTML
+
 const esc = (value) => String(value ?? '')
   .replace(/&/g, '&amp;')
   .replace(/</g, '&lt;')
@@ -111,248 +164,67 @@ class EmailService {
     });
   }
 
-  // Envoyer un email de réservation
-  async sendReservationEmail(reservation) {
-    try {
-      const info = reservation.getInfoEmail();
+  // ---------- Gabarit commun : sobre, une seule couleur d'accent, compatible avec les clients email ----------
 
-      // Email à l'administrateur et accusé de réception au client, en parallèle
-      await Promise.all([
-        this.envoyer({
-          to: this.destinataireAdmin,
-          replyTo: info.client.email,
-          subject: `🆕 Nouvelle réservation - ${info.residence.nom}`,
-          html: this.generateAdminEmailHTML(info),
-        }),
-        this.envoyer({
-          to: info.client.email,
-          replyTo: this.expediteur,
-          subject: `✅ Confirmation de votre réservation - ${info.residence.nom}`,
-          html: this.generateClientEmailHTML(info),
-        }),
-      ]);
-
-      console.log('✅ Emails de réservation envoyés avec succès');
-      return true;
-
-    } catch (error) {
-      console.error('❌ Erreur lors de l\'envoi des emails:', error);
-      throw error;
-    }
+  get etablissement() {
+    return Settings.etablissement();
   }
 
-  // Générer le HTML pour l'email admin
-  generateAdminEmailHTML(info) {
-    return `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="utf-8">
-        <style>
-          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-          .header { background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); color: white; padding: 20px; text-align: center; }
-          .content { padding: 20px; }
-          .section { margin: 20px 0; padding: 15px; border-left: 4px solid #1e3c72; background: #f9f9f9; }
-          .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 20px 0; }
-          .info-item { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-          .label { font-weight: bold; color: #1e3c72; }
-          .value { margin-top: 5px; }
-          .residence-photo { max-width: 200px; border-radius: 8px; margin: 10px 0; }
-          .status { display: inline-block; padding: 5px 15px; background: #ff9800; color: white; border-radius: 20px; font-size: 12px; }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          <h1>🏠 Nouvelle Réservation Sankofart Résidence</h1>
-          <p>Référence: ${info.id}</p>
-        </div>
-        
-        <div class="content">
-          <div class="section">
-            <h2>📋 Informations de la Résidence</h2>
-            <div class="info-grid">
-              <div class="info-item">
-                <div class="label">Nom</div>
-                <div class="value">${info.residence.nom}</div>
-              </div>
-              <div class="info-item">
-                <div class="label">Référence</div>
-                <div class="value">${info.residence.reference}</div>
-              </div>
-              <div class="info-item">
-                <div class="label">Localisation</div>
-                <div class="value">${info.residence.localisation}</div>
-              </div>
-              <div class="info-item">
-                <div class="label">Prix Total</div>
-                <div class="value">${info.prixTotal.toLocaleString('fr-FR')} FCFA</div>
-              </div>
-            </div>
-            ${info.residence.photos && info.residence.photos.length > 0 ? 
-              `<img src="${esc(urlAbsolue(info.residence.photos[0]))}" alt="Photo de la résidence" class="residence-photo">` : ''}
-          </div>
-
-          <div class="section">
-            <h2>👤 Informations du Client</h2>
-            <div class="info-grid">
-              <div class="info-item">
-                <div class="label">Nom Complet</div>
-                <div class="value">${esc(info.client.prenom)} ${esc(info.client.nom)}</div>
-              </div>
-              <div class="info-item">
-                <div class="label">Email</div>
-                <div class="value">${esc(info.client.email)}</div>
-              </div>
-              <div class="info-item">
-                <div class="label">Téléphone</div>
-                <div class="value">${esc(info.client.telephone)}</div>
-              </div>
-              <div class="info-item">
-                <div class="label">Nombre de Personnes</div>
-                <div class="value">${esc(info.details.nombrePersonnes)}</div>
-              </div>
-            </div>
-          </div>
-
-          <div class="section">
-            <h2>📅 Détails du Séjour</h2>
-            <div class="info-grid">
-              <div class="info-item">
-                <div class="label">Date d'Arrivée</div>
-                <div class="value">${new Date(info.dates.arrivee).toLocaleDateString('fr-FR')}</div>
-              </div>
-              <div class="info-item">
-                <div class="label">Date de Départ</div>
-                <div class="value">${new Date(info.dates.depart).toLocaleDateString('fr-FR')}</div>
-              </div>
-              <div class="info-item">
-                <div class="label">Statut</div>
-                <div class="value"><span class="status">${info.statut}</span></div>
-              </div>
-              <div class="info-item">
-                <div class="label">Date de Réservation</div>
-                <div class="value">${new Date(info.dateCreation).toLocaleDateString('fr-FR')}</div>
-              </div>
-            </div>
-          </div>
-
-          <div class="section">
-            <h2>📝 Actions Requises</h2>
-            <p>Veuillez traiter cette réservation et contacter le client pour confirmer la disponibilité.</p>
-            <p><strong>Email du client:</strong> ${esc(info.client.email)}</p>
-            <p><strong>Téléphone:</strong> ${esc(info.client.telephone)}</p>
-          </div>
-        </div>
-      </body>
-      </html>
-    `;
+  /**
+   * Mise en page de tous les emails.
+   * @param {{ titre, intro?, contenu, bouton?, note?, prevue? }} p  prevue = texte d'aperçu dans la boîte de réception
+   */
+  gabarit({ titre, contenu, bouton, note, prevue = '' }) {
+    const e = this.etablissement;
+    const coordonnees = [e.telephone, e.email, e.adresse].filter(Boolean).map(esc).join(' &nbsp;·&nbsp; ');
+    return `<!DOCTYPE html>
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(titre)}</title></head>
+<body style="margin:0;padding:0;background:#F4F2EE;">
+<span style="display:none;max-height:0;overflow:hidden;opacity:0;">${esc(prevue)}</span>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F4F2EE;padding:32px 12px;">
+<tr><td align="center">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:#FFFFFF;border:1px solid #E6E1D8;border-radius:12px;">
+  <tr><td style="padding:28px 36px 20px;border-bottom:1px solid #EFEBE3;">
+    <p style="margin:0;font-family:Georgia,'Times New Roman',serif;font-size:20px;color:${ACCENT};">${esc(e.nom)}</p>
+    <p style="margin:4px 0 0;font-family:Arial,Helvetica,sans-serif;font-size:12px;letter-spacing:1px;text-transform:uppercase;color:#8A8F93;">Résidences meublées</p>
+  </td></tr>
+  <tr><td style="padding:32px 36px 8px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.6;color:#3A4045;">
+    <h1 style="margin:0 0 18px;font-family:Georgia,'Times New Roman',serif;font-size:24px;font-weight:normal;color:#1F2A26;">${esc(titre)}</h1>
+    ${contenu}
+    ${bouton ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:28px 0 8px;"><tr><td style="background:${ACCENT};border-radius:8px;">
+      <a href="${esc(bouton.url)}" style="display:inline-block;padding:13px 24px;font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:bold;color:#FFFFFF;text-decoration:none;">${esc(bouton.texte)}</a>
+    </td></tr></table>` : ''}
+    ${note ? `<p style="margin:20px 0 0;font-size:13px;color:#8A8F93;">${note}</p>` : ''}
+  </td></tr>
+  <tr><td style="padding:24px 36px 28px;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.6;color:#8A8F93;border-top:1px solid #EFEBE3;">
+    ${esc(e.nom)}${coordonnees ? `<br>${coordonnees}` : ''}<br>Pour toute question, répondez simplement à cet email.
+  </td></tr>
+</table>
+</td></tr>
+</table>
+</body></html>`;
   }
 
-  // Générer le HTML pour l'email client
-  generateClientEmailHTML(info) {
-    return `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="utf-8">
-        <style>
-          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-          .header { background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); color: white; padding: 20px; text-align: center; }
-          .content { padding: 20px; }
-          .section { margin: 20px 0; padding: 15px; border-left: 4px solid #1e3c72; background: #f9f9f9; }
-          .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 20px 0; }
-          .info-item { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-          .label { font-weight: bold; color: #1e3c72; }
-          .value { margin-top: 5px; }
-          .residence-photo { max-width: 200px; border-radius: 8px; margin: 10px 0; }
-          .status { display: inline-block; padding: 5px 15px; background: #4caf50; color: white; border-radius: 20px; font-size: 12px; }
-          .footer { text-align: center; margin-top: 30px; padding: 20px; background: #f5f5f5; border-radius: 8px; }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          <h1>🏠 Confirmation de Réservation</h1>
-          <p>Sankofart Résidence</p>
-        </div>
-        
-        <div class="content">
-          <p>Bonjour ${esc(info.client.prenom)},</p>
-          
-          <p>Nous avons bien reçu votre réservation. Voici un récapitulatif :</p>
+  /** Tableau de détails : [[libellé, valeur HTML], …] */
+  details(lignes) {
+    return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:18px 0;border:1px solid #EFEBE3;border-radius:8px;">
+      ${lignes.filter(Boolean).map(([libelle, valeur], i) => `<tr>
+        <td style="padding:10px 14px;${i ? 'border-top:1px solid #EFEBE3;' : ''}font-size:13px;color:#8A8F93;width:42%;vertical-align:top;">${esc(libelle)}</td>
+        <td style="padding:10px 14px;${i ? 'border-top:1px solid #EFEBE3;' : ''}font-size:14px;color:#1F2A26;vertical-align:top;">${valeur}</td>
+      </tr>`).join('')}
+    </table>`;
+  }
 
-          <div class="section">
-            <h2>📋 Détails de votre Réservation</h2>
-            <div class="info-grid">
-              <div class="info-item">
-                <div class="label">Référence</div>
-                <div class="value">${info.id}</div>
-              </div>
-              <div class="info-item">
-                <div class="label">Statut</div>
-                <div class="value"><span class="status">En attente de confirmation</span></div>
-              </div>
-            </div>
-          </div>
-
-          <div class="section">
-            <h2>🏠 Résidence Réservée</h2>
-            <div class="info-grid">
-              <div class="info-item">
-                <div class="label">Nom</div>
-                <div class="value">${info.residence.nom}</div>
-              </div>
-              <div class="info-item">
-                <div class="label">Localisation</div>
-                <div class="value">${info.residence.localisation}</div>
-              </div>
-              <div class="info-item">
-                <div class="label">Prix Total</div>
-                <div class="value">${info.prixTotal.toLocaleString('fr-FR')} FCFA</div>
-              </div>
-            </div>
-            ${info.residence.photos && info.residence.photos.length > 0 ? 
-              `<img src="${esc(urlAbsolue(info.residence.photos[0]))}" alt="Photo de la résidence" class="residence-photo">` : ''}
-          </div>
-
-          <div class="section">
-            <h2>📅 Votre Séjour</h2>
-            <div class="info-grid">
-              <div class="info-item">
-                <div class="label">Date d'Arrivée</div>
-                <div class="value">${new Date(info.dates.arrivee).toLocaleDateString('fr-FR')}</div>
-              </div>
-              <div class="info-item">
-                <div class="label">Date de Départ</div>
-                <div class="value">${new Date(info.dates.depart).toLocaleDateString('fr-FR')}</div>
-              </div>
-              <div class="info-item">
-                <div class="label">Nombre de Personnes</div>
-                <div class="value">${esc(info.details.nombrePersonnes)}</div>
-              </div>
-            </div>
-          </div>
-
-          <div class="section">
-            <h2>⏳ Prochaines Étapes</h2>
-            <p>Notre équipe va examiner votre réservation et vous contacter dans les plus brefs délais pour confirmer la disponibilité et finaliser les détails.</p>
-          </div>
-
-          <div class="section">
-            <h2>🗂️ Gérer ma réservation</h2>
-            <p>Suivez son statut ou demandez une annulation, sans créer de compte :
-              <a href="${esc(this.lienGestion(info.client.email))}">accéder à mes réservations</a>.</p>
-            <p>Vous pouvez aussi utiliser la page « Mes réservations » du site avec votre email et la référence <strong>${esc(info.id)}</strong>.</p>
-          </div>
-
-          <div class="footer">
-            <p><strong>Contact Sankofart Résidence</strong></p>
-            <p>📧 ${process.env.EMAIL_USER}</p>
-            <p>Merci de votre confiance !</p>
-          </div>
-        </div>
-      </body>
-      </html>
-    `;
+  // Lignes communes décrivant un séjour
+  lignesSejour(r, { montant = true } = {}) {
+    const res = r.residenceInfo || r.residence || {};
+    return [
+      ['Référence', esc(r.id)],
+      ['Résidence', `${esc(res.nom)}${res.localisation ? `<br><span style="color:#8A8F93;font-size:13px;">${esc(res.localisation)}</span>` : ''}`],
+      ['Séjour', `du ${date(r.dates.arrivee)} au ${date(r.dates.depart)}`],
+      r.details?.nombrePersonnes ? ['Personnes', esc(r.details.nombrePersonnes)] : null,
+      montant ? ['Montant du séjour', fcfa(r.prixTotal)] : null,
+    ];
   }
 
   // Lien « Gérer mes réservations » (accès sans compte, valable 30 jours)
@@ -361,238 +233,295 @@ class EmailService {
     return `${urlSite()}/mes-reservations?acces=${encodeURIComponent(jeton)}`;
   }
 
-  // Gabarit simple pour les emails courts
-  emailSimple({ titre, couleur = '#1e3c72', contenu, bouton }) {
-    return `
-      <!DOCTYPE html>
-      <html><head><meta charset="utf-8"></head>
-      <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0;">
-        <div style="background: ${couleur}; color: white; padding: 20px; text-align: center;">
-          <h1 style="margin: 0; font-size: 22px;">${titre}</h1>
-          <p style="margin: 6px 0 0;">Sankofart Résidence</p>
-        </div>
-        <div style="padding: 20px;">
-          ${contenu}
-          ${bouton ? `<p style="text-align: center; margin: 28px 0;">
-            <a href="${esc(bouton.url)}" style="background: #d4af37; color: #1a1a2e; padding: 12px 22px; border-radius: 8px; text-decoration: none; font-weight: bold;">${bouton.texte}</a>
-          </p>` : ''}
-          <p style="text-align: center; color: #777; font-size: 13px; margin-top: 30px;">📧 ${esc(this.expediteur)}</p>
-        </div>
-      </body></html>
-    `;
+  // ---------- Nouvelle réservation ----------
+
+  async sendReservationEmail(reservation) {
+    const r = reservation.getInfoEmail();
+    const avecResidence = { ...r, residenceInfo: r.residence };
+    await Promise.all([
+      this.envoyer({
+        to: this.destinataireAdmin,
+        replyTo: r.client.email,
+        subject: `Nouvelle demande de réservation - ${r.residence.nom}`,
+        html: this.gabarit({
+          titre: 'Nouvelle demande de réservation',
+          prevue: `${r.client.prenom} ${r.client.nom} souhaite réserver ${r.residence.nom}.`,
+          contenu: `<p style="margin:0 0 12px;"><strong>${esc(r.client.prenom)} ${esc(r.client.nom)}</strong> souhaite réserver une résidence. La demande attend votre confirmation.</p>
+            ${this.details([
+              ...this.lignesSejour(avecResidence),
+              ['Client', `${esc(r.client.prenom)} ${esc(r.client.nom)}<br><a href="mailto:${esc(r.client.email)}" style="color:${ACCENT};">${esc(r.client.email)}</a><br>${esc(r.client.telephone)}`],
+              r.notes ? ['Demande particulière', esc(r.notes)] : null,
+            ])}`,
+          bouton: { texte: 'Traiter la demande', url: `${urlSite()}/admin/reservations` },
+        }),
+      }),
+      this.envoyer({
+        to: r.client.email,
+        replyTo: this.expediteur,
+        subject: `Votre demande de réservation - ${r.residence.nom}`,
+        html: this.gabarit({
+          titre: 'Nous avons bien reçu votre demande',
+          prevue: `Votre demande pour ${r.residence.nom} est enregistrée. Aucun paiement n'a été effectué.`,
+          contenu: `<p style="margin:0 0 12px;">Bonjour ${esc(r.client.prenom)},</p>
+            <p style="margin:0 0 12px;">Merci pour votre demande. Nous vérifions la disponibilité et revenons vers vous rapidement par email. Aucun paiement n'a été effectué.</p>
+            ${this.details(this.lignesSejour(avecResidence))}
+            <p style="margin:0;">Une fois votre séjour confirmé, vous pourrez régler l'acompte en ligne depuis « Mes réservations ».</p>`,
+          bouton: { texte: 'Suivre ma réservation', url: this.lienGestion(r.client.email) },
+          note: `Vous pouvez aussi retrouver votre réservation sur le site avec votre email et la référence ${esc(r.id)}.`,
+        }),
+      }),
+    ]);
+    return true;
   }
 
-  recapReservation(r) {
-    const date = (d) => new Date(d).toLocaleDateString('fr-FR');
-    return `<div style="margin: 16px 0; padding: 14px; border-left: 4px solid #d4af37; background: #f9f9f9;">
-      <p style="margin: 4px 0;"><strong>Référence :</strong> ${esc(r.id)}</p>
-      <p style="margin: 4px 0;"><strong>Résidence :</strong> ${esc(r.residenceInfo?.nom)}</p>
-      <p style="margin: 4px 0;"><strong>Séjour :</strong> du ${date(r.dates.arrivee)} au ${date(r.dates.depart)}</p>
-      <p style="margin: 4px 0;"><strong>Montant :</strong> ${Number(r.prixTotal).toLocaleString('fr-FR')} FCFA</p>
-    </div>`;
-  }
+  // ---------- Accès client ----------
 
-  // Lien d'accès à l'historique, demandé depuis « Mes réservations »
   async sendLienAcces(email) {
     const jeton = AuthService.creerJetonClient(email, { dureeMs: 24 * 60 * 60 * 1000 });
     await this.envoyer({
       to: email,
-      subject: '🔑 Accédez à vos réservations - Sankofart Résidence',
-      html: this.emailSimple({
-        titre: 'Vos réservations',
-        contenu: `<p>Bonjour,</p>
-          <p>Vous avez demandé à consulter vos réservations. Cliquez sur le bouton ci-dessous : vous pourrez voir votre historique et, si besoin, demander une annulation.</p>
-          <p style="color: #777; font-size: 13px;">Ce lien est valable 24 heures. Si vous n'êtes pas à l'origine de cette demande, ignorez cet email.</p>`,
+      subject: `Accès à vos réservations - ${this.nomEtablissement}`,
+      html: this.gabarit({
+        titre: 'Accédez à vos réservations',
+        prevue: 'Votre lien d\'accès personnel, valable 24 heures.',
+        contenu: `<p style="margin:0 0 12px;">Bonjour,</p>
+          <p style="margin:0;">Vous avez demandé à consulter vos réservations. Le bouton ci-dessous vous y donne accès : suivi, paiement et demande d'annulation.</p>`,
         bouton: { texte: 'Voir mes réservations', url: `${urlSite()}/mes-reservations?acces=${encodeURIComponent(jeton)}` },
+        note: 'Ce lien est valable 24 heures. Si vous n\'êtes pas à l\'origine de cette demande, ignorez cet email.',
       }),
     });
   }
 
-  // Prévenir l'admin qu'un client demande une annulation
+  // ---------- Statut de la réservation ----------
+
+  async sendStatusEmail(reservation, { message = null } = {}) {
+    const confirmee = reservation.statut === 'confirmee';
+    const nomResidence = reservation.residenceInfo?.nom || 'votre résidence';
+    await this.envoyer({
+      to: reservation.client.email,
+      replyTo: this.expediteur,
+      subject: confirmee ? `Réservation confirmée - ${nomResidence}` : `Réservation annulée - ${nomResidence}`,
+      html: this.generateStatusEmailHTML(reservation, message),
+    });
+  }
+
+  generateStatusEmailHTML(r, message = null) {
+    const confirmee = r.statut === 'confirmee';
+    const acompte = require('./paiement/acompte');
+    const etat = acompte.etatAcompte(r);
+    const blocs = [];
+
+    if (message) blocs.push(`<p style="margin:0 0 12px;"><strong>Message de notre équipe :</strong> ${esc(message)}</p>`);
+
+    if (confirmee && etat.possible) {
+      blocs.push(`<p style="margin:0 0 8px;">Pour garantir votre séjour, réglez un acompte de <strong>${fcfa(etat.montant)}</strong> (${etat.pourcentage} % du séjour)
+        ${phraseMoyensDisponibles(etat.moyens)}.</p>
+        <p style="margin:0;">Le solde se règle ensuite en ligne ou à votre arrivée.</p>`);
+    }
+
+    if (!confirmee) {
+      if (r.acompte?.paye) blocs.push(`<p style="margin:0 0 12px;">${phraseRemboursementAcompte(r)}</p>`);
+      if (r.solde?.paye) blocs.push(`<p style="margin:0 0 12px;">Le solde de ${fcfa(r.solde.montant)} que vous aviez réglé vous sera intégralement remboursé par notre équipe, qui vous contactera.</p>`);
+    }
+
+    return this.gabarit({
+      titre: confirmee ? 'Votre réservation est confirmée' : 'Votre réservation est annulée',
+      prevue: confirmee ? `${r.residenceInfo?.nom || 'Votre résidence'} vous attend.` : 'Votre réservation a été annulée.',
+      contenu: `<p style="margin:0 0 12px;">Bonjour ${esc(r.client.prenom)},</p>
+        <p style="margin:0 0 12px;">${confirmee
+          ? 'Bonne nouvelle : votre séjour est confirmé. Nous avons hâte de vous accueillir.'
+          : 'Votre réservation a été annulée. N\'hésitez pas à nous contacter ou à choisir d\'autres dates.'}</p>
+        ${this.details(this.lignesSejour(r))}
+        ${blocs.join('')}`,
+      bouton: confirmee
+        ? { texte: etat.possible ? 'Payer l\'acompte' : 'Gérer ma réservation', url: this.lienGestion(r.client.email) }
+        : { texte: 'Voir nos résidences', url: `${urlSite()}/residences` },
+    });
+  }
+
+  // ---------- Annulation ----------
+
   async sendDemandeAnnulationAdmin(r) {
     await this.envoyer({
       to: this.destinataireAdmin,
       replyTo: r.client.email,
-      subject: `↩️ Demande d'annulation - ${r.residenceInfo?.nom} (${r.client.prenom} ${r.client.nom})`,
-      html: this.emailSimple({
+      subject: `Demande d'annulation - ${r.client.prenom} ${r.client.nom} (${r.residenceInfo?.nom})`,
+      html: this.gabarit({
         titre: 'Demande d\'annulation',
-        couleur: '#b45309',
-        contenu: `<p><strong>${esc(r.client.prenom)} ${esc(r.client.nom)}</strong> (${esc(r.client.email)}, ${esc(r.client.telephone)}) demande l'annulation de sa réservation.</p>
-          ${this.recapReservation(r)}
-          <p><strong>Motif :</strong> ${r.demandeAnnulation?.motif ? esc(r.demandeAnnulation.motif) : '<em>non précisé</em>'}</p>
-          <p>Acceptez ou refusez la demande depuis le tableau de bord.</p>`,
-        bouton: { texte: 'Ouvrir le tableau de bord', url: `${urlSite()}/admin/dashboard` },
+        prevue: `${r.client.prenom} ${r.client.nom} demande l'annulation de son séjour.`,
+        contenu: `<p style="margin:0 0 12px;"><strong>${esc(r.client.prenom)} ${esc(r.client.nom)}</strong> demande l'annulation de son séjour.</p>
+          ${this.details([
+            ...this.lignesSejour(r),
+            ['Client', `<a href="mailto:${esc(r.client.email)}" style="color:${ACCENT};">${esc(r.client.email)}</a><br>${esc(r.client.telephone)}`],
+            ['Motif', r.demandeAnnulation?.motif ? esc(r.demandeAnnulation.motif) : '<span style="color:#8A8F93;">Non précisé</span>'],
+            r.acompte?.paye ? ['Acompte', `${fcfa(r.acompte.montant)} payé ${libelleMoyen(r.acompte.methode)}`] : null,
+            r.solde?.paye ? ['Solde', `${fcfa(r.solde.montant)} déjà réglé`] : null,
+          ])}
+          <p style="margin:0;">Acceptez ou refusez la demande depuis le tableau de bord.</p>`,
+        bouton: { texte: 'Ouvrir le tableau de bord', url: `${urlSite()}/admin/reservations` },
       }),
     });
   }
 
-  // Informer le client que sa demande d'annulation est refusée
   async sendRefusAnnulation(r) {
     await this.envoyer({
       to: r.client.email,
       replyTo: this.expediteur,
       subject: `Votre demande d'annulation - ${r.residenceInfo?.nom}`,
-      html: this.emailSimple({
-        titre: 'Demande d\'annulation refusée',
-        couleur: '#475569',
-        contenu: `<p>Bonjour ${esc(r.client.prenom)},</p>
-          <p>Votre demande d'annulation n'a pas pu être acceptée : votre réservation est <strong>maintenue</strong>.</p>
-          ${r.demandeAnnulation?.reponse ? `<p><strong>Message de notre équipe :</strong> ${esc(r.demandeAnnulation.reponse)}</p>` : ''}
-          ${this.recapReservation(r)}
-          <p>Pour en discuter, répondez simplement à cet email.</p>`,
-        bouton: { texte: 'Gérer mes réservations', url: this.lienGestion(r.client.email) },
+      html: this.gabarit({
+        titre: 'Votre réservation est maintenue',
+        prevue: 'Votre demande d\'annulation n\'a pas pu être acceptée.',
+        contenu: `<p style="margin:0 0 12px;">Bonjour ${esc(r.client.prenom)},</p>
+          <p style="margin:0 0 12px;">Votre demande d'annulation n'a pas pu être acceptée : votre réservation est maintenue.</p>
+          ${r.demandeAnnulation?.reponse ? `<p style="margin:0 0 12px;"><strong>Message de notre équipe :</strong> ${esc(r.demandeAnnulation.reponse)}</p>` : ''}
+          ${this.details(this.lignesSejour(r))}
+          <p style="margin:0;">Pour en discuter, répondez simplement à cet email.</p>`,
+        bouton: { texte: 'Gérer ma réservation', url: this.lienGestion(r.client.email) },
       }),
     });
   }
 
-  // Acompte reçu : reçu pour le client
+  // ---------- Acompte ----------
+
   async sendAcompteRecu(r) {
     const a = r.acompte;
     const reste = Math.max(0, (Number(r.prixTotal) || 0) - (Number(a.montant) || 0));
     await this.envoyer({
       to: r.client.email,
       replyTo: this.expediteur,
-      subject: `✅ Acompte reçu - ${r.residenceInfo?.nom}`,
-      html: this.emailSimple({
-        titre: 'Acompte reçu',
-        couleur: '#2e7d32',
-        contenu: `<p>Bonjour ${esc(r.client.prenom)},</p>
-          <p>Nous avons bien reçu votre acompte de <strong>${Number(a.montant).toLocaleString('fr-FR')} FCFA</strong> par PI-SPI. Votre séjour est garanti.</p>
-          ${this.recapReservation(r)}
-          <p><strong>Reste à régler :</strong> ${reste.toLocaleString('fr-FR')} FCFA</p>
-          <p style="color:#777;font-size:13px;">Référence du paiement : ${esc(a.txId)}${a.end2endId ? ` · Identifiant PI-SPI : ${esc(a.end2endId)}` : ''}</p>`,
-        bouton: { texte: 'Gérer mes réservations', url: this.lienGestion(r.client.email) },
+      subject: `Reçu de votre acompte - ${r.residenceInfo?.nom}`,
+      html: this.gabarit({
+        titre: 'Acompte reçu, votre séjour est garanti',
+        prevue: `Nous avons bien reçu votre acompte de ${fcfa(a.montant)}.`,
+        contenu: `<p style="margin:0 0 12px;">Bonjour ${esc(r.client.prenom)},</p>
+          <p style="margin:0 0 12px;">Nous avons bien reçu votre acompte. Votre séjour est garanti.</p>
+          ${this.details([
+            ...this.lignesSejour(r),
+            ['Acompte réglé', `<strong>${fcfa(a.montant)}</strong>`],
+            ['Moyen de paiement', esc(nomMoyen(a.methode))],
+            ['Date du paiement', date(a.payeLe)],
+            ['Référence du paiement', esc(referencePaiement(a))],
+            ['Reste à régler', `<strong>${fcfa(reste)}</strong>`],
+          ])}
+          <p style="margin:0;">Le solde de ${fcfa(reste)} se règle en ligne depuis « Mes réservations » ou à votre arrivée, comme vous le préférez.</p>`,
+        bouton: { texte: 'Gérer ma réservation', url: this.lienGestion(r.client.email) },
+        note: esc(acompteConditions()),
       }),
     });
   }
 
-  // Remboursement de l'acompte effectué
-  async sendRemboursementEffectue(r) {
-    const a = r.acompte;
-    await this.envoyer({
-      to: r.client.email,
-      replyTo: this.expediteur,
-      subject: `↩️ Acompte remboursé - ${r.residenceInfo?.nom}`,
-      html: this.emailSimple({
-        titre: 'Acompte remboursé',
-        couleur: '#2e7d32',
-        contenu: `<p>Bonjour ${esc(r.client.prenom)},</p>
-          <p>Suite à l'annulation de votre réservation, nous vous avons remboursé
-          <strong>${Number(a.remboursement?.montant ?? a.montant).toLocaleString('fr-FR')} FCFA</strong>
-          ${a.remboursement?.pourcentage && a.remboursement.pourcentage < 100 ? `(${a.remboursement.pourcentage} % de votre acompte de ${Number(a.montant).toLocaleString('fr-FR')} FCFA)` : ''}
-          par PI-SPI.</p>
-          ${this.recapReservation(r)}
-          ${a.remboursement?.reference ? `<p style="color:#777;font-size:13px;">Référence : ${esc(a.remboursement.reference)}</p>` : ''}`,
-      }),
-    });
-  }
-
-  // Acompte reçu : notification à l'administrateur
   async sendAcompteRecuAdmin(r) {
     const a = r.acompte;
     await this.envoyer({
       to: this.destinataireAdmin,
       replyTo: r.client.email,
-      subject: `💰 Acompte reçu - ${r.client.prenom} ${r.client.nom} (${Number(a.montant).toLocaleString('fr-FR')} FCFA)`,
-      html: this.emailSimple({
+      subject: `Acompte reçu - ${r.client.prenom} ${r.client.nom} (${fcfa(a.montant)})`,
+      html: this.gabarit({
         titre: 'Acompte reçu',
-        couleur: '#2e7d32',
-        contenu: `<p><strong>${esc(r.client.prenom)} ${esc(r.client.nom)}</strong> a réglé l'acompte de
-          <strong>${Number(a.montant).toLocaleString('fr-FR')} FCFA</strong> (${a.methode === 'qr' ? 'QR Code' : 'demande de paiement'}).</p>
-          ${this.recapReservation(r)}
-          <p style="color:#777;font-size:13px;">txId ${esc(a.txId)}${a.end2endId ? ` · end2endId ${esc(a.end2endId)}` : ''}</p>`,
+        prevue: `${r.client.prenom} ${r.client.nom} a réglé ${fcfa(a.montant)}.`,
+        contenu: `<p style="margin:0 0 12px;"><strong>${esc(r.client.prenom)} ${esc(r.client.nom)}</strong> a réglé l'acompte de son séjour.</p>
+          ${this.details([
+            ...this.lignesSejour(r),
+            ['Acompte', `<strong>${fcfa(a.montant)}</strong>`],
+            ['Moyen de paiement', esc(nomMoyen(a.methode))],
+            ['Référence', esc(referencePaiement(a, { admin: true }))],
+          ])}`,
         bouton: { texte: 'Ouvrir le tableau de bord', url: `${urlSite()}/admin/reservations` },
       }),
     });
   }
 
-  // Informer le client d'un changement de statut (confirmée ou annulée)
-  async sendStatusEmail(reservation, { message = null } = {}) {
-    const confirmee = reservation.statut === 'confirmee';
-    const nomResidence = reservation.residenceInfo?.nom || 'votre résidence';
-
+  async sendRemboursementEffectue(r) {
+    const a = r.acompte;
+    const rb = a.remboursement || {};
+    const partiel = rb.pourcentage && rb.pourcentage < 100;
     await this.envoyer({
-      to: reservation.client.email,
+      to: r.client.email,
       replyTo: this.expediteur,
-      subject: confirmee
-        ? `✅ Réservation confirmée - ${nomResidence}`
-        : `❌ Réservation annulée - ${nomResidence}`,
-      html: this.generateStatusEmailHTML(reservation, message),
+      subject: `Remboursement de votre acompte - ${r.residenceInfo?.nom}`,
+      html: this.gabarit({
+        titre: 'Votre acompte a été remboursé',
+        prevue: `${fcfa(rb.montant ?? a.montant)} vous ont été remboursés.`,
+        contenu: `<p style="margin:0 0 12px;">Bonjour ${esc(r.client.prenom)},</p>
+          <p style="margin:0 0 12px;">Suite à l'annulation de votre réservation, nous vous avons remboursé ${partiel ? `${rb.pourcentage} % de votre acompte, conformément aux conditions d'annulation` : 'votre acompte'}.</p>
+          ${this.details([
+            ['Référence', esc(r.id)],
+            ['Résidence', esc(r.residenceInfo?.nom)],
+            ['Montant remboursé', `<strong>${fcfa(rb.montant ?? a.montant)}</strong>${partiel ? ` <span style="color:#8A8F93;">sur ${fcfa(a.montant)}</span>` : ''}`],
+            ['Remboursé', esc(libelleRemboursement(a))],
+            rb.reference ? ['Référence du remboursement', esc(rb.reference)] : null,
+          ])}
+          <p style="margin:0;">Selon votre banque ou votre opérateur, le montant peut apparaître sur votre compte sous quelques heures.</p>`,
+      }),
     });
   }
 
-  generateStatusEmailHTML(reservation, message = null) {
-    const confirmee = reservation.statut === 'confirmee';
-    const acompteInfo = require('./paiement/acompte').etatAcompte(reservation);
-    const couleur = confirmee ? '#2e7d32' : '#c62828';
-    const date = (d) => new Date(d).toLocaleDateString('fr-FR');
-    const residence = reservation.residenceInfo || {};
-    const photo = residence.photos && residence.photos[0];
+  // ---------- Solde ----------
 
-    return `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="utf-8">
-        <style>
-          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-          .header { background: ${couleur}; color: white; padding: 20px; text-align: center; }
-          .content { padding: 20px; }
-          .section { margin: 20px 0; padding: 15px; border-left: 4px solid ${couleur}; background: #f9f9f9; }
-          .label { font-weight: bold; color: #1e3c72; }
-          .residence-photo { max-width: 200px; border-radius: 8px; margin: 10px 0; }
-          .footer { text-align: center; margin-top: 30px; padding: 20px; background: #f5f5f5; border-radius: 8px; }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          <h1>${confirmee ? '✅ Réservation confirmée' : '❌ Réservation annulée'}</h1>
-          <p>Sankofart Résidence</p>
-        </div>
+  async sendSoldeRecu(r) {
+    const s = r.solde;
+    await this.envoyer({
+      to: r.client.email,
+      replyTo: this.expediteur,
+      subject: `Reçu de paiement : séjour réglé - ${r.residenceInfo?.nom}`,
+      html: this.gabarit({
+        titre: 'Votre séjour est entièrement réglé',
+        prevue: `Nous avons bien reçu le solde de ${fcfa(s.montant)}.`,
+        contenu: `<p style="margin:0 0 12px;">Bonjour ${esc(r.client.prenom)},</p>
+          <p style="margin:0 0 12px;">Nous avons bien reçu le solde de votre séjour. Rien ne vous sera demandé à l'arrivée.</p>
+          ${this.details([
+            ...this.lignesSejour(r),
+            ['Acompte', fcfa(r.acompte?.montant)],
+            ['Solde réglé', `<strong>${fcfa(s.montant)}</strong>`],
+            ['Moyen de paiement', esc(nomMoyen(s.methode))],
+            ['Date du paiement', date(s.payeLe)],
+            ['Référence du paiement', esc(s.reference || s.txId)],
+          ])}`,
+        bouton: { texte: 'Gérer ma réservation', url: this.lienGestion(r.client.email) },
+      }),
+    });
+  }
 
-        <div class="content">
-          <p>Bonjour ${esc(reservation.client.prenom)},</p>
+  async sendSoldeRecuAdmin(r) {
+    const s = r.solde;
+    await this.envoyer({
+      to: this.destinataireAdmin,
+      replyTo: r.client.email,
+      subject: `Solde reçu - ${r.client.prenom} ${r.client.nom} (${fcfa(s.montant)})`,
+      html: this.gabarit({
+        titre: 'Solde reçu en ligne',
+        prevue: `Le séjour de ${r.client.prenom} ${r.client.nom} est entièrement réglé.`,
+        contenu: `<p style="margin:0 0 12px;"><strong>${esc(r.client.prenom)} ${esc(r.client.nom)}</strong> a réglé le solde : le séjour est entièrement payé.</p>
+          ${this.details([
+            ...this.lignesSejour(r),
+            ['Solde', `<strong>${fcfa(s.montant)}</strong>`],
+            ['Moyen de paiement', esc(nomMoyen(s.methode))],
+            ['Référence', esc(s.reference || s.txId)],
+          ])}`,
+        bouton: { texte: 'Ouvrir le tableau de bord', url: `${urlSite()}/admin/reservations` },
+      }),
+    });
+  }
 
-          ${confirmee
-            ? `<p>Bonne nouvelle : votre réservation est <strong>confirmée</strong>. Nous avons hâte de vous accueillir !</p>`
-            : `<p>Nous sommes désolés : votre réservation a été <strong>annulée</strong>. N'hésitez pas à nous contacter ou à choisir d'autres dates.</p>`}
-
-          <div class="section">
-            <p><span class="label">Référence :</span> ${esc(reservation.id)}</p>
-            <p><span class="label">Résidence :</span> ${esc(residence.nom)} — ${esc(residence.localisation)}</p>
-            <p><span class="label">Arrivée :</span> ${date(reservation.dates.arrivee)}</p>
-            <p><span class="label">Départ :</span> ${date(reservation.dates.depart)}</p>
-            <p><span class="label">Personnes :</span> ${esc(reservation.details?.nombrePersonnes)}</p>
-            <p><span class="label">Montant :</span> ${Number(reservation.prixTotal).toLocaleString('fr-FR')} FCFA</p>
-            ${photo ? `<img src="${esc(urlAbsolue(photo))}" alt="Photo de la résidence" class="residence-photo">` : ''}
-          </div>
-
-          ${message ? `<div class="section"><p><span class="label">Message de notre équipe :</span> ${esc(message)}</p></div>` : ''}
-
-          ${!confirmee && reservation.acompte?.paye ? `<div class="section"><p><span class="label">Votre acompte :</span>
-            ${reservation.acompte.remboursement?.statut === 'non_remboursable'
-              ? `${Number(reservation.acompte.montant).toLocaleString('fr-FR')} FCFA, non remboursable (${esc(reservation.acompte.remboursement.raison)}), conformément aux conditions acceptées lors du paiement.`
-              : `${Number(reservation.acompte.remboursement?.montant ?? reservation.acompte.montant).toLocaleString('fr-FR')} FCFA${reservation.acompte.remboursement?.pourcentage < 100 ? ` (${reservation.acompte.remboursement.pourcentage} % de votre acompte)` : ''} vous sont remboursés automatiquement par PI-SPI. Vous recevrez une confirmation par email.`}</p></div>` : ''}
-
-          ${confirmee && acompteInfo?.possible ? `<div class="section" style="border-left-color:#d4af37;">
-              <p><span class="label">Acompte à régler :</span> ${Number(acompteInfo.montant).toLocaleString('fr-FR')} FCFA (${acompteInfo.pourcentage} %)</p>
-              <p>Garantissez votre séjour en payant l'acompte par PI-SPI (QR Code ou demande de paiement dans l'application de votre banque) :</p>
-              <p style="text-align:center;margin:18px 0;"><a href="${esc(this.lienGestion(reservation.client.email))}" style="background:#d4af37;color:#1a1a2e;padding:12px 22px;border-radius:8px;text-decoration:none;font-weight:bold;">Payer l'acompte</a></p>
-            </div>` : ''}
-
-          ${confirmee
-            ? `<div class="section"><p>Pour toute question avant votre arrivée, répondez simplement à cet email.
-                Vous pouvez aussi <a href="${esc(this.lienGestion(reservation.client.email))}">gérer vos réservations en ligne</a> (demande d'annulation).</p></div>`
-            : ''}
-
-          <div class="footer">
-            <p><strong>Contact Sankofart Résidence</strong></p>
-            <p>📧 ${process.env.EMAIL_USER}</p>
-          </div>
-        </div>
-      </body>
-      </html>
-    `;
+  async sendRappelSolde(r) {
+    const reste = Math.max(0, (Number(r.prixTotal) || 0) - (Number(r.acompte?.montant) || 0));
+    const etat = require('./paiement/acompte').etatSolde(r);
+    await this.envoyer({
+      to: r.client.email,
+      replyTo: this.expediteur,
+      subject: `Votre séjour approche - ${r.residenceInfo?.nom}`,
+      html: this.gabarit({
+        titre: 'Votre séjour approche',
+        prevue: `Arrivée le ${date(r.dates.arrivee)}. Il reste ${fcfa(reste)} à régler.`,
+        contenu: `<p style="margin:0 0 12px;">Bonjour ${esc(r.client.prenom)},</p>
+          <p style="margin:0 0 12px;">Nous avons hâte de vous accueillir le ${date(r.dates.arrivee)}. Il reste <strong>${fcfa(reste)}</strong> à régler pour votre séjour.</p>
+          ${this.details(this.lignesSejour(r))}
+          <p style="margin:0;">${etat.moyens?.length
+            ? `Vous pouvez le régler dès maintenant en ligne ${phraseMoyensDisponibles(etat.moyens)}, ou à votre arrivée.`
+            : 'Il se règle à votre arrivée.'}</p>`,
+        bouton: etat.moyens?.length ? { texte: 'Payer le solde en ligne', url: this.lienGestion(r.client.email) } : null,
+      }),
+    });
   }
 
   // Tester la connexion email
