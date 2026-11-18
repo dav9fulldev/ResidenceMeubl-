@@ -12,6 +12,10 @@ updates:
     groups:
       correctifs-backend:
         update-types: [minor, patch]
+    ignore:
+      # Express 5 : migration à planifier (routes, gestion d'erreurs) — fait échouer les tests
+      - dependency-name: express
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: npm
     directory: /client
@@ -24,6 +28,10 @@ updates:
     groups:
       correctifs-client:
         update-types: [minor, patch]
+    ignore:
+      # Babel 8 : migration à planifier avec webpack / babel-loader — casse la compilation
+      - dependency-name: "@babel/*"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: github-actions
     directory: /
