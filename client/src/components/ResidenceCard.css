@@ -22,7 +22,7 @@
 }
 
 .rc:focus-within {
-  outline: 3px solid rgba(212, 175, 55, 0.6);
+  outline: 3px solid rgba(196, 154, 98, 0.6);
   outline-offset: 2px;
 }
 
@@ -69,7 +69,7 @@
 }
 
 .rc-statut { top: 12px; }
-.rc-badge { bottom: 12px; background: #d4af37; color: #1a1a1a; }
+.rc-badge { bottom: 12px; background: var(--gold); color: #1a1a1a; }
 
 .rc-statut::before {
   content: '';
@@ -153,7 +153,7 @@
   white-space: nowrap;
 }
 
-.rc-note svg { color: #d4af37; }
+.rc-note svg { color: var(--gold); }
 
 .rc-lieu {
   margin: 0;
@@ -164,7 +164,7 @@
   font-size: 0.9rem;
 }
 
-.rc-lieu svg { flex-shrink: 0; color: #d4af37; }
+.rc-lieu svg { flex-shrink: 0; color: var(--gold); }
 
 .rc-specs {
   list-style: none;
@@ -233,3 +233,9 @@
 .rc-media { overflow: hidden; }
 .rc-media img,
 .rc-media-vide { position: absolute; inset: 0; }
+
+/* Charte : titre élégant, prix lisible */
+.rc-tete h3 { font-family: var(--font-titre); font-size: 1.2rem; font-weight: 600; }
+.rc { border-radius: var(--rayon); }
+.rc:hover { box-shadow: var(--ombre-carte); }
+.rc-statut-partiel::before { background: var(--gold); }

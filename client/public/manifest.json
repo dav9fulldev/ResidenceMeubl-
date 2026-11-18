@@ -10,7 +10,7 @@
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "theme_color": "#d4af37",
-  "background_color": "#ffffff",
+  "theme_color": "#243C35",
+  "background_color": "#F7F5F0",
   "lang": "fr"
 }

@@ -48,7 +48,10 @@ const Header = () => {
               alt="Sankofart Résidence" 
               className="logo-image"
             />
-            <span>Luxury & Comfort</span>
+            <span className="logo-texte">
+              <b>Sankofart</b>
+              <small>Résidences meublées</small>
+            </span>
           </Link>
         </div>
 

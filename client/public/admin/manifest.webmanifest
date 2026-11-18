@@ -12,8 +12,8 @@
   "scope": "/admin/",
   "display": "standalone",
   "orientation": "any",
-  "theme_color": "#11131a",
-  "background_color": "#0f1117",
+  "theme_color": "#243C35",
+  "background_color": "#F7F5F0",
   "lang": "fr",
   "shortcuts": [
     { "name": "Réservations", "url": "/admin/reservations" },

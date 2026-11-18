@@ -1,8 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { FaArrowRight } from 'react-icons/fa';
+import { Link, useNavigate } from 'react-router-dom';
+import {
+  FaArrowRight, FaCalendarAlt, FaUsers, FaMapMarkerAlt, FaSearch, FaCouch, FaMapMarkedAlt, FaShieldAlt, FaHeadset, FaPhone,
+} from 'react-icons/fa';
 import { useResidences } from '../context/ResidencesContext';
 import ResidenceCard from '../components/ResidenceCard';
+import useEtablissement from '../hooks/useEtablissement';
 import './Home.css';
 
 // Vidéo légère sur téléphone (720p, ~1 Mo), plus nette sur ordinateur (1080p, ~2,4 Mo), sans son
@@ -81,100 +84,173 @@ const HeroVideo = () => {
 };
 
 const Home = () => {
+  const navigate = useNavigate();
   const { residences } = useResidences();
-  // Prendre les 3 premières résidences comme vedettes
-  const featuredResidences = residences.slice(0, 3);
+  const etab = useEtablissement();
+  const aujourdHui = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  const [recherche, setRecherche] = useState({ arrivee: '', depart: '', personnes: '2', quartier: '' });
+
+  // Résidences disponibles d'abord, puis les mieux notées
+  const ordre = { disponible: 0, 'réservé': 1, 'occupé': 2, maintenance: 3 };
+  const vedettes = [...residences]
+    .filter(r => r.availability?.status !== 'maintenance')
+    .sort((a, b) => (ordre[a.availability?.status] ?? 9) - (ordre[b.availability?.status] ?? 9) || (b.rating || 0) - (a.rating || 0))
+    .slice(0, 6);
+  const quartiers = [...new Set(residences.map(r => r.neighborhood).filter(Boolean))].sort();
+  const noteMoyenne = residences.length
+    ? (residences.reduce((t, r) => t + (Number(r.rating) || 0), 0) / residences.length).toFixed(1).replace('.', ',')
+    : null;
+  const departMin = (() => {
+    if (!recherche.arrivee) return aujourdHui;
+    const d = new Date(`${recherche.arrivee}T00:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + 1);
+    return d.toISOString().slice(0, 10);
+  })();
+
+  const chercher = (e) => {
+    e.preventDefault();
+    const p = new URLSearchParams();
+    if (recherche.arrivee && recherche.depart && recherche.depart > recherche.arrivee) {
+      p.set('arrivee', recherche.arrivee);
+      p.set('depart', recherche.depart);
+    }
+    if (recherche.personnes) p.set('personnes', recherche.personnes);
+    if (recherche.quartier) p.set('quartier', recherche.quartier);
+    navigate(`/residences?${p.toString()}`);
+  };
+
+  const maj = (cle) => (e) => setRecherche(v => {
+    const n = { ...v, [cle]: e.target.value };
+    if (cle === 'arrivee' && n.depart && n.depart <= n.arrivee) n.depart = '';
+    return n;
+  });
 
   return (
     <div className="home">
-      {/* Section Héro */}
+      {/* Héro */}
       <section className="hero">
-        {/* Vidéo en arrière-plan */}
         <HeroVideo />
-        
-        {/* Overlay sombre */}
         <div className="hero-overlay"></div>
-        
         <div className="hero-content">
           <div className="hero-text">
-            <h1>Découvrez le Luxe et le Confort</h1>
-            <p>Des résidences meublées d'exception au cœur de la Côte d'Ivoire. 
-               Votre séjour parfait commence ici.</p>
-            <div className="hero-buttons">
-              <Link to="/residences" className="btn btn-primary">
-                Voir nos résidences
-                <FaArrowRight />
-              </Link>
-              <Link to="/residences" className="btn btn-secondary">
-                Réserver maintenant
-              </Link>
-            </div>
+            <span className="surtitre hero-surtitre">Résidences meublées · Abidjan</span>
+            <h1>Le confort d'un hôtel, la liberté d'un chez-soi</h1>
+            <p>{String(etab.slogan || '').replace(/[.!\s]+$/, '')}. Appartements et villas entièrement équipés, réservés en quelques minutes, sans paiement avant notre confirmation.</p>
           </div>
         </div>
       </section>
 
-      {/* Section Avantages */}
-      <section className="features">
-        <div className="container">
-          <h2>Pourquoi choisir Sankofart Résidence ?</h2>
-          <div className="features-grid">
-            <div className="feature-card">
-              <div className="feature-icon">🏠</div>
-              <h3>Résidences de Qualité</h3>
-              <p>Des appartements meublés avec soin, offrant tout le confort moderne.</p>
-            </div>
-            <div className="feature-card">
-              <div className="feature-icon">📍</div>
-              <h3>Emplacements Premium</h3>
-              <p>Situées dans les meilleurs quartiers d'Abidjan, proches de tout.</p>
-            </div>
-            <div className="feature-card">
-              <div className="feature-icon">🔒</div>
-              <h3>Sécurité Garantie</h3>
-              <p>Environnements sécurisés avec surveillance 24h/24 pour votre tranquillité.</p>
-            </div>
-            <div className="feature-card">
-              <div className="feature-icon">💎</div>
-              <h3>Service Premium</h3>
-              <p>Une équipe dédiée pour répondre à tous vos besoins et demandes.</p>
-            </div>
-          </div>
-        </div>
-      </section>
+      {/* Recherche par dates */}
+      <div className="container">
+        <form className="home-recherche" onSubmit={chercher} aria-label="Rechercher une résidence disponible">
+          <label className="hr-champ">
+            <span><FaCalendarAlt aria-hidden="true" /> Arrivée</span>
+            <input type="date" min={aujourdHui} value={recherche.arrivee} onChange={maj('arrivee')} />
+          </label>
+          <label className="hr-champ">
+            <span><FaCalendarAlt aria-hidden="true" /> Départ</span>
+            <input type="date" min={departMin} value={recherche.depart} onChange={maj('depart')} />
+          </label>
+          <label className="hr-champ">
+            <span><FaUsers aria-hidden="true" /> Personnes</span>
+            <select value={recherche.personnes} onChange={maj('personnes')}>
+              {[1, 2, 3, 4, 5, 6, 7, 8].map(n => <option key={n} value={n}>{n} personne{n > 1 ? 's' : ''}</option>)}
+            </select>
+          </label>
+          <label className="hr-champ">
+            <span><FaMapMarkerAlt aria-hidden="true" /> Quartier</span>
+            <select value={recherche.quartier} onChange={maj('quartier')}>
+              <option value="">Tous les quartiers</option>
+              {quartiers.map(q => <option key={q} value={q}>{q}</option>)}
+            </select>
+          </label>
+          <button type="submit" className="btn btn-primary hr-bouton">
+            <FaSearch aria-hidden="true" /> Voir les disponibilités
+          </button>
+        </form>
 
-      {/* Section Résidences Vedettes */}
+        {/* Chiffres clés */}
+        {residences.length > 0 && (
+          <ul className="home-chiffres">
+            <li><b>{residences.length}</b><span>résidences meublées</span></li>
+            <li><b>{quartiers.length}</b><span>quartiers d'Abidjan</span></li>
+            {noteMoyenne && <li><b>{noteMoyenne}<small>/5</small></b><span>note moyenne</span></li>}
+            <li><b>0 FCFA</b><span>à payer avant confirmation</span></li>
+          </ul>
+        )}
+      </div>
+
+      {/* Résidences mises en avant */}
       <section className="featured-residences">
         <div className="container">
           <div className="section-header">
-            <h2>Nos Résidences Vedettes</h2>
-            <p>Découvrez une sélection de nos meilleures résidences</p>
+            <span className="surtitre">Disponibles en ce moment</span>
+            <h2>Nos résidences</h2>
+            <p>Une sélection de logements prêts à vous accueillir, du studio à la villa.</p>
           </div>
-          
           <div className="rc-grille featured-grid">
-            {featuredResidences.map((residence) => (
-              <ResidenceCard key={residence.id} residence={residence} />
+            {vedettes.map((residence, i) => (
+              <ResidenceCard key={residence.id} residence={residence} eager={i < 3} />
             ))}
           </div>
-
           <div className="view-all-container">
-            <Link to="/residences" className="btn btn-secondary btn-large">
-              Voir toutes nos résidences
+            <Link to="/residences" className="btn btn-outline btn-large">
+              Voir les {residences.length || ''} résidences
               <FaArrowRight />
             </Link>
           </div>
         </div>
       </section>
 
-      {/* Section CTA */}
+      {/* Atouts */}
+      <section className="features">
+        <div className="container">
+          <div className="section-header">
+            <span className="surtitre">Pourquoi nous choisir</span>
+            <h2>Un séjour sans souci</h2>
+          </div>
+          <div className="features-grid">
+            <div className="feature-card">
+              <span className="feature-icone"><FaCouch /></span>
+              <h3>Entièrement équipées</h3>
+              <p>Climatisation, WiFi, cuisine équipée : vous posez vos valises, tout est prêt.</p>
+            </div>
+            <div className="feature-card">
+              <span className="feature-icone"><FaMapMarkedAlt /></span>
+              <h3>Quartiers recherchés</h3>
+              <p>Cocody, Plateau, Riviera… au plus près des affaires et des loisirs.</p>
+            </div>
+            <div className="feature-card">
+              <span className="feature-icone"><FaShieldAlt /></span>
+              <h3>Paiement sécurisé</h3>
+              <p>Acompte réglé par PI-SPI (BCEAO) seulement après notre confirmation.</p>
+            </div>
+            <div className="feature-card">
+              <span className="feature-icone"><FaHeadset /></span>
+              <h3>Une équipe disponible</h3>
+              <p>Un interlocuteur joignable avant et pendant votre séjour.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Appel à l'action */}
       <section className="cta">
         <div className="container">
           <div className="cta-content">
-            <h2>Prêt pour un séjour inoubliable ?</h2>
-            <p>Réservez dès maintenant votre résidence de luxe et profitez d'un confort exceptionnel.</p>
-            <Link to="/residences" className="btn btn-primary btn-large">
-              Réserver maintenant
-              <FaArrowRight />
-            </Link>
+            <h2>Votre prochain séjour commence ici</h2>
+            <p>Choisissez vos dates : nous confirmons la disponibilité, puis vous réglez l'acompte en toute sécurité.</p>
+            <div className="cta-boutons">
+              <Link to="/residences" className="btn btn-gold btn-large">
+                Réserver une résidence
+                <FaArrowRight />
+              </Link>
+              {etab.telephone && (
+                <a href={`tel:${String(etab.telephone).replace(/[^\d+]/g, '')}`} className="btn btn-large cta-tel">
+                  <FaPhone aria-hidden="true" /> {etab.telephone}
+                </a>
+              )}
+            </div>
           </div>
         </div>
       </section>

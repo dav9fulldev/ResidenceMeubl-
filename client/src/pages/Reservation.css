@@ -1,390 +1,340 @@
-.reservation-page {
-  padding: 40px 0;
-  min-height: 100vh;
-  background: var(--bg-soft);
-}
+/* ---------- Réservation en 3 étapes ---------- */
+.reservation-page { background: var(--bg); padding: 28px 0 72px; min-height: 80vh; }
+.reservation-page .container { max-width: 1120px; }
 
-.reservation-page .container {
-  max-width: 800px;
-  margin: 0 auto;
-  padding: 0 20px;
-}
-
-/* En-tête */
-.reservation-page .reservation-header {
-  text-align: center;
-  margin-bottom: 40px;
-}
-
-.reservation-page .back-btn {
+.reservation-page .resa-retour {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 20px;
-  background: transparent;
-  border: 2px solid #d4af37;
-  color: #d4af37;
-  border-radius: 8px;
-  font-weight: 500;
+  min-height: 44px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  font: inherit;
+  font-weight: 600;
   cursor: pointer;
-  transition: all 0.3s ease;
-  margin-bottom: 20px;
 }
 
-.reservation-page .back-btn:hover {
-  background: #d4af37;
-  color: white;
+.reservation-page .resa-retour:hover { color: var(--text); }
+
+.reservation-page .resa-titre {
+  margin: 4px 0 24px;
+  font-family: var(--font-titre);
+  font-size: clamp(1.8rem, 3.5vw, 2.5rem);
 }
 
-.reservation-page .reservation-header h1 {
-  font-size: 36px;
+/* Étapes */
+.reservation-page .resa-stepper {
+  list-style: none;
+  margin: 0 0 28px;
+  padding: 0;
+  display: flex;
+  gap: 8px;
+  counter-reset: none;
+}
+
+.reservation-page .resa-stepper li {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 3px solid var(--border);
+  color: var(--text-muted);
+  font-size: 0.92rem;
+}
+
+.reservation-page .resa-stepper li.actif { border-top-color: var(--green-deep); color: var(--text); font-weight: 600; }
+.reservation-page .resa-stepper li.fait { border-top-color: var(--gold); color: var(--text); }
+:root[data-theme="dark"] .reservation-page .resa-stepper li.actif { border-top-color: var(--gold); }
+
+.reservation-page .resa-stepper-pastille {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: var(--surface-2);
+  font-size: 0.8rem;
   font-weight: 700;
-  color: var(--text);
-  margin-bottom: 16px;
 }
 
-.reservation-page .reservation-header p {
-  font-size: 18px;
-  color: var(--text-muted);
+.reservation-page .resa-stepper li.actif .resa-stepper-pastille { background: var(--btn-primary-bg); color: var(--btn-primary-fg); }
+.reservation-page .resa-stepper li.fait .resa-stepper-pastille { background: var(--gold); color: #1F2A26; }
+
+/* Cadre : formulaire + récapitulatif */
+.reservation-page .resa-cadre {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 28px;
+  align-items: start;
 }
 
-/* Contenu principal */
-.reservation-page .reservation-content {
+.reservation-page .resa-form {
+  padding: 28px;
+  border-radius: var(--rayon);
   background: var(--surface);
-  border-radius: 16px;
-  padding: 40px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+  border: 1px solid var(--border);
+  box-shadow: var(--ombre-carte);
 }
 
-/* Résumé de la résidence */
-.reservation-page .residence-summary {
-  background: var(--bg-soft);
-  border-radius: 12px;
-  padding: 24px;
-  margin-bottom: 40px;
-  border-left: 4px solid #d4af37;
-}
+.reservation-page fieldset { border: none; margin: 0; padding: 0; min-width: 0; }
+.reservation-page fieldset[hidden] { display: none; }
 
-.reservation-page .residence-summary h3 {
-  font-size: 20px;
+.reservation-page legend {
+  margin-bottom: 6px;
+  font-family: var(--font-titre);
+  font-size: 1.4rem;
   font-weight: 600;
   color: var(--text);
-  margin-bottom: 20px;
 }
 
-.reservation-page .residence-info {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 16px;
-}
+.reservation-page .resa-aide { margin: 0 0 18px; color: var(--text-muted); font-size: 0.9rem; }
 
-.reservation-page .info-item {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.reservation-page .info-item strong {
-  color: var(--text-muted);
-  font-size: 14px;
-  font-weight: 500;
-}
-
-.reservation-page .info-item span {
-  color: var(--text);
-  font-weight: 600;
-}
-
-/* Formulaire */
-.reservation-page .reservation-form h3 {
-  font-size: 24px;
-  font-weight: 600;
-  color: var(--text);
-  margin-bottom: 24px;
-  margin-top: 40px;
-}
-
-.reservation-page .reservation-form h3:first-of-type {
-  margin-top: 0;
-}
-
-.reservation-page .form-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 24px;
-  margin-bottom: 24px;
-}
-
-.reservation-page .form-group {
-  display: flex;
-  flex-direction: column;
-}
-
-.reservation-page .form-group.full-width {
-  grid-column: 1 / -1;
-}
+.reservation-page .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.reservation-page .form-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 18px; min-width: 0; }
 
 .reservation-page .form-group label {
   display: flex;
   align-items: center;
   gap: 8px;
   font-weight: 600;
+  font-size: 0.9rem;
   color: var(--text);
-  margin-bottom: 8px;
-  font-size: 14px;
 }
 
-.reservation-page .form-group label svg {
-  color: #d4af37;
-  font-size: 14px;
-}
+.reservation-page .form-group label svg { color: var(--gold); }
+.reservation-page .facultatif { font-weight: 400; color: var(--text-muted); }
 
 .reservation-page .form-group input,
 .reservation-page .form-group select,
 .reservation-page .form-group textarea {
-  padding: 14px 16px;
-  border: 2px solid var(--border);
-  border-radius: 8px;
-  font-size: 16px;
-  outline: none;
-  transition: border-color 0.3s ease;
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
   background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 16px;
 }
+
+.reservation-page .form-group textarea { resize: vertical; }
 
 .reservation-page .form-group input:focus,
 .reservation-page .form-group select:focus,
 .reservation-page .form-group textarea:focus {
-  border-color: #d4af37;
+  outline: none;
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px var(--gold-soft);
 }
 
-.reservation-page .form-group input.error,
-.reservation-page .form-group select.error,
-.reservation-page .form-group textarea.error {
-  border-color: #dc3545;
-}
-
-.reservation-page .form-group input[type="file"] {
-  padding: 12px 16px;
-  cursor: pointer;
-}
-
-.reservation-page .form-group textarea {
-  resize: vertical;
-  min-height: 100px;
-}
+.reservation-page .form-group .error { border-color: #B4432A; }
+.reservation-page .champ-aide { font-size: 0.8rem; color: var(--text-muted); }
 
 .reservation-page .error-message {
-  color: #dc3545;
-  font-size: 12px;
-  margin-top: 6px;
-  font-weight: 500;
+  display: block;
+  color: #A33A1C;
+  font-size: 0.85rem;
 }
 
-.reservation-page .file-info {
-  color: #28a745;
-  font-size: 12px;
-  margin-top: 6px;
-  font-weight: 500;
-}
-
-/* Actions du formulaire */
-.reservation-page .form-actions {
-  text-align: center;
-  margin-top: 40px;
-  padding-top: 30px;
-  border-top: 1px solid var(--border);
-}
-
-/* Message de succès */
-.reservation-page .success-message {
-  text-align: center;
-  padding: 80px 20px;
-  background: var(--surface);
-  border-radius: 16px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
-}
-
-.reservation-page .success-icon {
-  font-size: 64px;
-  color: #28a745;
-  margin-bottom: 24px;
-}
-
-.reservation-page .success-message h1 {
-  font-size: 32px;
-  font-weight: 700;
-  color: var(--text);
-  margin-bottom: 20px;
-}
-
-.reservation-page .success-message p {
-  font-size: 18px;
-  color: var(--text-muted);
-  line-height: 1.6;
-  margin-bottom: 40px;
-  max-width: 600px;
-  margin-left: auto;
-  margin-right: auto;
-}
-
-.reservation-page .success-actions {
-  display: flex;
-  justify-content: center;
-  gap: 20px;
-}
-
-/* Responsive */
-@media (max-width: 768px) {
-  .reservation-page .residence-page {
-    padding: 20px 0;
-  }
-
-  .reservation-page .reservation-content {
-    padding: 30px 20px;
-  }
-
-  .reservation-page .reservation-header h1 {
-    font-size: 28px;
-  }
-
-  .reservation-page .reservation-header p {
-    font-size: 16px;
-  }
-
-  .reservation-page .form-row {
-    grid-template-columns: 1fr;
-    gap: 20px;
-  }
-
-  .reservation-page .residence-info {
-    grid-template-columns: 1fr;
-  }
-
-  .reservation-page .success-message {
-    padding: 60px 20px;
-  }
-
-  .reservation-page .success-message h1 {
-    font-size: 24px;
-  }
-
-  .reservation-page .success-message p {
-    font-size: 16px;
-  }
-
-  .reservation-page .success-actions {
-    flex-direction: column;
-    align-items: center;
-  }
-}
-
-@media (max-width: 480px) {
-  .reservation-page .container {
-    padding: 0 15px;
-  }
-
-  .reservation-page .reservation-content {
-    padding: 24px 16px;
-  }
-
-  .reservation-page .reservation-header h1 {
-    font-size: 24px;
-  }
-
-  .reservation-page .form-group input,
-  .reservation-page .form-group select,
-  .reservation-page .form-group textarea {
-    padding: 12px 14px;
-    font-size: 14px;
-  }
-}
-
-.reservation-page .sejour-regle {
-  margin: -8px 0 16px;
-  color: var(--text-muted);
-  font-size: 0.9rem;
-}
-
-/* ---------- Ajustements UX ---------- */
-.reservation-page .resa-resume {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 12px;
-  margin-bottom: 24px;
-  border-radius: 14px;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-}
-
-.reservation-page .resa-resume img {
-  width: 88px;
-  height: 66px;
-  object-fit: cover;
+.reservation-page .resa-form > .error-message,
+.reservation-page .container > .error-message {
+  margin: 12px 0;
+  padding: 10px 14px;
   border-radius: 10px;
-  flex-shrink: 0;
+  background: #FDECE6;
 }
 
-.reservation-page .resa-resume p { margin: 0; }
-.reservation-page .resa-resume-nom { font-weight: 700; color: var(--text); }
-.reservation-page .resa-resume-lieu { font-size: 0.85rem; color: var(--text-muted); }
-.reservation-page .resa-resume-prix { font-size: 0.9rem; color: var(--text-muted); margin-top: 2px !important; }
-.reservation-page .resa-resume-prix strong { color: var(--text); }
-
-.reservation-page .resa-total {
-  margin: 0 0 28px;
-  padding: 14px 16px;
-  border-radius: 12px;
-  background: rgba(212, 175, 55, 0.1);
-  border: 1px solid rgba(212, 175, 55, 0.35);
-}
-
-.reservation-page .resa-total p {
-  margin: 0;
+.reservation-page .resa-navigation {
   display: flex;
   justify-content: space-between;
   gap: 12px;
-  color: var(--text);
+  margin-top: 8px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
 }
 
-.reservation-page .resa-total strong { font-size: 1.15rem; }
+.reservation-page .resa-navigation .btn { min-height: 50px; }
 
-.reservation-page .resa-total .resa-total-note {
-  display: block;
-  margin-top: 6px;
-  font-size: 0.85rem;
-  color: var(--text-muted);
+/* Vérification */
+.reservation-page .resa-verif { margin: 14px 0 18px; display: flex; flex-direction: column; }
+
+.reservation-page .resa-verif div {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  gap: 12px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
 }
 
-.reservation-page .resa-total p:only-child.resa-total-note { margin-top: 0; }
+.reservation-page .resa-verif dt { color: var(--text-muted); font-size: 0.88rem; }
+.reservation-page .resa-verif dd { margin: 0; display: flex; justify-content: space-between; gap: 12px; color: var(--text); font-weight: 500; overflow-wrap: anywhere; }
 
-.reservation-page .champ-aide {
-  font-size: 0.8rem;
-  color: var(--text-muted);
+.reservation-page .resa-verif button {
+  flex-shrink: 0;
+  border: none;
+  background: none;
+  color: var(--gold-ink);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+  min-height: 32px;
 }
 
-.reservation-page .resa-rassurance {
-  margin: 10px 0 0;
-  font-size: 0.85rem;
+.reservation-page .resa-garanties {
+  padding: 16px;
+  border-radius: 12px;
+  background: var(--surface-2);
+  font-size: 0.9rem;
   color: var(--text-muted);
+  line-height: 1.55;
+}
+
+.reservation-page .resa-garanties p { margin: 0 0 6px; }
+.reservation-page .resa-garanties p:last-child { margin: 0; }
+.reservation-page .resa-garanties b { color: var(--text); }
+.reservation-page .resa-garanties svg { color: #2E7D5B; }
+
+/* Récapitulatif */
+.reservation-page .resa-recap {
+  position: sticky;
+  top: 96px;
+  overflow: hidden;
+  border-radius: var(--rayon);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--ombre-carte);
+}
+
+.reservation-page .resa-recap img { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; display: block; }
+.reservation-page .resa-recap-corps { padding: 18px 20px 20px; }
+.reservation-page .resa-recap-nom { margin: 0; font-family: var(--font-titre); font-size: 1.3rem; color: var(--text); }
+.reservation-page .resa-recap-lieu { margin: 4px 0 14px; font-size: 0.86rem; color: var(--text-muted); display: flex; align-items: center; gap: 6px; }
+.reservation-page .resa-recap-lieu svg { color: var(--gold); }
+
+.reservation-page .resa-recap-lignes { margin: 0; padding: 12px 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.reservation-page .resa-recap-lignes div { display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; font-size: 0.88rem; }
+.reservation-page .resa-recap-lignes dt { color: var(--text-muted); }
+.reservation-page .resa-recap-lignes dd { margin: 0; text-align: right; color: var(--text); }
+
+.reservation-page .resa-recap-prix { padding-top: 12px; }
+.reservation-page .resa-recap-prix p { margin: 0; display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; font-size: 0.9rem; color: var(--text-muted); }
+.reservation-page .resa-recap-prix .total { color: var(--text); font-weight: 700; font-size: 1.05rem; padding-top: 10px; margin-top: 6px; border-top: 1px dashed var(--border); }
+.reservation-page .resa-recap-prix .acompte { color: var(--gold-ink); font-weight: 600; }
+
+.reservation-page .resa-recap-prix .maintenant {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #E3F2EA;
+  color: #1E6B47;
+  font-weight: 700;
+}
+
+:root[data-theme="dark"] .reservation-page .resa-recap-prix .maintenant { background: rgba(70, 190, 130, 0.14); color: #7FD6A8; }
+.reservation-page .resa-recap-vide { display: block !important; }
+
+/* Écran de confirmation */
+.reservation-page .resa-merci {
+  max-width: 640px;
+  margin: 24px auto 0;
+  padding: 36px 32px;
+  border-radius: var(--rayon);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--ombre-carte);
   text-align: center;
 }
 
-.reservation-page .form-actions {
+.reservation-page .resa-merci-icone {
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 14px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #E3F2EA;
+  color: #1E6B47;
+  font-size: 1.6rem;
+}
+
+.reservation-page .resa-merci h1 { margin: 6px 0 10px; font-family: var(--font-titre); font-size: clamp(1.6rem, 3.4vw, 2.2rem); }
+.reservation-page .resa-merci-texte { color: var(--text-muted); line-height: 1.6; margin: 0 0 20px; }
+.reservation-page .resa-merci-texte b { color: var(--text); }
+
+.reservation-page .resa-merci-ref {
+  display: inline-flex;
   flex-direction: column;
+  gap: 2px;
+  padding: 10px 18px;
+  border-radius: 12px;
+  background: var(--surface-2);
+  margin-bottom: 24px;
 }
 
-.reservation-page .resa-etapes {
-  text-align: left;
-  margin: 16px auto;
-  max-width: 460px;
-  padding-left: 22px;
+.reservation-page .resa-merci-ref span { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); }
+.reservation-page .resa-merci-ref b { font-family: ui-monospace, Menlo, monospace; font-size: 0.95rem; overflow-wrap: anywhere; }
+
+.reservation-page .resa-suite { list-style: none; margin: 0 0 26px; padding: 0; text-align: left; }
+.reservation-page .resa-suite li { position: relative; display: flex; gap: 14px; padding-bottom: 18px; }
+
+.reservation-page .resa-suite li:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  left: 15px;
+  top: 34px;
+  bottom: 2px;
+  width: 2px;
+  background: var(--border);
+}
+
+.reservation-page .resa-suite li > span {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-2);
   color: var(--text-muted);
-  line-height: 1.6;
+  font-weight: 700;
+  font-size: 0.85rem;
 }
 
-.reservation-page .resa-etapes li { margin-bottom: 6px; }
+.reservation-page .resa-suite li.fait > span { background: #2E7D5B; color: #fff; }
+.reservation-page .resa-suite b { color: var(--text); }
+.reservation-page .resa-suite p { margin: 2px 0 0; font-size: 0.88rem; color: var(--text-muted); }
+
+.reservation-page .resa-merci-actions { display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; }
+
+@media (max-width: 900px) {
+  .reservation-page .resa-cadre { grid-template-columns: 1fr; }
+  .reservation-page .resa-recap { position: static; order: -1; display: grid; grid-template-columns: 110px 1fr; }
+  .reservation-page .resa-recap img { aspect-ratio: auto; height: 100%; }
+  .reservation-page .resa-recap-corps { padding: 14px; }
+  .reservation-page .resa-recap-lignes { display: none; }
+}
 
 @media (max-width: 640px) {
-  .reservation-page .form-actions .btn { width: 100%; }
+  .reservation-page { padding-top: 12px; }
+  .reservation-page .resa-stepper-nom { display: none; }
+  .reservation-page .resa-stepper li.actif .resa-stepper-nom { display: inline; }
+  .reservation-page .resa-form { padding: 20px 16px; }
+  .reservation-page .form-row { grid-template-columns: 1fr; gap: 0; }
+  .reservation-page .resa-recap { grid-template-columns: 1fr; }
+  .reservation-page .resa-recap img { display: none; }
+  .reservation-page .resa-verif div { grid-template-columns: 1fr; gap: 2px; }
+  .reservation-page .resa-navigation .btn { flex: 1; justify-content: center; }
+  .reservation-page .resa-merci { padding: 28px 18px; }
+  .reservation-page .resa-merci-actions .btn { width: 100%; justify-content: center; }
 }
+
+.reservation-page .resa-recap-prix dd, .reservation-page .resa-recap-prix p span:last-child { white-space: nowrap; }

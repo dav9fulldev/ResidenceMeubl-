@@ -5,10 +5,12 @@
 export const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001/api';
 
 export const API_ENDPOINTS = {
+  establishment: `${API_BASE_URL}/etablissement`,
   residences: {
     getAll: `${API_BASE_URL}/residences`,
     getById: (id) => `${API_BASE_URL}/residences/${id}`,
     checkAvailability: `${API_BASE_URL}/residences/check-disponibilite`,
+    available: `${API_BASE_URL}/residences/disponibles`,
     smartSearch: `${API_BASE_URL}/residences/recherche-ia`,
     similar: (id) => `${API_BASE_URL}/residences/${id}/similaires`,
   },
@@ -33,6 +35,8 @@ export const API_ENDPOINTS = {
     residence: (id) => `${API_BASE_URL}/admin/residences/${id}`,
     residenceStatus: (id) => `${API_BASE_URL}/admin/residences/${id}/status`,
     settings: `${API_BASE_URL}/admin/parametres`,
+    establishment: `${API_BASE_URL}/admin/etablissement`,
+    paymentConfig: `${API_BASE_URL}/admin/paiements/config`,
     stats: (annee) => `${API_BASE_URL}/admin/statistiques?annee=${annee}`,
     exportCsv: (annee) => `${API_BASE_URL}/admin/export/reservations.csv${annee ? `?annee=${annee}` : ''}`,
   },

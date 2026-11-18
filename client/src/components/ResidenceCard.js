@@ -16,12 +16,12 @@ const STATUTS = {
  * Toute la carte mène à la fiche ; le cœur et « Réserver » restent cliquables séparément.
  * @param badge  texte facultatif affiché sur la photo (ex. correspondance de la recherche IA)
  */
-const ResidenceCard = ({ residence, badge, eager = false }) => {
+const ResidenceCard = ({ residence, badge, eager = false, requete = '', libreAuxDates = false }) => {
   const { addToFavorites, removeFromFavorites, isFavorite } = useFavorites();
   const [imageKo, setImageKo] = useState(false);
   const favori = isFavorite(residence.id);
   const statut = residence.availability?.status;
-  const lien = `/residence/${residence.id}`;
+  const lien = `/residence/${residence.id}${requete ? `?${requete}` : ''}`;
 
   const basculerFavori = () => {
     if (favori) removeFromFavorites(residence.id);
@@ -42,7 +42,9 @@ const ResidenceCard = ({ residence, badge, eager = false }) => {
         ) : (
           <div className="rc-media-vide" aria-hidden="true"><FaBed /></div>
         )}
-        {statut && <span className={`rc-statut rc-statut-${statut === 'disponible' ? 'ok' : statut === 'maintenance' ? 'ko' : 'partiel'}`}>{STATUTS[statut] || statut}</span>}
+        {libreAuxDates
+          ? <span className="rc-statut rc-statut-ok">Libre à vos dates</span>
+          : statut && <span className={`rc-statut rc-statut-${statut === 'disponible' ? 'ok' : statut === 'maintenance' ? 'ko' : 'partiel'}`}>{STATUTS[statut] || statut}</span>}
         {badge && <span className="rc-badge">{badge}</span>}
         <button
           type="button"
@@ -74,7 +76,7 @@ const ResidenceCard = ({ residence, badge, eager = false }) => {
             <strong>{Number(residence.price).toLocaleString('fr-FR')} {residence.currency || 'FCFA'}</strong>
             <span> / {residence.period || 'nuit'}</span>
           </p>
-          <Link to={`/reservation?residence=${residence.id}`} className="btn btn-primary rc-reserver">
+          <Link to={`/reservation?residence=${residence.id}${requete ? `&${requete}` : ''}`} className="btn btn-primary rc-reserver">
             Réserver
           </Link>
         </div>

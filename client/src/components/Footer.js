@@ -1,83 +1,87 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { FaFacebook, FaInstagram, FaTwitter, FaPhone, FaEnvelope, FaMapMarkerAlt } from 'react-icons/fa';
+import { FaFacebook, FaInstagram, FaTiktok, FaPhone, FaEnvelope, FaMapMarkerAlt, FaWhatsapp } from 'react-icons/fa';
+import { FaXTwitter } from 'react-icons/fa6';
+import useEtablissement from '../hooks/useEtablissement';
 import './Footer.css';
 
-// Pages des réseaux sociaux : renseigner les vraies adresses pour afficher la section « Suivez-nous »
-const RESEAUX = [
-  // { nom: 'Facebook', url: 'https://www.facebook.com/…', icone: <FaFacebook /> },
-  // { nom: 'Instagram', url: 'https://www.instagram.com/…', icone: <FaInstagram /> },
-  // { nom: 'X (Twitter)', url: 'https://x.com/…', icone: <FaTwitter /> },
-];
-export const TELEPHONE = '+225 27 22 49 28 90';
-export const EMAIL = 'contact@sankofart-residence.com';
+const sansEspaces = (t) => String(t || '').replace(/[^\d+]/g, '');
 
+/** Pied de page : coordonnées et réseaux réglés dans le back-office (Paramètres). */
 const Footer = () => {
+  const etab = useEtablissement();
+  const reseaux = [
+    ['Facebook', etab.facebook, <FaFacebook />],
+    ['Instagram', etab.instagram, <FaInstagram />],
+    ['TikTok', etab.tiktok, <FaTiktok />],
+    ['X', etab.x, <FaXTwitter />],
+  ].filter(([, url]) => url);
+
   return (
     <footer className="footer">
       <div className="container">
         <div className="footer-content">
-          {/* Informations de contact */}
-          <div className="footer-section">
-            <h3>Contact</h3>
-            <div className="contact-info">
-              <a className="contact-item" href={`tel:${TELEPHONE.replace(/\s/g, '')}`}>
-                <FaPhone aria-hidden="true" />
-                <span>{TELEPHONE}</span>
-              </a>
-              <a className="contact-item" href={`mailto:${EMAIL}`}>
-                <FaEnvelope aria-hidden="true" />
-                <span>{EMAIL}</span>
-              </a>
-              <div className="contact-item">
-                <FaMapMarkerAlt aria-hidden="true" />
-                <span>Abidjan, Côte d'Ivoire</span>
+          <div className="footer-section footer-marque">
+            <p className="footer-nom">{etab.nom}</p>
+            <p className="footer-slogan">{etab.slogan}</p>
+            {reseaux.length > 0 && (
+              <div className="social-links">
+                {reseaux.map(([nom, url, icone]) => (
+                  <a key={nom} href={url} target="_blank" rel="noopener noreferrer" aria-label={nom}>{icone}</a>
+                ))}
               </div>
+            )}
+          </div>
+
+          <div className="footer-section">
+            <h3>Nous contacter</h3>
+            <div className="contact-info">
+              {etab.telephone && (
+                <a className="contact-item" href={`tel:${sansEspaces(etab.telephone)}`}>
+                  <FaPhone aria-hidden="true" /><span>{etab.telephone}</span>
+                </a>
+              )}
+              {etab.whatsapp && (
+                <a className="contact-item" href={`https://wa.me/${sansEspaces(etab.whatsapp).replace('+', '')}`} target="_blank" rel="noopener noreferrer">
+                  <FaWhatsapp aria-hidden="true" /><span>WhatsApp</span>
+                </a>
+              )}
+              {etab.email && (
+                <a className="contact-item" href={`mailto:${etab.email}`}>
+                  <FaEnvelope aria-hidden="true" /><span>{etab.email}</span>
+                </a>
+              )}
+              {etab.adresse && (
+                <div className="contact-item">
+                  <FaMapMarkerAlt aria-hidden="true" /><span>{etab.adresse}</span>
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Liens rapides */}
           <div className="footer-section">
-            <h3>Liens rapides</h3>
+            <h3>Explorer</h3>
             <ul className="footer-links">
               <li><Link to="/">Accueil</Link></li>
-              <li><Link to="/residences">Résidences</Link></li>
+              <li><Link to="/residences">Nos résidences</Link></li>
               <li><Link to="/favorites">Favoris</Link></li>
               <li><Link to="/mes-reservations">Mes réservations</Link></li>
             </ul>
           </div>
 
-          {/* Services */}
           <div className="footer-section">
-            <h3>Services</h3>
+            <h3>Séjours</h3>
             <ul className="footer-links">
-              <li><Link to="/residences">Location courte durée</Link></li>
-              <li><Link to="/residences">Location longue durée</Link></li>
-              <li><Link to="/residences">Résidences de luxe</Link></li>
+              <li><Link to="/residences">Courte durée</Link></li>
+              <li><Link to="/residences">Longue durée</Link></li>
+              <li><Link to="/residences">Résidences de standing</Link></li>
             </ul>
           </div>
-
-          {/* Réseaux sociaux */}
-          {RESEAUX.length > 0 && (
-            <div className="footer-section">
-              <h3>Suivez-nous</h3>
-              <div className="social-links">
-                {RESEAUX.map(r => (
-                  <a key={r.nom} href={r.url} target="_blank" rel="noopener noreferrer" aria-label={r.nom}>{r.icone}</a>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
 
-        {/* Ligne de séparation */}
-        <div className="footer-divider"></div>
-
-        {/* Bas de page */}
         <div className="footer-bottom">
-          <div className="footer-bottom-content">
-            <p>&copy; {new Date().getFullYear()} Sankofart Résidence. Tous droits réservés.</p>
-          </div>
+          <p>&copy; {new Date().getFullYear()} {etab.nom}. Tous droits réservés.</p>
+          <p>Paiement sécurisé de l'acompte par PI-SPI (BCEAO)</p>
         </div>
       </div>
     </footer>

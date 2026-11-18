@@ -10,8 +10,8 @@
 }
 
 .connection-banner.info {
-  background: #1a1a2e;
-  color: #f5d77a;
+  background: var(--green-deep);
+  color: var(--gold-ink);
 }
 
 .connection-banner.warning {

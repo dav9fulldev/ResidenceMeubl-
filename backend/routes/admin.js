@@ -145,6 +145,23 @@ router.get('/paiements/config', (req, res) => {
 });
 
 /**
+ * @route   GET / PUT /api/admin/etablissement
+ * @desc    Identité de l'établissement : nom, coordonnées, réseaux sociaux, email des alertes
+ */
+router.get('/etablissement', (req, res) => {
+  res.json({ success: true, data: Settings.etablissement() });
+});
+
+router.put('/etablissement', async (req, res) => {
+  try {
+    res.json({ success: true, data: await Settings.modifierEtablissement(req.body || {}) });
+  } catch (error) {
+    if (error instanceof Settings.ErreurParametre) return res.status(400).json({ success: false, message: error.message });
+    gererErreur(res, error, 'lors de l\'enregistrement de l\'établissement');
+  }
+});
+
+/**
  * @route   GET / PUT /api/admin/parametres
  * @desc    Paramètres de l'acompte : acomptePourcentage, remboursementPourcentage,
  *          remboursableApresPaiementJours, nonRemboursableAvantArriveeJours

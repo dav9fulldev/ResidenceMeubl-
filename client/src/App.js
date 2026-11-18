@@ -15,6 +15,7 @@ import AdminReservationsPage from './pages/AdminReservationsPage';
 import AdminResidencesPage from './pages/AdminResidencesPage';
 import AdminStatsPage from './pages/AdminStatsPage';
 import AdminSettingsPage from './pages/AdminSettingsPage';
+import AdminCalendarPage from './pages/AdminCalendarPage';
 import AdminLayout from './components/admin/AdminLayout';
 import ProtectedRoute from './components/ProtectedRoute';
 import ConnectionBanner from './components/ConnectionBanner';
@@ -70,6 +71,7 @@ function App() {
               <Route index element={<Navigate to="dashboard" replace />} />
               <Route path="dashboard" element={<AdminDashboard />} />
               <Route path="reservations" element={<AdminReservationsPage />} />
+              <Route path="calendrier" element={<AdminCalendarPage />} />
               <Route path="residences" element={<AdminResidencesPage />} />
               <Route path="statistiques" element={<AdminStatsPage />} />
               <Route path="parametres" element={<AdminSettingsPage />} />

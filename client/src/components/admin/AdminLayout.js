@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import {
   FaChartPie, FaChartLine, FaCalendarAlt, FaHome, FaSignOutAlt, FaExternalLinkAlt,
-  FaMoon, FaSun, FaDownload, FaTimes, FaCog,
+  FaMoon, FaSun, FaDownload, FaTimes, FaCog, FaRegCalendarCheck,
 } from 'react-icons/fa';
 import { useResidences } from '../../context/ResidencesContext';
 import ErrorBoundary from '../ErrorBoundary';
@@ -14,6 +14,7 @@ import './AdminLayout.css';
 const TITRES = {
   '/admin/dashboard': 'Vue d\'ensemble',
   '/admin/reservations': 'Réservations',
+  '/admin/calendrier': 'Calendrier',
   '/admin/residences': 'Résidences',
   '/admin/statistiques': 'Statistiques',
   '/admin/parametres': 'Paramètres',
@@ -54,11 +55,12 @@ const AdminLayout = () => {
   );
 
   const liens = [
-    { to: '/admin/dashboard', icone: <FaChartPie />, texte: 'Vue d\'ensemble', court: 'Aperçu' },
-    { to: '/admin/reservations', icone: <FaCalendarAlt />, texte: 'Réservations', badge: aTraiter },
-    { to: '/admin/residences', icone: <FaHome />, texte: 'Résidences' },
-    { to: '/admin/statistiques', icone: <FaChartLine />, texte: 'Statistiques' },
-    { to: '/admin/parametres', icone: <FaCog />, texte: 'Paramètres' },
+    { to: '/admin/dashboard', icone: <FaChartPie />, texte: 'Vue d\'ensemble', court: 'Aperçu', section: 'Gestion' },
+    { to: '/admin/reservations', icone: <FaCalendarAlt />, texte: 'Réservations', badge: aTraiter, section: 'Gestion' },
+    { to: '/admin/calendrier', icone: <FaRegCalendarCheck />, texte: 'Calendrier', section: 'Gestion' },
+    { to: '/admin/residences', icone: <FaHome />, texte: 'Résidences', section: 'Gestion' },
+    { to: '/admin/statistiques', icone: <FaChartLine />, texte: 'Statistiques', section: 'Pilotage', mobile: false },
+    { to: '/admin/parametres', icone: <FaCog />, texte: 'Paramètres', section: 'Pilotage' },
   ];
 
   return (
@@ -74,12 +76,15 @@ const AdminLayout = () => {
         </div>
 
         <nav className="admin-nav" aria-label="Back-office">
-          {liens.map(l => (
-            <NavLink key={l.to} to={l.to} className={({ isActive }) => `admin-nav-link ${isActive ? 'active' : ''}`}>
+          {liens.map((l, i) => (
+            <React.Fragment key={l.to}>
+            {l.section !== liens[i - 1]?.section && <p className="admin-nav-section">{l.section}</p>}
+            <NavLink to={l.to} className={({ isActive }) => `admin-nav-link ${isActive ? 'active' : ''}`}>
               {l.icone}
               <span>{l.texte}</span>
               {l.badge > 0 && <span className="admin-badge" aria-label={`${l.badge} à traiter`}>{l.badge}</span>}
             </NavLink>
+            </React.Fragment>
           ))}
         </nav>
 
@@ -125,7 +130,7 @@ const AdminLayout = () => {
 
       {/* Onglets du bas (téléphone) */}
       <nav className="admin-tabbar" aria-label="Back-office">
-        {liens.map(l => (
+        {liens.filter(l => l.mobile !== false).map(l => (
           <NavLink key={l.to} to={l.to} className={({ isActive }) => `admin-tab ${isActive ? 'active' : ''}`}>
             <span className="admin-tab-icon">
               {l.icone}
