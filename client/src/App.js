@@ -1,28 +1,48 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
+import { Analytics } from '@vercel/analytics/react';
 import { BrowserRouter as Router, Routes, Route, Outlet, Navigate, useLocation } from 'react-router-dom';
 import './App.css';
 import Header from './components/Header';
 import Footer from './components/Footer';
 import Home from './pages/Home';
-import Residences from './pages/Residences';
-import ResidenceDetail from './pages/ResidenceDetail';
-import Reservation from './pages/Reservation';
-import Favorites from './pages/Favorites';
-import MesReservations from './pages/MesReservations';
-import AdminLogin from './pages/AdminLogin';
-import AdminDashboard from './pages/AdminDashboard';
-import AdminReservationsPage from './pages/AdminReservationsPage';
-import AdminResidencesPage from './pages/AdminResidencesPage';
-import AdminStatsPage from './pages/AdminStatsPage';
-import AdminSettingsPage from './pages/AdminSettingsPage';
-import AdminCalendarPage from './pages/AdminCalendarPage';
-import AdminLayout from './components/admin/AdminLayout';
 import ProtectedRoute from './components/ProtectedRoute';
 import ConnectionBanner from './components/ConnectionBanner';
 import ErrorBoundary from './components/ErrorBoundary';
 import NotFound from './pages/NotFound';
 import { FavoritesProvider } from './context/FavoritesContext';
 import { ResidencesProvider } from './context/ResidencesContext';
+
+// Pages chargées à la demande : l'accueil s'affiche sans télécharger le back-office ni le paiement
+const Residences = lazy(() => import(/* webpackChunkName: "residences" */ './pages/Residences'));
+const ResidenceDetail = lazy(() => import(/* webpackChunkName: "residencedetail" */ './pages/ResidenceDetail'));
+const Reservation = lazy(() => import(/* webpackChunkName: "reservation" */ './pages/Reservation'));
+const Favorites = lazy(() => import(/* webpackChunkName: "favorites" */ './pages/Favorites'));
+const MesReservations = lazy(() => import(/* webpackChunkName: "mesreservations" */ './pages/MesReservations'));
+const AdminLogin = lazy(() => import(/* webpackChunkName: "adminlogin" */ './pages/AdminLogin'));
+const AdminDashboard = lazy(() => import(/* webpackChunkName: "admindashboard" */ './pages/AdminDashboard'));
+const AdminReservationsPage = lazy(() => import(/* webpackChunkName: "adminreservationspage" */ './pages/AdminReservationsPage'));
+const AdminResidencesPage = lazy(() => import(/* webpackChunkName: "adminresidencespage" */ './pages/AdminResidencesPage'));
+const AdminStatsPage = lazy(() => import(/* webpackChunkName: "adminstatspage" */ './pages/AdminStatsPage'));
+const AdminSettingsPage = lazy(() => import(/* webpackChunkName: "adminsettingspage" */ './pages/AdminSettingsPage'));
+const AdminCalendarPage = lazy(() => import(/* webpackChunkName: "admincalendarpage" */ './pages/AdminCalendarPage'));
+const AdminLayout = lazy(() => import(/* webpackChunkName: "admin" */ './components/admin/AdminLayout'));
+
+// Indicateur affiché pendant le chargement d'une page
+const Chargement = () => (
+  <div className="page-chargement" role="status" aria-live="polite"><span className="page-chargement-rond" aria-hidden="true" />Chargement…</div>
+);
+
+// Statistiques de visite (Vercel Analytics) : jamais le back-office, jamais les paramètres d'adresse
+// (les liens « Mes réservations » contiennent la clé d'accès personnelle du client)
+const filtrerVisite = (event) => {
+  try {
+    const url = new URL(event.url);
+    if (url.pathname.startsWith('/admin')) return null;
+    return { ...event, url: `${url.origin}${url.pathname}` };
+  } catch {
+    return null;
+  }
+};
 
 // Site public : en-tête, bandeau de connexion et pied de page
 function PublicLayout() {
@@ -34,7 +54,9 @@ function PublicLayout() {
       <ConnectionBanner />
       <main id="contenu" tabIndex={-1}>
         <ErrorBoundary cle={pathname}>
-          <Outlet />
+          <Suspense fallback={<Chargement />}>
+            <Outlet />
+          </Suspense>
         </ErrorBoundary>
       </main>
       <Footer />
@@ -47,6 +69,7 @@ function App() {
     <ResidencesProvider>
       <FavoritesProvider>
         <Router>
+          <Suspense fallback={<Chargement />}>
           <Routes>
             <Route element={<PublicLayout />}>
               <Route path="/" element={<Home />} />
@@ -78,7 +101,9 @@ function App() {
               <Route path="*" element={<Navigate to="dashboard" replace />} />
             </Route>
           </Routes>
+          </Suspense>
         </Router>
+        <Analytics beforeSend={filtrerVisite} />
       </FavoritesProvider>
     </ResidencesProvider>
   );

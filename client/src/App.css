@@ -402,3 +402,26 @@ h1, h2,
   background: #9A3822;
   transform: translateY(-1px);
 }
+
+/* Chargement d'une page (code chargé à la demande) */
+.page-chargement {
+  min-height: 50vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--text-muted);
+  font-size: 0.95rem;
+}
+
+.page-chargement-rond {
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--gold);
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: page-tourne 0.8s linear infinite;
+}
+
+@keyframes page-tourne { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .page-chargement-rond { animation: none; } }

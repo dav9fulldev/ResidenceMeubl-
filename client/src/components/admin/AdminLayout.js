@@ -124,7 +124,9 @@ const AdminLayout = () => {
 
       <main className="admin-main">
         <ErrorBoundary cle={location.pathname}>
-          <Outlet />
+          <React.Suspense fallback={<div className="page-chargement" role="status">Chargement…</div>}>
+            <Outlet />
+          </React.Suspense>
         </ErrorBoundary>
       </main>
 
