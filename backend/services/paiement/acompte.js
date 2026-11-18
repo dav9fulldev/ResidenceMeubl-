@@ -25,8 +25,10 @@ const MARGE_VERIFICATION_MS = 3 * 60 * 1000; // on vérifie encore un peu après
 
 function mode() {
   const demande = (process.env.PAIEMENT_MODE || '').trim().toLowerCase();
-  if (['pispi', 'simulation', 'desactive'].includes(demande)) return demande;
-  return PiSpi.estConfigure() ? 'pispi' : 'desactive';
+  let m = ['pispi', 'simulation', 'desactive'].includes(demande) ? demande : (PiSpi.estConfigure() ? 'pispi' : 'desactive');
+  // L'admin peut désactiver PI-SPI depuis le back-office (Paramètres > Moyens de paiement)
+  if (m === 'pispi' && !Settings.moyenActif('pispi')) m = 'desactive';
+  return m;
 }
 
 const pourcentage = () => Settings.get('acomptePourcentage');

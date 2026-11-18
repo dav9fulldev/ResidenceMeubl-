@@ -1208,3 +1208,35 @@ test('disponibilités par dates : résidences libres, dates contrôlées ; statu
   const vue = (await api('/api/reservations', { headers: headersAdmin })).body.data.find(r => r.id === id);
   assert.ok(vue.statutLe, 'date du dernier changement de statut');
 });
+
+test('moyens de paiement : liste, GeniusPay à venir non activable, PI-SPI désactivable', async (t) => {
+  configurerPiSpi(t, { PAIEMENT_MODE: 'pispi' });
+  const Settings = require('../services/SettingsService');
+  t.after(async () => { await db.collection('parametres').deleteMany({}); await Settings.charger(); });
+  const headersAdmin = await connexionAdmin();
+  assert.equal((await api('/api/admin/paiements/moyens')).status, 401);
+
+  const liste = (await api('/api/admin/paiements/moyens', { headers: headersAdmin })).body.data;
+  const pispi = liste.moyens.find(m => m.id === 'pispi');
+  const genius = liste.moyens.find(m => m.id === 'geniuspay');
+  assert.ok(pispi && genius);
+  assert.equal(pispi.configure, true);
+  assert.equal(pispi.actif, true, 'PI-SPI actif par défaut');
+  assert.equal(genius.aVenir, true);
+  assert.equal(genius.actif, false);
+  assert.equal(liste.mode, 'pispi');
+
+  const refus = await api('/api/admin/paiements/moyens/geniuspay', { method: 'PUT', headers: headersAdmin, body: { actif: true } });
+  assert.equal(refus.status, 400);
+  assert.match(refus.body.message, /pas encore intégré/);
+  assert.equal((await api('/api/admin/paiements/moyens/inconnu', { method: 'PUT', headers: headersAdmin, body: { actif: true } })).status, 404);
+
+  // Désactiver PI-SPI : plus d'acompte demandé, le site public ne le propose plus
+  const off = await api('/api/admin/paiements/moyens/pispi', { method: 'PUT', headers: headersAdmin, body: { actif: false } });
+  assert.equal(off.status, 200);
+  assert.equal(off.body.data.mode, 'desactive');
+  assert.deepEqual((await api('/api/etablissement')).body.data.moyensPaiement, []);
+  const on = await api('/api/admin/paiements/moyens/pispi', { method: 'PUT', headers: headersAdmin, body: { actif: true } });
+  assert.equal(on.body.data.mode, 'pispi');
+  assert.deepEqual((await api('/api/etablissement')).body.data.moyensPaiement.map(m => m.id), ['pispi']);
+});

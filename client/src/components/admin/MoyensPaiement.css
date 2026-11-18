@@ -1,0 +1,121 @@
+/* ---------- Paramètres > Moyens de paiement ---------- */
+.mp-resume { display: flex; align-items: center; gap: 8px; margin: 0; padding: 12px 14px; border-radius: 10px; font-size: 0.9rem; }
+.mp-resume.ok { background: #E3F2EA; color: #1E6B47; }
+.mp-resume.alerte { background: #FFF4DE; color: #8A5A00; }
+:root[data-theme="dark"] .mp-resume.ok { background: rgba(70, 190, 130, 0.14); color: #7FD6A8; }
+:root[data-theme="dark"] .mp-resume.alerte { background: rgba(245, 180, 60, 0.14); color: #F3C873; }
+
+.mp-liste { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+
+.mp-moyen {
+  border: 1px solid var(--border);
+  border-radius: var(--rayon-petit);
+  background: var(--surface);
+  padding: 14px 16px 8px;
+}
+
+.mp-moyen.actif { border-color: #2E7D5B; box-shadow: 0 0 0 1px rgba(46, 125, 91, 0.25); }
+.mp-moyen.a-venir { background: var(--surface-2); border-style: dashed; }
+
+.mp-tete { display: flex; align-items: center; gap: 14px; }
+
+.mp-logo {
+  flex-shrink: 0;
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 0.95rem;
+  background: var(--green-deep);
+  color: var(--gold);
+}
+
+.mp-logo-pispi { background: #F2B705; color: #1F2A26; }
+.mp-logo-geniuspay { background: #3B2A6B; color: #fff; }
+
+.mp-identite { flex: 1; min-width: 0; }
+.mp-identite p { margin: 0; }
+.mp-identite b { font-size: 1rem; }
+.mp-identite span { color: var(--text-muted); font-size: 0.86rem; }
+
+.mp-modes { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.mp-modes li { padding: 2px 9px; border-radius: 999px; background: var(--surface-2); font-size: 0.75rem; color: var(--text-muted); }
+.mp-moyen.a-venir .mp-modes li { background: var(--surface); }
+
+/* Interrupteur */
+.mp-interrupteur { position: relative; flex-shrink: 0; width: 48px; height: 28px; cursor: pointer; }
+.mp-interrupteur input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: inherit; z-index: 1; }
+.mp-interrupteur span { position: absolute; inset: 0; border-radius: 999px; background: #C9CCC7; transition: background 0.2s ease; }
+
+.mp-interrupteur span::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  transition: transform 0.2s ease;
+}
+
+.mp-interrupteur input:checked + span { background: #2E7D5B; }
+.mp-interrupteur input:checked + span::after { transform: translateX(20px); }
+.mp-interrupteur input:focus-visible + span { outline: 3px solid var(--gold-soft); outline-offset: 2px; }
+.mp-interrupteur.bloque { cursor: not-allowed; opacity: 0.5; }
+
+@media (prefers-reduced-motion: reduce) {
+  .mp-interrupteur span, .mp-interrupteur span::after { transition: none; }
+}
+
+.mp-details-bouton {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  margin-top: 6px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--gold-ink);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.mp-details-bouton svg { transition: transform 0.2s ease; }
+.mp-details-bouton svg.tourne { transform: rotate(180deg); }
+
+.mp-details { display: flex; flex-direction: column; gap: 12px; padding: 4px 0 10px; }
+.mp-details > p { margin: 0; font-size: 0.9rem; color: var(--text-muted); line-height: 1.5; }
+
+.mp-capacites { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 0.85rem; }
+.mp-capacites .oui { color: #1E6B47; }
+.mp-capacites .non { color: var(--text-muted); }
+:root[data-theme="dark"] .mp-capacites .oui { color: #7FD6A8; }
+
+.mp-ajout {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 14px 16px;
+  border: 1px dashed var(--border);
+  border-radius: var(--rayon-petit);
+  color: var(--text-muted);
+  font-size: 0.86rem;
+}
+
+.mp-ajout svg { margin-top: 3px; color: var(--gold); flex-shrink: 0; }
+.mp-ajout p { margin: 0; line-height: 1.5; }
+.mp-ajout b { display: block; color: var(--text); font-size: 0.92rem; }
+
+@media (max-width: 560px) {
+  .mp-tete { flex-wrap: wrap; }
+  .mp-tete .adm-badge { order: 3; margin-left: 60px; }
+  .mp-identite { flex-basis: calc(100% - 130px); }
+}

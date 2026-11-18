@@ -40,6 +40,7 @@ class SettingsService {
   constructor() {
     this.cache = {};
     this.textes = {};
+    this.moyens = {};
   }
 
   defaut(cle) {
@@ -57,15 +58,32 @@ class SettingsService {
   }
 
   async charger() {
-    const [doc, etab] = await Promise.all([
+    const [doc, etab, paiement] = await Promise.all([
       db.collection('parametres').findOne({ _id: 'acompte' }),
       db.collection('parametres').findOne({ _id: 'etablissement' }),
+      db.collection('parametres').findOne({ _id: 'paiement' }),
     ]);
+    this.moyens = paiement?.actifs && typeof paiement.actifs === 'object' ? { ...paiement.actifs } : {};
     this.cache = {};
     if (doc) for (const k of Object.keys(DEFINITIONS)) if (Number.isInteger(doc[k])) this.cache[k] = doc[k];
     this.textes = {};
     if (etab) for (const k of Object.keys(TEXTES)) if (typeof etab[k] === 'string') this.textes[k] = etab[k];
     return this.tous();
+  }
+
+  /** Activation d'un moyen de paiement par l'admin (PI-SPI actif par défaut). */
+  moyenActif(id) {
+    return this.moyens[id] ?? (id === 'pispi');
+  }
+
+  async modifierMoyen(id, actif) {
+    await db.collection('parametres').updateOne(
+      { _id: 'paiement' },
+      { $set: { [`actifs.${id}`]: Boolean(actif), modifieLe: new Date() } },
+      { upsert: true }
+    );
+    await this.charger();
+    return this.moyenActif(id);
   }
 
   /** Identité complète (back-office) ; `publique` retire les champs privés. */

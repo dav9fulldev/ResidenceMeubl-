@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import {
-  FaBuilding, FaAddressBook, FaCoins, FaEnvelope, FaCreditCard, FaSave, FaCheckCircle, FaExclamationTriangle, FaCopy,
+  FaBuilding, FaAddressBook, FaCoins, FaEnvelope, FaCreditCard, FaSave, FaCheckCircle, FaExclamationTriangle,
 } from 'react-icons/fa';
 import { useResidences } from '../context/ResidencesContext';
+import MoyensPaiement from '../components/admin/MoyensPaiement';
 import './AdminSettingsPage.css';
 
 const CATEGORIES = [
@@ -10,7 +11,7 @@ const CATEGORIES = [
   { cle: 'coordonnees', icone: <FaAddressBook />, titre: 'Coordonnées et réseaux', resume: 'Téléphone, email, adresse, réseaux sociaux' },
   { cle: 'remboursements', icone: <FaCoins />, titre: 'Acompte et remboursements', resume: 'Montant de l\'acompte, règles d\'annulation' },
   { cle: 'emails', icone: <FaEnvelope />, titre: 'Emails', resume: 'Destinataire des alertes' },
-  { cle: 'paiement', icone: <FaCreditCard />, titre: 'Moyens de paiement', resume: 'PI-SPI (BCEAO)' },
+  { cle: 'paiement', icone: <FaCreditCard />, titre: 'Moyens de paiement', resume: 'PI-SPI, GeniusPay…' },
 ];
 
 const CHAMPS_ACOMPTE = [
@@ -26,20 +27,18 @@ const fcfa = (n) => `${Math.round(n).toLocaleString('fr-FR')} FCFA`;
 
 /** Paramètres du back-office, par catégories. */
 const AdminSettingsPage = () => {
-  const { getSettings, updateSettings, getEstablishment, updateEstablishment, getPaymentConfig } = useResidences();
+  const { getSettings, updateSettings, getEstablishment, updateEstablishment } = useResidences();
   const [categorie, setCategorie] = useState('etablissement');
   const [acompte, setAcompte] = useState(null);
   const [acompteInitial, setAcompteInitial] = useState(null);
   const [etab, setEtab] = useState(null);
   const [etabInitial, setEtabInitial] = useState(null);
-  const [paiement, setPaiement] = useState(null);
   const [etat, setEtat] = useState({ erreur: '', ok: '', enCours: false });
 
   useEffect(() => {
     getSettings().then(v => { setAcompte(v); setAcompteInitial(v); }).catch(e => setEtat(s => ({ ...s, erreur: e.message })));
     getEstablishment().then(v => { setEtab(v); setEtabInitial(v); }).catch(e => setEtat(s => ({ ...s, erreur: e.message })));
-    getPaymentConfig().then(setPaiement).catch(() => setPaiement(null));
-  }, [getSettings, getEstablishment, getPaymentConfig]);
+  }, [getSettings, getEstablishment]);
 
   const enregistrer = async (fn, ok) => {
     setEtat({ erreur: '', ok: '', enCours: true });
@@ -201,40 +200,7 @@ const AdminSettingsPage = () => {
             </form>
           )}
 
-          {categorie === 'paiement' && (
-            <div className="params-form">
-              {!paiement ? <p className="params-note">Chargement…</p> : (
-                <>
-                  <div className={`params-moyen ${paiement.mode === 'pispi' ? 'actif' : ''}`}>
-                    <span className="params-moyen-logo">PI</span>
-                    <div>
-                      <b>PI-SPI · BCEAO</b>
-                      <p>QR code et demande de paiement, remboursements automatiques.</p>
-                    </div>
-                    <span className={`adm-badge ${paiement.mode === 'pispi' ? 'confirmee' : paiement.mode === 'simulation' ? 'attente' : 'annulee'}`}>
-                      {paiement.mode === 'pispi' ? 'Actif' : paiement.mode === 'simulation' ? 'Simulation' : 'Désactivé'}
-                    </span>
-                  </div>
-                  <dl className="adm-infos">
-                    <div><dt>Acompte</dt><dd>{paiement.pourcentage} % du séjour</dd></div>
-                    <div><dt>Signature des notifications</dt><dd>{paiement.webhookSecretDefini ? 'Configurée' : 'Manquante'}</dd></div>
-                    <div><dt>Configuration</dt><dd>{paiement.problemes?.length ? `${paiement.problemes.length} point(s) à corriger` : 'Complète'}</dd></div>
-                  </dl>
-                  {paiement.problemes?.length > 0 && (
-                    <ul className="params-problemes">{paiement.problemes.map(p => <li key={p}><FaExclamationTriangle /> {p}</li>)}</ul>
-                  )}
-                  <div className="params-champ">
-                    <label htmlFor="f-webhook">Adresse de notification à déclarer chez PI-SPI</label>
-                    <div className="params-unite">
-                      <input id="f-webhook" readOnly value={paiement.webhookUrl} onFocus={(e) => e.target.select()} />
-                      <button type="button" className="adm-btn" onClick={() => navigator.clipboard?.writeText(paiement.webhookUrl)} aria-label="Copier l'adresse"><FaCopy /></button>
-                    </div>
-                  </div>
-                  <p className="params-note">Les identifiants PI-SPI restent sur le serveur (Render) par sécurité : ils ne se modifient pas ici.</p>
-                </>
-              )}
-            </div>
-          )}
+          {categorie === 'paiement' && <MoyensPaiement />}
         </section>
       </div>
     </div>
