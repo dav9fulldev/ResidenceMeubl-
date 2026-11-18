@@ -17,6 +17,25 @@ const reservationLimiter = rateLimit({
   }
 });
 
+// Contrôle de la demande de réservation publique : types, formats et longueurs
+const DATE = /^\d{4}-\d{2}-\d{2}$/;
+const EMAIL = /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]{2,}$/;
+const TELEPHONE = /^[+]?[0-9\s\-().]{8,20}$/;
+const texte = (v, max) => typeof v === 'string' && v.trim().length > 0 && v.trim().length <= max;
+
+function validerReservation(corps) {
+  const c = corps && typeof corps === 'object' ? corps : {};
+  if (![c.residenceId, c.nombrePersonnes].every(v => Number.isInteger(Number(v)) && String(v).trim() !== '')) return 'Résidence ou nombre de personnes invalide';
+  if (Number(c.residenceId) < 1 || Number(c.nombrePersonnes) < 1 || Number(c.nombrePersonnes) > 50) return 'Résidence ou nombre de personnes invalide';
+  if (!texte(c.nom, 80) || !texte(c.prenom, 80)) return 'Nom et prénom obligatoires (80 caractères maximum)';
+  if (typeof c.email !== 'string' || c.email.length > 120 || !EMAIL.test(c.email.trim())) return 'Adresse email invalide';
+  if (typeof c.telephone !== 'string' || !TELEPHONE.test(c.telephone.trim())) return 'Numéro de téléphone invalide';
+  if (typeof c.dateArrivee !== 'string' || typeof c.dateDepart !== 'string' || !DATE.test(c.dateArrivee) || !DATE.test(c.dateDepart)) return 'Dates invalides (format AAAA-MM-JJ)';
+  if (Number.isNaN(Date.parse(c.dateArrivee)) || Number.isNaN(Date.parse(c.dateDepart))) return 'Dates invalides';
+  if (c.notes !== undefined && c.notes !== null && (typeof c.notes !== 'string' || c.notes.length > 1000)) return 'Demandes particulières : 1000 caractères maximum';
+  return null;
+}
+
 /**
  * @route   POST /api/reservations
  * @desc    Créer une nouvelle réservation
@@ -24,39 +43,23 @@ const reservationLimiter = rateLimit({
  */
 router.post('/', reservationLimiter, async (req, res) => {
   try {
-    const {
-      residenceId,
-      nom,
-      prenom,
-      email,
-      telephone,
-      dateArrivee,
-      dateDepart,
-      nombrePersonnes,
-      pieceIdentite,
-      notes
-    } = req.body;
-
-    // Validation des champs obligatoires
-    if (!residenceId || !nom || !prenom || !email || !telephone || !dateArrivee || !dateDepart || !nombrePersonnes) {
-      return res.status(400).json({
-        success: false,
-        message: 'Tous les champs obligatoires doivent être remplis'
-      });
+    const erreur = validerReservation(req.body);
+    if (erreur) {
+      return res.status(400).json({ success: false, message: erreur });
     }
+    const { residenceId, nom, prenom, email, telephone, dateArrivee, dateDepart, nombrePersonnes, notes } = req.body;
 
-    // Créer la réservation
+    // Créer la réservation (champs connus uniquement, convertis et nettoyés)
     const resultat = await ReservationService.createReservation({
-      residenceId: parseInt(residenceId),
+      residenceId: Number(residenceId),
       nom: nom.trim(),
       prenom: prenom.trim(),
       email: email.trim().toLowerCase(),
       telephone: telephone.trim(),
       dateArrivee,
       dateDepart,
-      nombrePersonnes: parseInt(nombrePersonnes),
-      pieceIdentite,
-      notes: notes ? notes.trim() : ''
+      nombrePersonnes: Number(nombrePersonnes),
+      notes: typeof notes === 'string' ? notes.trim() : ''
     });
 
     if (resultat.success) {
@@ -132,10 +135,10 @@ router.get('/stats', requireAdmin, async (req, res) => {
 
 /**
  * @route   GET /api/reservations/:id
- * @desc    Obtenir une réservation par ID
- * @access  Public
+ * @desc    Obtenir une réservation par ID (contient les coordonnées du client)
+ * @access  Admin
  */
-router.get('/:id', async (req, res) => {
+router.get('/:id', requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const reservation = await ReservationService.getReservationById(id);

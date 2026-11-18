@@ -108,7 +108,8 @@ test('cycle de réservation : prix, chevauchement, annulation', async () => {
   assert.equal(creation.status, 201, JSON.stringify(creation.body));
   const id = creation.body.data.id;
 
-  const detail = await api(`/api/reservations/${id}`);
+  // Lecture d'une réservation : réservée à l'admin (coordonnées du client)
+  const detail = await api(`/api/reservations/${id}`, { headers: await connexionAdmin() });
   assert.equal(detail.body.data.prixTotal, 135000);
 
   // 2. Les mêmes dates ne sont plus disponibles
@@ -1327,4 +1328,50 @@ test('GeniusPay : signature des webhooks (corps brut, JSON réencodé comme PHP,
   } finally {
     if (avant === undefined) delete process.env.GENIUSPAY_WEBHOOK_SECRET; else process.env.GENIUSPAY_WEBHOOK_SECRET = avant;
   }
+});
+
+test('sécurité : réservation non lisible sans jeton admin, entrées contrôlées, en-têtes posés', async () => {
+  const creation = await api('/api/reservations', { method: 'POST', body: nouvelleReservation({ residenceId: 8, email: 'secu@example.com', dateArrivee: jourDansNJours(200), dateDepart: jourDansNJours(203) }) });
+  assert.equal(creation.status, 201, JSON.stringify(creation.body));
+  const id = creation.body.data.id;
+
+  // Fuite de données personnelles : plus de lecture publique d'une réservation
+  const publique = await api(`/api/reservations/${id}`);
+  assert.equal(publique.status, 401);
+  assert.equal(JSON.stringify(publique.body).includes('secu@example.com'), false);
+  const headersAdmin = await connexionAdmin();
+  const admin = await api(`/api/reservations/${id}`, { headers: headersAdmin });
+  assert.equal(admin.status, 200);
+  assert.equal(admin.body.data.client.email, 'secu@example.com');
+
+  // Entrées malveillantes refusées proprement (400), jamais d'erreur 500
+  const cas = [
+    ['email invalide', { email: 'pas-un-email' }],
+    ['nom en objet', { nom: { $gt: '' } }],
+    ['dates en objet', { dateArrivee: { $gt: '' }, dateDepart: { $gt: '' } }],
+    ['date mal formée', { dateArrivee: '18/12/2026' }],
+    ['nom trop long', { nom: 'A'.repeat(81) }],
+    ['notes trop longues', { notes: 'B'.repeat(1001) }],
+    ['personnes négatives', { nombrePersonnes: -3 }],
+    ['résidence non numérique', { residenceId: 'abc' }],
+    ['téléphone fantaisiste', { telephone: '<script>' }],
+  ];
+  for (const [nom, champs] of cas) {
+    const r = await api('/api/reservations', { method: 'POST', body: nouvelleReservation({ residenceId: 8, dateArrivee: jourDansNJours(210), dateDepart: jourDansNJours(213), ...champs }) });
+    assert.equal(r.status, 400, `${nom} : HTTP ${r.status}`);
+  }
+  // Requête énorme : 413, pas de traitement
+  const enorme = await api('/api/reservations', { method: 'POST', body: nouvelleReservation({ notes: 'C'.repeat(200_000) }) });
+  assert.equal(enorme.status, 413);
+  // JSON cassé : 400
+  const casse = await fetch(`${baseUrl}/api/reservations`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"nom":' });
+  assert.equal(casse.status, 400);
+
+  // En-têtes de sécurité, sans signature du serveur
+  const r = await fetch(`${baseUrl}/api/residences`);
+  assert.equal(r.headers.get('x-powered-by'), null);
+  assert.equal(r.headers.get('x-content-type-options'), 'nosniff');
+  assert.equal(r.headers.get('x-frame-options'), 'DENY');
+  assert.match(r.headers.get('content-security-policy'), /frame-ancestors 'none'/);
+  assert.equal(r.headers.get('access-control-allow-credentials'), null);
 });
