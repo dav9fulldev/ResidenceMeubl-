@@ -1209,7 +1209,7 @@ test('disponibilités par dates : résidences libres, dates contrôlées ; statu
   assert.ok(vue.statutLe, 'date du dernier changement de statut');
 });
 
-test('moyens de paiement : liste, GeniusPay à venir non activable, PI-SPI désactivable', async (t) => {
+test('moyens de paiement : liste, GeniusPay non configuré non activable, PI-SPI désactivable', async (t) => {
   configurerPiSpi(t, { PAIEMENT_MODE: 'pispi' });
   const Settings = require('../services/SettingsService');
   t.after(async () => { await db.collection('parametres').deleteMany({}); await Settings.charger(); });
@@ -1222,13 +1222,13 @@ test('moyens de paiement : liste, GeniusPay à venir non activable, PI-SPI désa
   assert.ok(pispi && genius);
   assert.equal(pispi.configure, true);
   assert.equal(pispi.actif, true, 'PI-SPI actif par défaut');
-  assert.equal(genius.aVenir, true);
-  assert.equal(genius.actif, false);
+  assert.equal(genius.aVenir, false);
+  assert.equal(genius.actif, false, 'GeniusPay non configuré dans ce test');
   assert.equal(liste.mode, 'pispi');
 
   const refus = await api('/api/admin/paiements/moyens/geniuspay', { method: 'PUT', headers: headersAdmin, body: { actif: true } });
   assert.equal(refus.status, 400);
-  assert.match(refus.body.message, /pas encore intégré/);
+  assert.match(refus.body.message, /pas configuré/);
   assert.equal((await api('/api/admin/paiements/moyens/inconnu', { method: 'PUT', headers: headersAdmin, body: { actif: true } })).status, 404);
 
   // Désactiver PI-SPI : plus d'acompte demandé, le site public ne le propose plus
@@ -1239,4 +1239,92 @@ test('moyens de paiement : liste, GeniusPay à venir non activable, PI-SPI désa
   const on = await api('/api/admin/paiements/moyens/pispi', { method: 'PUT', headers: headersAdmin, body: { actif: true } });
   assert.equal(on.body.data.mode, 'pispi');
   assert.deepEqual((await api('/api/etablissement')).body.data.moyensPaiement.map(m => m.id), ['pispi']);
+});
+
+
+test('GeniusPay : page de paiement, webhook signé, acompte payé, remboursement à faire', async (t) => {
+  const crypto = require('node:crypto');
+  const Settings = require('../services/SettingsService');
+  const GeniusPay = require('../services/paiement/GeniusPayClient');
+  const PaymentService = require('../services/paiement/PaymentService');
+  const env = { PAIEMENT_MODE: 'desactive', GENIUSPAY_API_KEY: 'pk_sandbox_test', GENIUSPAY_API_SECRET: 'sk_sandbox_test', GENIUSPAY_WEBHOOK_SECRET: 'whsec_test', FRONTEND_URL: 'https://site.exemple.ci' };
+  const avant = {};
+  for (const [k, v] of Object.entries(env)) { avant[k] = process.env[k]; process.env[k] = v; }
+  t.after(async () => {
+    for (const [k, v] of Object.entries(avant)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+    await db.collection('parametres').deleteMany({}); await Settings.charger();
+  });
+  ReservationService.emailService.sendAcompteRecu = async () => {};
+  ReservationService.emailService.sendAcompteRecuAdmin = async () => {};
+
+  const creations = [];
+  let statutDistant = 'pending';
+  t.mock.method(GeniusPay, 'creerPaiement', async (p) => { creations.push(p); return { reference: 'SANDBOX_REF1', checkout_url: 'https://geniuspay.ci/checkout/SANDBOX_REF1', expires_at: new Date(Date.now() + 864e5).toISOString(), environment: 'sandbox' }; });
+  t.mock.method(GeniusPay, 'lirePaiement', async (ref) => ({ reference: ref, status: statutDistant, amount: 999999, customer: { name: 'Awa K' } }));
+
+  const headersAdmin = await connexionAdmin();
+  const active = await api('/api/admin/paiements/moyens/geniuspay', { method: 'PUT', headers: headersAdmin, body: { actif: true } });
+  assert.equal(active.status, 200, JSON.stringify(active.body));
+  assert.equal(active.body.data.moyen.actif, true);
+
+  const { id, headersClient } = await reservationConfirmee(1, 700, 703, 'genius@example.com');
+  await api(`/api/reservations/${id}/status`, { method: 'PUT', headers: headersAdmin, body: { statut: 'confirmee' } });
+  const vue = (await api('/api/client/reservations', { headers: headersClient })).body.data.find(r => r.id === id);
+  assert.deepEqual(vue.acompte.moyens, ['geniuspay'], 'seul GeniusPay est proposé (PI-SPI désactivé)');
+  assert.equal(vue.acompte.possible, true);
+  assert.equal((await api(`/api/client/reservations/${id}/acompte`, { method: 'POST', headers: headersClient, body: { methode: 'qr' } })).status, 503, 'PI-SPI indisponible');
+
+  const dem = await api(`/api/client/reservations/${id}/acompte`, { method: 'POST', headers: headersClient, body: { methode: 'geniuspay' } });
+  assert.equal(dem.status, 201, JSON.stringify(dem.body));
+  assert.equal(dem.body.data.checkoutUrl, 'https://geniuspay.ci/checkout/SANDBOX_REF1');
+  assert.equal(creations[0].amount === undefined ? creations[0].montant : creations[0].amount, vue.acompte.montant);
+  assert.match(creations[0].successUrl, /^https:\/\/site\.exemple\.ci\/mes-reservations\?paiement=geniuspay/);
+  const txId = dem.body.data.txId;
+  const encore = await api(`/api/client/reservations/${id}/acompte`, { method: 'POST', headers: headersClient, body: { methode: 'geniuspay' } });
+  assert.equal(encore.body.data.txId, txId, 'page de paiement réutilisée');
+  assert.equal(creations.length, 1);
+
+  // Webhook : signature fausse refusée, signature correcte acceptée → revérification via l'API
+  const corps = JSON.stringify({ event: 'payment.success', data: { reference: 'SANDBOX_REF1', status: 'completed', metadata: { txId } } });
+  const ts = String(Math.floor(Date.now() / 1000));
+  const signe = crypto.createHmac('sha256', 'whsec_test').update(`${ts}.${corps}`).digest('hex');
+  const faux = await fetch(`${baseUrl}/api/paiements/geniuspay/webhook`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Webhook-Signature': 'abc', 'X-Webhook-Timestamp': ts }, body: corps });
+  assert.equal(faux.status, 401);
+  statutDistant = 'completed';
+  const vrai = await fetch(`${baseUrl}/api/paiements/geniuspay/webhook`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Webhook-Signature': signe, 'X-Webhook-Timestamp': ts }, body: corps });
+  assert.equal(vrai.status, 200);
+  await new Promise(res => setTimeout(res, 50));
+  let r = await db.collection('reservations').findOne({ id });
+  assert.equal(r.acompte.paye, true);
+  assert.equal(r.acompte.methode, 'geniuspay');
+  assert.equal(r.acompte.end2endId, 'SANDBOX_REF1');
+
+  // Annulation acceptée : pas d'API de remboursement → à rembourser depuis GeniusPay
+  await api(`/api/client/reservations/${id}/annulation`, { method: 'POST', headers: headersClient, body: {} });
+  await api(`/api/reservations/${id}/annulation`, { method: 'PUT', headers: headersAdmin, body: { decision: 'accepter' } });
+  r = await db.collection('reservations').findOne({ id });
+  assert.equal(r.acompte.remboursement.statut, 'a_rembourser');
+  assert.match(r.acompte.remboursement.raison, /GeniusPay/);
+  assert.equal(PaymentService === require('../services/paiement/PaymentService'), true);
+});
+
+test('GeniusPay : signature des webhooks (corps brut, JSON réencodé comme PHP, horodatage)', () => {
+  const crypto = require('node:crypto');
+  const GeniusPay = require('../services/paiement/GeniusPayClient');
+  const avant = process.env.GENIUSPAY_WEBHOOK_SECRET;
+  process.env.GENIUSPAY_WEBHOOK_SECRET = 'whsec_x';
+  try {
+    const maintenant = 1_800_000_000_000;
+    const ts = String(maintenant / 1000);
+    const objet = { event: 'payment.success', data: { url: 'https://a.b/c', nom: 'Aïcha' } };
+    const php = JSON.stringify(objet).replace(/\//g, '\\/').replace(/[\u007f-\uffff]/g, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`);
+    const sig = (texte) => crypto.createHmac('sha256', 'whsec_x').update(`${ts}.${texte}`).digest('hex');
+    const brut = JSON.stringify(objet, null, 2);
+    assert.equal(GeniusPay.signatureValide(Buffer.from(brut), sig(brut), ts, maintenant), true, 'corps brut');
+    assert.equal(GeniusPay.signatureValide(Buffer.from(brut), sig(php), ts, maintenant), true, 'json_encode PHP');
+    assert.equal(GeniusPay.signatureValide(Buffer.from(brut), sig(brut), ts, maintenant + 301_000), false, 'trop ancien');
+    assert.equal(GeniusPay.signatureValide(Buffer.from(brut), sig('autre'), ts, maintenant), false, 'mauvaise signature');
+  } finally {
+    if (avant === undefined) delete process.env.GENIUSPAY_WEBHOOK_SECRET; else process.env.GENIUSPAY_WEBHOOK_SECRET = avant;
+  }
 });

@@ -74,6 +74,7 @@ const MoyensPaiement = () => {
                   <p><b>{m.nom}</b> <span>· {m.organisme}</span></p>
                   <ul className="mp-modes">{m.modes.map(x => <li key={x}>{x}</li>)}</ul>
                 </div>
+                {m.environnement === 'sandbox' && <span className="adm-badge attente">Test (sandbox)</span>}
                 <span className={`adm-badge ${e.classe}`}>{e.libelle}</span>
                 <label className={`mp-interrupteur ${!m.activable ? 'bloque' : ''}`} title={m.activable ? '' : (m.aVenir ? 'Intégration à venir' : 'À configurer sur le serveur')}>
                   <input
@@ -106,6 +107,16 @@ const MoyensPaiement = () => {
                   )}
                   {!m.aVenir && m.variables?.length > 0 && (
                     <p className="params-note">Identifiants sur le serveur (Render) : {m.variables.join(', ')}.</p>
+                  )}
+                  {m.id === 'geniuspay' && donnees.webhooks?.geniuspay && (
+                    <div className="params-champ">
+                      <label htmlFor="mp-webhook-gp">Adresse du webhook à enregistrer chez GeniusPay</label>
+                      <div className="params-unite">
+                        <input id="mp-webhook-gp" readOnly value={donnees.webhooks.geniuspay} onFocus={(ev) => ev.target.select()} />
+                        <button type="button" className="adm-btn" onClick={() => navigator.clipboard?.writeText(donnees.webhooks.geniuspay)} aria-label="Copier l'adresse"><FaCopy /></button>
+                      </div>
+                      <p>Évènements : payment.success, payment.failed, payment.cancelled, payment.expired. Les remboursements GeniusPay se font depuis leur tableau de bord.</p>
+                    </div>
                   )}
                   {m.id === 'pispi' && (
                     <div className="params-champ">

@@ -145,6 +145,10 @@ router.get('/paiements/moyens', (req, res) => {
       moyens: Moyens.liste(),
       webhookUrl: `${req.protocol}://${req.get('host')}/api/paiements/pispi/webhook`,
       webhookSecretDefini: Boolean((process.env.PISPI_WEBHOOK_SECRET || '').trim()),
+      webhooks: {
+        pispi: `${req.protocol}://${req.get('host')}/api/paiements/pispi/webhook`,
+        geniuspay: `${req.protocol}://${req.get('host')}/api/paiements/geniuspay/webhook`,
+      },
     },
   });
 });

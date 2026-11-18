@@ -71,6 +71,23 @@ app.post('/api/paiements/pispi/webhook', express.raw({ type: '*/*', limit: '1mb'
   PaymentService.traiterEvenements(corps).catch(e => console.error('⚠️ Webhook PI-SPI :', e.message));
 });
 
+// Webhook GeniusPay : signature X-Webhook-Signature = HMAC-SHA256(timestamp + "." + corps)
+app.post('/api/paiements/geniuspay/webhook', express.raw({ type: '*/*', limit: '1mb' }), (req, res) => {
+  const GeniusPay = require('./services/paiement/GeniusPayClient');
+  const corpsBrut = Buffer.isBuffer(req.body) ? req.body : Buffer.from('');
+  if (!GeniusPay.signatureValide(corpsBrut, req.get('X-Webhook-Signature'), req.get('X-Webhook-Timestamp'))) {
+    return res.status(401).json({ success: false, message: 'Signature invalide' });
+  }
+  let corps;
+  try {
+    corps = JSON.parse(corpsBrut.toString('utf8'));
+  } catch {
+    return res.status(400).json({ success: false, message: 'JSON invalide' });
+  }
+  res.status(200).json({ success: true }); // répondre vite, traiter ensuite
+  PaymentService.traiterEvenementGeniusPay(corps).catch(e => console.error('⚠️ Webhook GeniusPay :', e.message));
+});
+
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
@@ -174,10 +191,15 @@ if (require.main === module) {
   db.connect()
     .then(() => {
       console.log('🗄️  Connecté à MongoDB');
-      require('./services/SettingsService').charger().catch(e => console.error('⚠️ Paramètres :', e.message));
-      const modePaiement = require('./services/paiement/acompte').mode();
-      console.log(`💳 Paiement de l'acompte : ${modePaiement === 'pispi' ? 'PI-SPI' : modePaiement}`);
-      if (modePaiement === 'pispi') PaymentService.demarrerVerificationPeriodique();
+      require('./services/SettingsService').charger()
+        .catch(e => console.error('⚠️ Paramètres :', e.message))
+        .then(() => {
+          const acompte = require('./services/paiement/acompte');
+          const moyens = acompte.moyensDisponibles();
+          const GeniusPay = require('./services/paiement/GeniusPayClient');
+          console.log(`💳 Paiement de l'acompte : ${moyens.length ? moyens.map(m => (m === 'pispi' ? `PI-SPI (${acompte.mode()})` : `GeniusPay (${GeniusPay.environnement})`)).join(', ') : 'désactivé'}`);
+          if (moyens.length) PaymentService.demarrerVerificationPeriodique();
+        });
       const AIService = require('./services/AIService');
       if (AIService.estActive()) {
         console.log(`🧠 Recherche intelligente : Voyage AI (${AIService.model})`);

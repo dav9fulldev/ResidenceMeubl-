@@ -6,6 +6,7 @@ const ReservationService = require('../services/ReservationService');
 const requireClient = require('../middleware/requireClient');
 const PaymentService = require('../services/paiement/PaymentService');
 const PiSpi = require('../services/paiement/PiSpiClient');
+const GeniusPay = require('../services/paiement/GeniusPayClient');
 const { cleLimite } = require('../middleware/clientIp');
 
 /**
@@ -139,6 +140,10 @@ router.post('/reservations/:id/acompte', paiementLimiter, requireClient, async (
     const data = await PaymentService.demarrer(req.params.id, req.client, req.body || {});
     res.status(201).json({ success: true, data });
   } catch (error) {
+    if (error instanceof GeniusPay.ErreurGeniusPay) {
+      console.error('Erreur GeniusPay :', error.message);
+      return res.status(502).json({ success: false, message: 'Le service de paiement GeniusPay est momentanément indisponible. Réessayez dans un instant.' });
+    }
     if (error instanceof PiSpi.ErreurPiSpi || error?.name === 'TimeoutError') {
       // Erreur ou délai dépassé côté PI-SPI
       console.error('Erreur PI-SPI :', error.message);

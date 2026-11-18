@@ -51,6 +51,8 @@ const MesReservations = () => {
   const [sending, setSending] = useState(false);
   const [paiementPour, setPaiementPour] = useState(null); // réservation dont on paie l'acompte
   const [paiementDirect, setPaiementDirect] = useState(null);
+  // Retour depuis la page de paiement GeniusPay
+  const [retourPaiement, setRetourPaiement] = useState(null); // { etat: 'verif' | 'paye' | 'echec' | 'attente', message }
 
   const masquer = async (ids) => {
     const texte = ids
@@ -79,6 +81,44 @@ const MesReservations = () => {
       navigate('/mes-reservations', { replace: true });
     }
   }, [searchParams, navigate]);
+
+  // ?paiement=geniuspay&reservation=…&tx=…[&echec=1] : on confirme auprès du serveur (qui interroge GeniusPay)
+  useEffect(() => {
+    if (searchParams.get('paiement') !== 'geniuspay' || !token) return;
+    const reservationId = searchParams.get('reservation');
+    const tx = searchParams.get('tx');
+    const echecAnnonce = searchParams.get('echec') === '1';
+    navigate('/mes-reservations', { replace: true });
+    if (!reservationId || !tx) return;
+    // Pas d'annulation au nettoyage : retirer les paramètres de l'adresse relance cet effet
+    const actif = true;
+    setRetourPaiement({ etat: 'verif', message: 'Nous vérifions votre paiement auprès de GeniusPay…' });
+    (async () => {
+      for (let essai = 0; essai < 8 && actif; essai += 1) {
+        try {
+          const r = await apiRequest(`${API_ENDPOINTS.client.reservations}/${reservationId}/acompte/${tx}`, { token });
+          if (r.data.statut === 'paye' || r.data.acompte?.paye) {
+            if (actif) setRetourPaiement({ etat: 'paye', message: 'Acompte reçu : votre séjour est garanti. Un reçu vous a été envoyé par email.' });
+            charger();
+            return;
+          }
+          if (['refuse', 'expire'].includes(r.data.statut)) {
+            if (actif) setRetourPaiement({ etat: 'echec', message: `${r.data.raison || 'Le paiement n\'a pas abouti.'} Vous pouvez réessayer depuis la réservation ci-dessous.` });
+            return;
+          }
+        } catch {
+          // réseau : on réessaie
+        }
+        await new Promise(res => setTimeout(res, 2500));
+      }
+      if (actif) {
+        setRetourPaiement(echecAnnonce
+          ? { etat: 'echec', message: 'Le paiement n\'a pas abouti. Vous pouvez réessayer depuis la réservation ci-dessous.' }
+          : { etat: 'attente', message: 'Paiement en cours de confirmation. Cette page se mettra à jour dès que GeniusPay l\'aura validé (vous recevrez aussi un email).' });
+        charger();
+      }
+    })();
+  }, [searchParams, token]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const deconnexion = useCallback((message = '') => {
     setClientToken(null);
@@ -224,6 +264,15 @@ const MesReservations = () => {
 
         {error && <div className="error-message" role="alert">{error}</div>}
         {info && <div className="success-notice" role="status">{info}</div>}
+        {retourPaiement && (
+          <div className={`retour-paiement ${retourPaiement.etat}`} role="status" aria-live="polite">
+            {retourPaiement.etat === 'verif' && <span className="retour-spinner" aria-hidden="true" />}
+            <p>{retourPaiement.message}</p>
+            {retourPaiement.etat !== 'verif' && (
+              <button type="button" className="retour-fermer" onClick={() => setRetourPaiement(null)} aria-label="Fermer le message">×</button>
+            )}
+          </div>
+        )}
 
         {loading && !reservations && <p>Chargement…</p>}
         {reservations && reservations.length === 0 && <p>Aucune réservation trouvée.</p>}
@@ -274,8 +323,11 @@ const MesReservations = () => {
                         Garantissez votre séjour : acompte de <strong>{Number(r.acompte.montant).toLocaleString('fr-FR')} FCFA</strong> ({r.acompte.pourcentage} %).
                       </p>
                       <button type="button" className="btn btn-primary btn-sm" onClick={() => ouvrirPaiement(r)}>
-                        Payer l'acompte avec PI-SPI
+                        {r.acompte.enCours?.methode === 'geniuspay' ? 'Reprendre le paiement de l\'acompte' : 'Payer l\'acompte'}
                       </button>
+                      <p className="acompte-moyens-acceptes">
+                        {(r.acompte.moyens || ['pispi']).map(m => (m === 'geniuspay' ? 'Wave, Orange Money, MTN, Moov, carte' : 'appli bancaire (PI-SPI)')).join(' · ')}
+                      </p>
                     </div>
                   )}
 

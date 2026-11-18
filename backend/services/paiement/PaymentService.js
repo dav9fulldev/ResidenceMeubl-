@@ -2,7 +2,15 @@ const crypto = require('crypto');
 const { buildPayloadString, generateQrCodeSvg } = require('@pi-spi/qrcode');
 const db = require('../../db');
 const PiSpi = require('./PiSpiClient');
+const GeniusPay = require('./GeniusPayClient');
 const acompte = require('./acompte');
+
+// Adresse publique du site (retour du client après la page de paiement GeniusPay)
+const urlSite = () => {
+  const liste = String(process.env.PUBLIC_SITE_URL || process.env.FRONTEND_URL || '').split(',').map(s => s.trim()).filter(Boolean);
+  return (liste.find(u => u.startsWith('https://')) || liste[0] || 'http://localhost:3000').replace(/\/+$/, '');
+};
+const STATUTS_ECHEC_GENIUSPAY = { failed: 'Paiement refusé.', cancelled: 'Paiement annulé.' };
 
 /**
  * Paiement de l'acompte via PI-SPI.
@@ -58,7 +66,7 @@ class PaymentService {
    */
   async demarrer(reservationId, client, { methode, payeurAlias } = {}) {
     if (client.ref && client.ref !== String(reservationId)) throw new ErreurPaiement('Accès non autorisé à cette réservation', 403);
-    if (!['qr', 'demande'].includes(methode)) throw new ErreurPaiement('Méthode de paiement invalide');
+    if (!['qr', 'demande', 'geniuspay'].includes(methode)) throw new ErreurPaiement('Méthode de paiement invalide');
 
     const r = await this.collection.findOne({ id: String(reservationId), 'client.email': client.email }, { projection: { _id: 0 } });
     if (!r) throw new ErreurPaiement('Réservation introuvable', 404);
@@ -66,12 +74,21 @@ class PaymentService {
     const etat = acompte.etatAcompte(r);
     if (etat.paye) throw new ErreurPaiement('L\'acompte de cette réservation est déjà réglé');
     if (!etat.possible) {
-      if (etat.mode === 'desactive') throw new ErreurPaiement('Le paiement en ligne n\'est pas encore disponible', 503);
+      if (etat.moyens.length === 0) throw new ErreurPaiement('Le paiement en ligne n\'est pas encore disponible', 503);
       throw new ErreurPaiement('Le paiement de l\'acompte est possible une fois la réservation confirmée');
     }
 
+    const fournisseur = methode === 'geniuspay' ? 'geniuspay' : 'pispi';
+    if (!etat.moyens.includes(fournisseur)) throw new ErreurPaiement('Ce moyen de paiement n\'est pas disponible', 503);
+
     // Une demande déjà envoyée et toujours valable est réutilisée (évite un double paiement)
     const enCours = acompte.paiementEnCours(r);
+    if (methode === 'geniuspay') {
+      if (enCours?.methode === 'geniuspay' && enCours.checkoutUrl) {
+        return { txId: enCours.txId, methode, montant: enCours.montant, expireLe: enCours.expireLe, checkoutUrl: enCours.checkoutUrl, dejaEnvoyee: true };
+      }
+      return this.demarrerGeniusPay(r, etat.montant);
+    }
     if (enCours && enCours.methode === 'demande' && methode === 'demande') {
       return { txId: enCours.txId, methode: 'demande', montant: enCours.montant, expireLe: enCours.expireLe, dejaEnvoyee: true };
     }
@@ -123,6 +140,43 @@ class PaymentService {
     return resultat;
   }
 
+  /** Crée la page de paiement GeniusPay de l'acompte ; le client y est redirigé. */
+  async demarrerGeniusPay(r, montant) {
+    const txId = acompte.genererTxId();
+    const retour = `${urlSite()}/mes-reservations?paiement=geniuspay&reservation=${encodeURIComponent(r.id)}&tx=${txId}`;
+    const p = await GeniusPay.creerPaiement({
+      montant,
+      description: `Acompte réservation ${r.id} - ${r.residenceInfo?.nom || 'Sankofart'}`,
+      client: { nom: `${r.client.prenom} ${r.client.nom}`.trim(), email: r.client.email, telephone: r.client.telephone },
+      successUrl: retour,
+      errorUrl: `${retour}&echec=1`,
+      metadata: { reservation: r.id, txId },
+    });
+    if (!p?.reference || !p?.checkout_url) throw new ErreurPaiement('GeniusPay n\'a pas renvoyé de page de paiement', 502);
+    const creeLe = new Date();
+    const expireLe = p.expires_at ? new Date(p.expires_at) : new Date(creeLe.getTime() + 24 * 3600 * 1000);
+    await this.collection.updateOne({ id: r.id }, {
+      $push: { paiements: { txId, methode: 'geniuspay', montant, statut: 'en_attente', creeLe, expireLe, reference: p.reference, checkoutUrl: p.checkout_url, environnement: p.environment || null } },
+    });
+    return { txId, methode: 'geniuspay', montant, expireLe, checkoutUrl: p.checkout_url };
+  }
+
+  /** Relit un paiement GeniusPay et met la réservation à jour. */
+  async verifierGeniusPay(r, p) {
+    if (!GeniusPay.estConfigure() || !p.reference) return p;
+    try {
+      const g = await GeniusPay.lirePaiement(p.reference);
+      if (g?.status === 'completed' && Number(g.amount) >= Number(p.montant)) {
+        return this.marquerPaye(r.id, p.txId, { end2endId: g.reference, payeurNom: g.customer?.name || null });
+      }
+      if (STATUTS_ECHEC_GENIUSPAY[g?.status]) return this.cloturer(r.id, p.txId, 'refuse', STATUTS_ECHEC_GENIUSPAY[g.status]);
+      if (g?.status === 'expired') return this.cloturer(r.id, p.txId, 'expire', 'Délai dépassé');
+    } catch (error) {
+      console.error(`⚠️ Vérification GeniusPay impossible (${p.txId}) :`, error.message);
+    }
+    return p;
+  }
+
   /**
    * Vérifie un paiement en attente auprès de PI-SPI et met la réservation à jour.
    * Idempotent : peut être appelé par le client, le webhook et la vérification périodique.
@@ -133,11 +187,14 @@ class PaymentService {
     if (!r) return null;
     const p = r.paiements.find(x => x.txId === txId);
     // « expire » reste vérifiable : un client peut payer une demande après notre délai
-    if (!['en_attente', 'expire'].includes(p.statut) || acompte.mode() !== 'pispi') return p;
+    if (!['en_attente', 'expire'].includes(p.statut)) return p;
 
     const dernier = derniereVerification.get(txId) || 0;
     if (!forcer && Date.now() - dernier < 3000) return p;
     derniereVerification.set(txId, Date.now());
+
+    if (p.methode === 'geniuspay') return this.verifierGeniusPay(r, p);
+    if (acompte.mode() !== 'pispi') return p;
 
     try {
       const recu = await PiSpi.lirePaiementRecu(txId);
@@ -283,10 +340,22 @@ class PaymentService {
     }
   }
 
+  // ---------- Webhook GeniusPay ----------
+
+  /** Évènement payment.* : on relit toujours le paiement via l'API avant de valider. */
+  async traiterEvenementGeniusPay(corps) {
+    const d = corps?.data || {};
+    if (!String(corps?.event || '').startsWith('payment.')) return;
+    const filtre = d.metadata?.txId ? { 'paiements.txId': String(d.metadata.txId) } : { 'paiements.reference': String(d.reference || '') };
+    const r = await this.collection.findOne(filtre, { projection: { _id: 0, paiements: 1 } });
+    const p = r?.paiements?.find(x => (d.metadata?.txId ? x.txId === String(d.metadata.txId) : x.reference === String(d.reference)));
+    if (p) await this.verifier(p.txId, { forcer: true });
+  }
+
   // ---------- Vérification périodique (secours si un webhook se perd) ----------
 
   async verifierEnAttente() {
-    if (acompte.mode() !== 'pispi') return;
+    if (acompte.moyensDisponibles().length === 0) return;
     const limite = new Date(Date.now() - acompte.MARGE_VERIFICATION_MS);
     const reservations = await this.collection
       .find({ paiements: { $elemMatch: { statut: 'en_attente', expireLe: { $gt: limite } } } }, { projection: { paiements: 1 } })
@@ -294,7 +363,9 @@ class PaymentService {
     // Suivi rapproché pendant 15 min ; ensuite webhook + vérification à l'ouverture de la page
     const recent = Date.now() - 15 * 60 * 1000;
     for (const r of reservations) {
-      for (const p of r.paiements.filter(x => x.statut === 'en_attente' && new Date(x.creeLe).getTime() > recent)) {
+      // GeniusPay : la page de paiement reste ouverte plus longtemps, suivi pendant 2 h
+      const recentGenius = Date.now() - 2 * 3600 * 1000;
+      for (const p of r.paiements.filter(x => x.statut === 'en_attente' && new Date(x.creeLe).getTime() > (x.methode === 'geniuspay' ? recentGenius : recent))) {
         await this.verifier(p.txId);
       }
     }
