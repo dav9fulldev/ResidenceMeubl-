@@ -15,10 +15,12 @@ const dateCourte = (v) => (v ? new Date(v).toLocaleDateString('fr-FR', { day: 'n
 const fcfa = (n) => `${Number(n || 0).toLocaleString('fr-FR')} FCFA`;
 const nuits = (r) => Math.max(0, Math.round((Date.parse(`${r.dates.depart}T00:00:00Z`) - Date.parse(`${r.dates.arrivee}T00:00:00Z`)) / 86400000));
 const enDemande = (r) => r.demandeAnnulation?.statut === 'en_attente';
-const aProbleme = (r) => r.acompte?.doublons?.length > 0 || ['a_rembourser', 'echec'].includes(r.acompte?.remboursement?.statut);
+const aProbleme = (r) => r.acompte?.doublons?.length > 0 || ['a_rembourser', 'echec'].includes(r.acompte?.remboursement?.statut)
+  || r.solde?.remboursement?.statut === 'a_rembourser';
 
 /** Badge « acompte » d'une ligne du tableau. */
 function badgeAcompte(r) {
+  if (r.solde?.paye && r.statut === 'confirmee') return <span className="adm-badge confirmee">Tout réglé</span>;
   const rb = r.acompte?.remboursement?.statut;
   if (rb === 'rembourse') return <span className="adm-badge neutre">Remboursé</span>;
   if (rb === 'en_cours') return <span className="adm-badge paye">Remboursement…</span>;
@@ -38,7 +40,8 @@ const ONGLETS = [
  * Réservations : tableau filtrable + panneau de détail avec les actions possibles selon le statut.
  */
 const AdminReservations = () => {
-  const { getReservations, updateReservationStatus, decideCancellation, markRefunded, retryRefund, reloadResidences, residences } = useResidences();
+  const { getReservations, updateReservationStatus, decideCancellation, markRefunded, retryRefund, markBalancePaid, markBalanceRefunded, reloadResidences, residences } = useResidences();
+  const [saisieSolde, setSaisieSolde] = useState(null); // { moyen, reference } pendant l'enregistrement d'un solde sur place
   const [params, setParams] = useSearchParams();
   const [reservations, setReservations] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -74,6 +77,7 @@ const AdminReservations = () => {
   useEffect(() => { load(); }, [load, residences]);
 
   const choisir = (id) => {
+    setSaisieSolde(null);
     const p = new URLSearchParams(params);
     if (id) p.set('id', id); else p.delete('id');
     setParams(p, { replace: true });
@@ -101,6 +105,32 @@ const AdminReservations = () => {
       const res = await markRefunded(r.id, reference);
       maj(r.id, { acompte: { ...r.acompte, remboursement: res.remboursement } });
       setNotice('Remboursement enregistré.');
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const enregistrerSolde = async (r) => {
+    setError(''); setNotice(''); setBusyId(r.id);
+    try {
+      const res = await markBalancePaid(r.id, saisieSolde.moyen, saisieSolde.reference);
+      maj(r.id, { solde: res.solde });
+      setSaisieSolde(null);
+      setNotice(`Solde de ${fcfa(res.solde.montant)} enregistré (${res.solde.libelleMoyen}). Le séjour est entièrement réglé.`);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const soldeRendu = async (r) => {
+    const reference = window.prompt(`Confirmez que le solde de ${fcfa(r.solde.montant)} a été rendu à ${r.client.prenom} ${r.client.nom}.\nRéférence (facultatif) :`, '');
+    if (reference === null) return;
+    try {
+      const res = await markBalanceRefunded(r.id, reference);
+      maj(r.id, { solde: res.solde });
+      setNotice('Remboursement du solde enregistré.');
     } catch (err) {
       setError(err.message);
     }
@@ -332,6 +362,61 @@ const AdminReservations = () => {
               )}
               {selection.acompte.doublons?.length > 0 && (
                 <p className="resa-probleme"><FaExclamationTriangle /> Paiement en double ({selection.acompte.doublons.map(d => `${fcfa(d.montant)}, réf. ${d.txId}`).join(' ; ')}) : à rembourser au client.</p>
+              )}
+            </div>
+          )}
+
+          {/* Solde du séjour */}
+          {selection.solde && selection.statut !== 'en_attente' && (selection.acompte?.paye || selection.solde.paye || selection.solde.remboursement) && (
+            <div className="resa-bloc">
+              <h3>Solde du séjour</h3>
+              {selection.solde.paye ? (
+                <p>
+                  <b>{fcfa(selection.solde.montant)}</b> {selection.solde.enLigne ? `payés en ligne${selection.solde.methode === 'geniuspay' ? ' (GeniusPay)' : ' (PI-SPI)'}` : `reçus sur place (${selection.solde.libelleMoyen})`} le {formatDate(selection.solde.payeLe)}
+                  {selection.solde.reference ? ` · réf. ${selection.solde.reference}` : ''}. Séjour entièrement réglé.
+                </p>
+              ) : selection.statut === 'confirmee' ? (
+                <p><b>{fcfa(selection.solde.montant)}</b> restent à régler, en ligne par le client ou à son arrivée.</p>
+              ) : null}
+              {selection.solde.remboursement?.statut === 'a_rembourser' && (
+                <div className="resa-probleme">
+                  <p><FaExclamationTriangle /> Séjour annulé : solde de {fcfa(selection.solde.remboursement.montant ?? selection.solde.montant)} à rendre au client.</p>
+                  <div className="resa-actions-ligne">
+                    <button type="button" className="adm-btn principal" onClick={() => soldeRendu(selection)}>Solde rendu au client</button>
+                  </div>
+                </div>
+              )}
+              {selection.solde.remboursement?.statut === 'rembourse' && (
+                <p>Solde rendu au client le {formatDate(selection.solde.remboursement.le)}{selection.solde.remboursement.reference ? ` (réf. ${selection.solde.remboursement.reference})` : ''}.</p>
+              )}
+              {selection.statut === 'confirmee' && !selection.solde.paye && selection.solde.montant > 0 && (
+                saisieSolde ? (
+                  <div className="solde-saisie">
+                    <label>Moyen de paiement
+                      <select value={saisieSolde.moyen} onChange={(e) => setSaisieSolde(v => ({ ...v, moyen: e.target.value }))}>
+                        <option value="especes">Espèces</option>
+                        <option value="mobile_money">Mobile Money</option>
+                        <option value="carte">Carte bancaire</option>
+                        <option value="virement">Virement</option>
+                        <option value="autre">Autre</option>
+                      </select>
+                    </label>
+                    <label>Référence (facultatif)
+                      <input type="text" maxLength={80} value={saisieSolde.reference} placeholder="N° de reçu, de transaction…"
+                        onChange={(e) => setSaisieSolde(v => ({ ...v, reference: e.target.value }))} />
+                    </label>
+                    <div className="resa-actions-ligne">
+                      <button type="button" className="adm-btn" onClick={() => setSaisieSolde(null)}>Annuler</button>
+                      <button type="button" className="adm-btn principal" onClick={() => enregistrerSolde(selection)} disabled={busyId === selection.id}>
+                        Enregistrer {fcfa(selection.solde.montant)}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button type="button" className="adm-btn" onClick={() => setSaisieSolde({ moyen: 'especes', reference: '' })}>
+                    Solde reçu sur place
+                  </button>
+                )
               )}
             </div>
           )}

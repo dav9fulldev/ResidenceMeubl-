@@ -88,10 +88,11 @@ const AdminDashboard = () => {
 
   // File « à traiter » : du plus urgent au moins urgent
   const aTraiter = useMemo(() => {
-    const probleme = reservations.filter(x => x.acompte?.doublons?.length || ['a_rembourser', 'echec'].includes(x.acompte?.remboursement?.statut));
+    const probleme = reservations.filter(x => x.acompte?.doublons?.length || ['a_rembourser', 'echec'].includes(x.acompte?.remboursement?.statut)
+      || x.solde?.remboursement?.statut === 'a_rembourser');
     return [
       ...demandes.map(x => ({ x, type: 'demande', libelle: 'Annulation', classe: 'demande' })),
-      ...probleme.map(x => ({ x, type: 'probleme', libelle: x.acompte?.doublons?.length ? 'Paiement en double' : 'Remboursement à traiter', classe: 'demande' })),
+      ...probleme.map(x => ({ x, type: 'probleme', libelle: x.acompte?.doublons?.length ? 'Paiement en double' : x.solde?.remboursement?.statut === 'a_rembourser' && !['a_rembourser', 'echec'].includes(x.acompte?.remboursement?.statut) ? 'Solde à rendre' : 'Remboursement à traiter', classe: 'demande' })),
       ...enAttente.filter(x => x.demandeAnnulation?.statut !== 'en_attente').map(x => ({ x, type: 'attente', libelle: 'À confirmer', classe: 'attente' })),
     ];
   }, [reservations, demandes, enAttente]);

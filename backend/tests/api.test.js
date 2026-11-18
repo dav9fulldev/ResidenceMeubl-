@@ -1375,3 +1375,75 @@ test('sécurité : réservation non lisible sans jeton admin, entrées contrôl�
   assert.match(r.headers.get('content-security-policy'), /frame-ancestors 'none'/);
   assert.equal(r.headers.get('access-control-allow-credentials'), null);
 });
+
+test('solde du séjour : en ligne après l\'acompte, sur place par l\'admin, rappel, annulation', async (t) => {
+  configurerPiSpi(t, { PAIEMENT_MODE: 'simulation', ACOMPTE_POURCENTAGE: '30' });
+  const es = ReservationService.emailService;
+  const envois = [];
+  es.sendAcompteRecu = async () => {}; es.sendAcompteRecuAdmin = async () => {};
+  es.sendSoldeRecu = async (r) => { envois.push(['solde-client', r.id]); };
+  es.sendSoldeRecuAdmin = async (r) => { envois.push(['solde-admin', r.id]); };
+  es.sendRappelSolde = async (r) => { envois.push(['rappel', r.id]); };
+  es.sendRemboursementEffectue = async () => {};
+
+  // --- 1. Solde payé en ligne ---
+  const { id, headersAdmin, headersClient } = await reservationConfirmee(2, 2, 6, 'solde@example.com');
+  await api(`/api/reservations/${id}/status`, { method: 'PUT', headers: headersAdmin, body: { statut: 'confirmee' } });
+  let vue = (await api('/api/client/reservations', { headers: headersClient })).body.data.find(r => r.id === id);
+  assert.equal(vue.solde.possible, false, 'pas de solde en ligne avant l\'acompte');
+  assert.equal(vue.solde.montant, vue.prixTotal - vue.acompte.montant);
+  assert.equal((await api(`/api/client/reservations/${id}/acompte`, { method: 'POST', headers: headersClient, body: { methode: 'qr', objet: 'solde' } })).status, 400);
+
+  const ac = (await api(`/api/client/reservations/${id}/acompte`, { method: 'POST', headers: headersClient, body: { methode: 'qr' } })).body.data;
+  await api(`/api/client/reservations/${id}/acompte/${ac.txId}/simuler`, { method: 'POST', headers: headersClient });
+  vue = (await api('/api/client/reservations', { headers: headersClient })).body.data.find(r => r.id === id);
+  assert.equal(vue.acompte.paye, true);
+  assert.equal(vue.solde.possible, true);
+  assert.equal(vue.solde.aRegler, true);
+
+  // Rappel envoyé une seule fois (arrivée dans 2 jours)
+  assert.equal(await ReservationService.envoyerRappelsSolde(), 1);
+  assert.equal(await ReservationService.envoyerRappelsSolde(), 0);
+  assert.deepEqual(envois.filter(e => e[0] === 'rappel').map(e => e[1]), [id]);
+
+  const so = await api(`/api/client/reservations/${id}/acompte`, { method: 'POST', headers: headersClient, body: { methode: 'qr', objet: 'solde' } });
+  assert.equal(so.status, 201, JSON.stringify(so.body));
+  assert.equal(so.body.data.objet, 'solde');
+  assert.equal(so.body.data.montant, vue.solde.montant);
+  const suivi = (await api(`/api/client/reservations/${id}/acompte/${so.body.data.txId}/simuler`, { method: 'POST', headers: headersClient })).body.data;
+  assert.equal(suivi.statut, 'paye');
+  assert.equal(suivi.objet, 'solde');
+  assert.equal(suivi.solde.paye, true);
+  assert.equal(suivi.solde.enLigne, true);
+  await new Promise(r => setTimeout(r, 20));
+  assert.ok(envois.some(e => e[0] === 'solde-client') && envois.some(e => e[0] === 'solde-admin'));
+  // L'acompte n'a pas été touché
+  const enBase = await db.collection('reservations').findOne({ id });
+  assert.equal(enBase.acompte.montant, vue.acompte.montant);
+  assert.equal(enBase.solde.montant, vue.solde.montant);
+  assert.equal((await api(`/api/client/reservations/${id}/acompte`, { method: 'POST', headers: headersClient, body: { methode: 'qr', objet: 'solde' } })).status, 400, 'déjà réglé');
+
+  // Annulation acceptée : solde à rembourser, puis marqué rendu
+  await api(`/api/client/reservations/${id}/annulation`, { method: 'POST', headers: headersClient, body: {} });
+  await api(`/api/reservations/${id}/annulation`, { method: 'PUT', headers: headersAdmin, body: { decision: 'accepter' } });
+  let admin = (await api('/api/reservations', { headers: headersAdmin })).body.data.find(r => r.id === id);
+  assert.equal(admin.solde.remboursement.statut, 'a_rembourser');
+  const rendu = await api(`/api/reservations/${id}/solde/remboursement`, { method: 'PUT', headers: headersAdmin, body: { reference: 'ESPECES-01' } });
+  assert.equal(rendu.status, 200);
+  assert.equal(rendu.body.data.solde.remboursement.statut, 'rembourse');
+
+  // --- 2. Solde réglé sur place, enregistré par l'admin ---
+  const b = await reservationConfirmee(3, 20, 23, 'surplace@example.com');
+  await api(`/api/reservations/${b.id}/status`, { method: 'PUT', headers: headersAdmin, body: { statut: 'confirmee' } });
+  assert.equal((await api(`/api/reservations/${b.id}/solde`, { method: 'PUT', body: { moyen: 'especes' } })).status, 401, 'admin uniquement');
+  assert.equal((await api(`/api/reservations/${b.id}/solde`, { method: 'PUT', headers: headersAdmin, body: { moyen: 'bitcoin' } })).status, 400);
+  const place = await api(`/api/reservations/${b.id}/solde`, { method: 'PUT', headers: headersAdmin, body: { moyen: 'mobile_money', reference: 'OM-123' } });
+  assert.equal(place.status, 200, JSON.stringify(place.body));
+  assert.equal(place.body.data.solde.paye, true);
+  assert.equal(place.body.data.solde.enLigne, false);
+  assert.equal(place.body.data.solde.libelleMoyen, 'Mobile Money');
+  assert.equal((await api(`/api/reservations/${b.id}/solde`, { method: 'PUT', headers: headersAdmin, body: { moyen: 'especes' } })).status, 409, 'pas deux fois');
+  const vueB = (await api('/api/client/reservations', { headers: b.headersClient })).body.data.find(r => r.id === b.id);
+  assert.equal(vueB.solde.paye, true);
+  assert.equal(vueB.solde.possible, false);
+});

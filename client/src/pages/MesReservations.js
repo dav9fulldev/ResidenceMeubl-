@@ -67,8 +67,10 @@ const MesReservations = () => {
     }
   };
 
-  const ouvrirPaiement = (r) => {
-    setPaiementDirect(preparerPaiementDirect(r)); // à faire pendant le geste (ouverture d'onglet)
+  const [objetPaiement, setObjetPaiement] = useState('acompte'); // 'acompte' | 'solde'
+  const ouvrirPaiement = (r, objet = 'acompte') => {
+    setPaiementDirect(preparerPaiementDirect(r, objet)); // à faire pendant le geste (ouverture d'onglet)
+    setObjetPaiement(objet);
     setPaiementPour(r);
   };
 
@@ -97,8 +99,10 @@ const MesReservations = () => {
       for (let essai = 0; essai < 8 && actif; essai += 1) {
         try {
           const r = await apiRequest(`${API_ENDPOINTS.client.reservations}/${reservationId}/acompte/${tx}`, { token });
-          if (r.data.statut === 'paye' || r.data.acompte?.paye) {
-            if (actif) setRetourPaiement({ etat: 'paye', message: 'Acompte reçu : votre séjour est garanti. Un reçu vous a été envoyé par email.' });
+          if (r.data.statut === 'paye') {
+            if (actif) setRetourPaiement({ etat: 'paye', message: r.data.objet === 'solde'
+              ? 'Solde reçu : votre séjour est entièrement réglé. Un reçu vous a été envoyé par email.'
+              : 'Acompte reçu : votre séjour est garanti. Un reçu vous a été envoyé par email.' });
             charger();
             return;
           }
@@ -330,6 +334,34 @@ const MesReservations = () => {
                       </p>
                     </div>
                   )}
+                  {r.solde?.paye && r.statut !== 'annulee' && (
+                    <p className="demande-info acceptee">
+                      ✅ Séjour entièrement réglé : solde de {Number(r.solde.montant).toLocaleString('fr-FR')} FCFA {r.solde.enLigne ? 'payé en ligne' : `réglé sur place (${r.solde.libelleMoyen})`} le {formatDate(r.solde.payeLe)}.
+                    </p>
+                  )}
+                  {r.solde?.remboursement?.statut === 'a_rembourser' && (
+                    <p className="demande-info attente">↩️ Solde de {Number(r.solde.montant).toLocaleString('fr-FR')} FCFA : remboursement en cours par notre équipe.</p>
+                  )}
+                  {r.solde?.remboursement?.statut === 'rembourse' && (
+                    <p className="demande-info acceptee">↩️ Solde de {Number(r.solde.montant).toLocaleString('fr-FR')} FCFA remboursé le {formatDate(r.solde.remboursement.le)}.</p>
+                  )}
+                  {r.solde?.aRegler && (
+                    <div className="acompte-bloc solde-bloc">
+                      <p>
+                        Reste à régler : <strong>{Number(r.solde.montant).toLocaleString('fr-FR')} FCFA</strong>, en ligne dès maintenant ou à votre arrivée.
+                      </p>
+                      {r.solde.possible && (
+                        <>
+                          <button type="button" className="btn btn-outline btn-sm" onClick={() => ouvrirPaiement(r, 'solde')}>
+                            {r.solde.enCours?.methode === 'geniuspay' ? 'Reprendre le paiement du solde' : 'Payer le solde en ligne'}
+                          </button>
+                          <p className="acompte-moyens-acceptes">
+                            {(r.solde.moyens || ['pispi']).map(m => (m === 'geniuspay' ? 'Wave, Orange Money, MTN, Moov, carte' : 'appli bancaire (PI-SPI)')).join(' · ')} · ou sur place à l'arrivée
+                          </p>
+                        </>
+                      )}
+                    </div>
+                  )}
 
                   {demande?.statut === 'en_attente' && (
                     <p className="demande-info attente">⏳ Demande d'annulation envoyée le {formatDate(demande.dateDemande)} : en attente de réponse.</p>
@@ -390,6 +422,7 @@ const MesReservations = () => {
         {paiementPour && (
           <PaiementAcompte
             reservation={paiementPour}
+            objet={objetPaiement}
             direct={paiementDirect}
             token={token}
             onPaye={() => charger()}

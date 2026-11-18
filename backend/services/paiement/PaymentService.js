@@ -64,33 +64,36 @@ class PaymentService {
    * Démarre le paiement de l'acompte pour une réservation du client.
    * @returns {{ txId, methode, montant, expireLe, qrPayload?, qrSvg? }}
    */
-  async demarrer(reservationId, client, { methode, payeurAlias } = {}) {
+  async demarrer(reservationId, client, { methode, payeurAlias, objet: objetDemande } = {}) {
+    const objet = objetDemande === 'solde' ? 'solde' : 'acompte';
     if (client.ref && client.ref !== String(reservationId)) throw new ErreurPaiement('Accès non autorisé à cette réservation', 403);
     if (!['qr', 'demande', 'geniuspay'].includes(methode)) throw new ErreurPaiement('Méthode de paiement invalide');
 
     const r = await this.collection.findOne({ id: String(reservationId), 'client.email': client.email }, { projection: { _id: 0 } });
     if (!r) throw new ErreurPaiement('Réservation introuvable', 404);
 
-    const etat = acompte.etatAcompte(r);
-    if (etat.paye) throw new ErreurPaiement('L\'acompte de cette réservation est déjà réglé');
+    const etat = objet === 'solde' ? acompte.etatSolde(r) : acompte.etatAcompte(r);
+    if (etat.paye) throw new ErreurPaiement(objet === 'solde' ? 'Le solde de ce séjour est déjà réglé' : 'L\'acompte de cette réservation est déjà réglé');
     if (!etat.possible) {
       if (etat.moyens.length === 0) throw new ErreurPaiement('Le paiement en ligne n\'est pas encore disponible', 503);
-      throw new ErreurPaiement('Le paiement de l\'acompte est possible une fois la réservation confirmée');
+      throw new ErreurPaiement(objet === 'solde'
+        ? 'Le solde peut être réglé en ligne une fois l\'acompte payé, tant que le séjour n\'est pas terminé'
+        : 'Le paiement de l\'acompte est possible une fois la réservation confirmée');
     }
 
     const fournisseur = methode === 'geniuspay' ? 'geniuspay' : 'pispi';
     if (!etat.moyens.includes(fournisseur)) throw new ErreurPaiement('Ce moyen de paiement n\'est pas disponible', 503);
 
     // Une demande déjà envoyée et toujours valable est réutilisée (évite un double paiement)
-    const enCours = acompte.paiementEnCours(r);
+    const enCours = acompte.paiementEnCours(r, objet);
     if (methode === 'geniuspay') {
       if (enCours?.methode === 'geniuspay' && enCours.checkoutUrl) {
-        return { txId: enCours.txId, methode, montant: enCours.montant, expireLe: enCours.expireLe, checkoutUrl: enCours.checkoutUrl, dejaEnvoyee: true };
+        return { txId: enCours.txId, methode, objet, montant: enCours.montant, expireLe: enCours.expireLe, checkoutUrl: enCours.checkoutUrl, dejaEnvoyee: true };
       }
-      return this.demarrerGeniusPay(r, etat.montant);
+      return this.demarrerGeniusPay(r, etat.montant, objet);
     }
     if (enCours && enCours.methode === 'demande' && methode === 'demande') {
-      return { txId: enCours.txId, methode: 'demande', montant: enCours.montant, expireLe: enCours.expireLe, dejaEnvoyee: true };
+      return { txId: enCours.txId, methode: 'demande', objet, montant: enCours.montant, expireLe: enCours.expireLe, dejaEnvoyee: true };
     }
 
     let alias = null;
@@ -105,8 +108,8 @@ class PaymentService {
     const montant = etat.montant;
     const maintenant = new Date();
     const expireLe = new Date(maintenant.getTime() + (methode === 'qr' ? acompte.DUREE_QR_MS : acompte.DUREE_DEMANDE_MS));
-    const motif = `Acompte reservation ${r.id}`.slice(0, 140);
-    const resultat = { txId, methode, montant, expireLe };
+    const motif = `${objet === 'solde' ? 'Solde' : 'Acompte'} reservation ${r.id}`.slice(0, 140);
+    const resultat = { txId, methode, objet, montant, expireLe };
 
     if (methode === 'qr') {
       const entree = {
@@ -129,6 +132,7 @@ class PaymentService {
         paiements: {
           txId,
           methode,
+          objet,
           montant,
           statut: 'en_attente',
           creeLe: maintenant,
@@ -141,24 +145,24 @@ class PaymentService {
   }
 
   /** Crée la page de paiement GeniusPay de l'acompte ; le client y est redirigé. */
-  async demarrerGeniusPay(r, montant) {
+  async demarrerGeniusPay(r, montant, objet = 'acompte') {
     const txId = acompte.genererTxId();
     const retour = `${urlSite()}/mes-reservations?paiement=geniuspay&reservation=${encodeURIComponent(r.id)}&tx=${txId}`;
     const p = await GeniusPay.creerPaiement({
       montant,
-      description: `Acompte réservation ${r.id} - ${r.residenceInfo?.nom || 'Sankofart'}`,
+      description: `${objet === 'solde' ? 'Solde' : 'Acompte'} réservation ${r.id} - ${r.residenceInfo?.nom || 'Sankofart'}`,
       client: { nom: `${r.client.prenom} ${r.client.nom}`.trim(), email: r.client.email, telephone: r.client.telephone },
       successUrl: retour,
       errorUrl: `${retour}&echec=1`,
-      metadata: { reservation: r.id, txId },
+      metadata: { reservation: r.id, txId, objet },
     });
     if (!p?.reference || !p?.checkout_url) throw new ErreurPaiement('GeniusPay n\'a pas renvoyé de page de paiement', 502);
     const creeLe = new Date();
     const expireLe = p.expires_at ? new Date(p.expires_at) : new Date(creeLe.getTime() + 24 * 3600 * 1000);
     await this.collection.updateOne({ id: r.id }, {
-      $push: { paiements: { txId, methode: 'geniuspay', montant, statut: 'en_attente', creeLe, expireLe, reference: p.reference, checkoutUrl: p.checkout_url, environnement: p.environment || null } },
+      $push: { paiements: { txId, methode: 'geniuspay', objet, montant, statut: 'en_attente', creeLe, expireLe, reference: p.reference, checkoutUrl: p.checkout_url, environnement: p.environment || null } },
     });
-    return { txId, methode: 'geniuspay', montant, expireLe, checkoutUrl: p.checkout_url };
+    return { txId, methode: 'geniuspay', objet, montant, expireLe, checkoutUrl: p.checkout_url };
   }
 
   /** Relit un paiement GeniusPay et met la réservation à jour. */
@@ -232,6 +236,7 @@ class PaymentService {
   async marquerPaye(reservationId, txId, { end2endId = null, payeurNom = null, payeurAlias = null } = {}) {
     const avant = await this.collection.findOne({ id: reservationId }, { projection: { _id: 0 } });
     const p = avant.paiements.find(x => x.txId === txId);
+    if ((p.objet || 'acompte') === 'solde') return this.marquerSoldePaye(avant, p, { end2endId, payeurNom });
     const maintenant = new Date();
     // Acompte déjà réglé par un autre paiement : doublon à rembourser, signalé à l'admin
     if (avant.acompte?.paye && avant.acompte.txId !== txId) {
@@ -276,6 +281,37 @@ class PaymentService {
     return r.paiements.find(x => x.txId === txId);
   }
 
+  /** Solde réglé en ligne (une seule fois) ; un second paiement est signalé comme doublon. */
+  async marquerSoldePaye(avant, p, { end2endId = null, payeurNom = null } = {}) {
+    const maintenant = new Date();
+    if (avant.solde?.paye && avant.solde.txId !== p.txId) {
+      await this.collection.updateOne(
+        { id: avant.id, 'paiements.txId': p.txId },
+        { $set: { 'paiements.$.statut': 'doublon', 'paiements.$.payeLe': maintenant, 'paiements.$.end2endId': end2endId, 'paiements.$.raison': 'Solde déjà réglé : à rembourser' } }
+      );
+      console.error(`⚠️ Solde payé en double sur ${avant.id} (${p.txId}) : à rembourser`);
+    } else {
+      const resultat = await this.collection.updateOne(
+        { id: avant.id, 'solde.paye': { $ne: true }, paiements: { $elemMatch: { txId: p.txId, statut: { $in: ['en_attente', 'expire'] } } } },
+        {
+          $set: {
+            'paiements.$.statut': 'paye',
+            'paiements.$.payeLe': maintenant,
+            'paiements.$.end2endId': end2endId,
+            solde: { paye: true, enLigne: true, montant: p.montant, payeLe: maintenant, txId: p.txId, methode: p.methode, reference: end2endId || p.txId, payeurNom },
+          },
+        }
+      );
+      if (resultat.modifiedCount === 1 && this.emailService) {
+        const r = await this.collection.findOne({ id: avant.id }, { projection: { _id: 0 } });
+        Promise.allSettled([this.emailService.sendSoldeRecu(r), this.emailService.sendSoldeRecuAdmin(r)])
+          .then(res => res.filter(x => x.status === 'rejected').forEach(x => console.error('⚠️ Email solde non envoyé :', x.reason?.message)));
+      }
+    }
+    const maj = await this.collection.findOne({ id: avant.id }, { projection: { _id: 0 } });
+    return maj.paiements.find(x => x.txId === p.txId);
+  }
+
   // Mode simulation uniquement (démonstrations)
   async simuler(reservationId, client, txId) {
     if (acompte.mode() !== 'simulation') throw new ErreurPaiement('Simulation désactivée', 403);
@@ -292,7 +328,7 @@ class PaymentService {
     if (!r) throw new ErreurPaiement('Paiement introuvable', 404);
     const p = await this.verifier(txId);
     const maj = await this.collection.findOne({ id: r.id }, { projection: { _id: 0 } });
-    return { statut: p.statut, raison: p.raison || null, acompte: acompte.etatAcompte(maj) };
+    return { statut: p.statut, raison: p.raison || null, objet: p.objet || 'acompte', acompte: acompte.etatAcompte(maj), solde: acompte.etatSolde(maj) };
   }
 
   // ---------- Webhook ----------

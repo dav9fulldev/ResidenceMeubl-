@@ -130,3 +130,19 @@
 }
 
 :root[data-theme="dark"] .resa-recherche input { background: transparent; }
+
+/* Saisie d'un solde reçu sur place */
+.solde-saisie { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
+.solde-saisie label { display: flex; flex-direction: column; gap: 4px; font-size: 0.8rem; color: var(--text-muted); }
+
+.solde-saisie select,
+.solde-saisie input {
+  min-height: 42px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.92rem;
+}

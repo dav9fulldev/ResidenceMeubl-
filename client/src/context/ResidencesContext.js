@@ -185,6 +185,15 @@ export const ResidencesProvider = ({ children }) => {
     return response.data;
   }, [adminRequest]);
 
+  // Solde reçu sur place (espèces, Mobile Money…) / solde d'un séjour annulé rendu au client
+  const markBalancePaid = useCallback(async (reservationId, moyen, reference = '') => (
+    await adminRequest(API_ENDPOINTS.reservations.balance(reservationId), { method: 'PUT', body: { moyen, reference } })
+  ).data, [adminRequest]);
+
+  const markBalanceRefunded = useCallback(async (reservationId, reference = '') => (
+    await adminRequest(API_ENDPOINTS.reservations.balanceRefund(reservationId), { method: 'PUT', body: { reference } })
+  ).data, [adminRequest]);
+
   const retryRefund = useCallback(async (reservationId) => {
     const response = await adminRequest(API_ENDPOINTS.reservations.retryRefund(reservationId), { method: 'POST' });
     return response.data;
@@ -299,6 +308,8 @@ export const ResidencesProvider = ({ children }) => {
     updateStayLimits,
     markRefunded,
     retryRefund,
+    markBalancePaid,
+    markBalanceRefunded,
     getStats,
     getSettings,
     updateSettings,
@@ -311,7 +322,7 @@ export const ResidencesProvider = ({ children }) => {
   }), [
     residences, loading, offline, isAdmin, loadResidences, getResidenceById, searchResidences,
     createReservation, smartSearch, getSimilarResidences, loginAdmin, logoutAdmin, updateResidenceStatus, addResidence,
-    updateResidence, deleteResidence, getReservations, updateReservationStatus, decideCancellation, updateStayLimits, markRefunded, retryRefund, getStats, getSettings, updateSettings, getEstablishment, updateEstablishment, getPaymentConfig, getPaymentMethods, setPaymentMethodActive, downloadReservationsCsv,
+    updateResidence, deleteResidence, getReservations, updateReservationStatus, decideCancellation, updateStayLimits, markRefunded, retryRefund, markBalancePaid, markBalanceRefunded, getStats, getSettings, updateSettings, getEstablishment, updateEstablishment, getPaymentConfig, getPaymentMethods, setPaymentMethodActive, downloadReservationsCsv,
   ]);
 
   return (

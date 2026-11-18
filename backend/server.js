@@ -222,6 +222,7 @@ if (require.main === module) {
           const GeniusPay = require('./services/paiement/GeniusPayClient');
           console.log(`💳 Paiement de l'acompte : ${moyens.length ? moyens.map(m => (m === 'pispi' ? `PI-SPI (${acompte.mode()})` : `GeniusPay (${GeniusPay.environnement})`)).join(', ') : 'désactivé'}`);
           if (moyens.length) PaymentService.demarrerVerificationPeriodique();
+          require('./services/ReservationService').demarrerRappelsSolde();
         });
       const AIService = require('./services/AIService');
       if (AIService.estActive()) {
