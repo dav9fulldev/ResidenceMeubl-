@@ -281,3 +281,37 @@
   align-items: center;
   justify-content: center;
 }
+
+/* Panneau gauche : illustration de tours de verre (public/images/admin-tours.svg) */
+.admin-login-header {
+  position: relative;
+  min-height: 520px;
+  align-items: flex-end;
+  justify-content: flex-start;
+  text-align: left;
+  padding: 40px;
+  background: #2A1F6B url('/images/admin-tours.svg') center / cover no-repeat;
+}
+
+.admin-login-header .admin-logo { position: relative; z-index: 1; }
+.admin-login-header .surtitre { color: #FFE3C2; margin-bottom: 8px; }
+
+.admin-login-header .admin-logo h2 {
+  font-family: var(--font-titre);
+  font-size: 2.4rem;
+  font-weight: 600;
+  color: #ffffff;
+  margin: 0 0 6px;
+  text-shadow: 0 2px 18px rgba(10, 14, 50, 0.55);
+}
+
+.admin-login-header .admin-logo p {
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 1.05rem;
+  text-shadow: 0 1px 10px rgba(10, 14, 50, 0.6);
+}
+
+@media (max-width: 768px) {
+  .admin-login-header { min-height: 220px; padding: 28px 24px; }
+  .admin-login-header .admin-logo h2 { font-size: 1.9rem; }
+}
