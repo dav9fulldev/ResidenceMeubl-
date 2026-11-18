@@ -53,7 +53,7 @@ const AdminLogin = () => {
       <div className="admin-login-container">
         <div className="admin-login-header">
           <div className="admin-logo">
-            <h1>🛠️</h1>
+            <span className="surtitre">Espace de gestion</span>
             <h2>Administration</h2>
             <p>Sankofart Résidence</p>
           </div>
