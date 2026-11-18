@@ -1,0 +1,93 @@
+name: OWASP Dependency-Check
+
+# Analyse les dépendances npm (backend et client) à la recherche de vulnérabilités
+# connues (base NVD du NIST, avis npm, RetireJS). Bloque si une faille de gravité
+# CVSS ≥ 7 (élevée ou critique) est trouvée.
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  schedule:
+    - cron: '0 6 * * 1'   # chaque lundi : nouvelles failles publiées sur des dépendances inchangées
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write   # publication des résultats dans l'onglet « Sécurité » de GitHub
+
+concurrency:
+  group: dependency-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  dependency-check:
+    name: Analyse des dépendances
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      DC_VERSION: "13.0.0"
+    steps:
+      - uses: actions/checkout@v4
+
+      # Base de vulnérabilités conservée entre les exécutions (mise à jour incrémentale)
+      - name: Cache de la base NVD
+        uses: actions/cache@v4
+        with:
+          path: ~/.dependency-check-data
+          key: dependency-check-${{ env.DC_VERSION }}-${{ github.run_id }}
+          restore-keys: dependency-check-${{ env.DC_VERSION }}-
+
+      # Diagnostic : la clé NVD est-elle acceptée ? (n'affiche jamais la clé)
+      - name: Vérification de la clé NVD
+        env:
+          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+        run: |
+          CLE="$(printf '%s' "$NVD_API_KEY" | tr -d '[:space:]')"
+          if [ -z "$CLE" ]; then echo "::warning::Secret NVD_API_KEY absent : téléchargement lent sans clé."; exit 0; fi
+          CODE=$(curl -s -o /dev/null -w '%{http_code}' -H "apiKey: $CLE" "https://services.nvd.nist.gov/rest/json/cves/2.0?resultsPerPage=1")
+          echo "Réponse du NVD avec la clé : HTTP $CODE"
+          if [ "$CODE" = "404" ] || [ "$CODE" = "403" ]; then
+            echo "::error::Clé NVD refusée (HTTP $CODE). Activez-la via le lien reçu par email, puis recopiez-la sans espace dans le secret NVD_API_KEY."
+            exit 1
+          fi
+
+      - name: Analyse OWASP Dependency-Check
+        env:
+          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+        run: |
+          NVD_API_KEY="$(printf '%s' "$NVD_API_KEY" | tr -d '[:space:]')"
+          mkdir -p reports ~/.dependency-check-data
+          docker run --rm \
+            --user "$(id -u):$(id -g)" \
+            -v "$GITHUB_WORKSPACE:/src:z" \
+            -v "$HOME/.dependency-check-data:/usr/share/dependency-check/data:z" \
+            -v "$GITHUB_WORKSPACE/reports:/report:z" \
+            -e NVD_API_KEY \
+            owasp/dependency-check:${DC_VERSION} \
+            --project "Sankofart Residence" \
+            --scan /src/backend --scan /src/client \
+            --exclude "**/node_modules/**" --exclude "**/dist/**" --exclude "**/.git/**" \
+            --suppression /src/.github/dependency-check-suppressions.xml \
+            --nodeAuditSkipDevDependencies --nodePackageSkipDevDependencies \
+            --disableOssIndex --disableYarnAudit --disablePnpmAudit --disableAssembly \
+            ${NVD_API_KEY:+--nvdApiKey "$NVD_API_KEY"} \
+            --nvdApiDelay 6000 --nvdMaxRetryCount 10 --nvdValidForHours 12 \
+            --failOnCVSS 7 \
+            --format HTML --format SARIF --format JSON \
+            --out /report
+
+      - name: Résultats dans l'onglet Sécurité
+        if: always() && hashFiles('reports/dependency-check-report.sarif') != ''
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: reports/dependency-check-report.sarif
+          category: dependency-check
+
+      - name: Rapport HTML téléchargeable
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rapport-dependency-check
+          path: reports/
+          retention-days: 30

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Faux positifs ou risques acceptés d'OWASP Dependency-Check.
+  Chaque exception doit expliquer POURQUOI (notes) et, si possible, expirer (until).
+  Exemple :
+  <suppress until="2027-06-30Z">
+    <notes>react-router : faille SSR, le site est rendu côté navigateur uniquement.</notes>
+    <packageUrl regex="true">^pkg:npm/react\-router.*$</packageUrl>
+    <cve>CVE-2025-00000</cve>
+  </suppress>
+-->
+<suppressions xmlns="https://jeremylong.github.io/DependencyCheck/dependency-suppression.1.3.xsd">
+</suppressions>
