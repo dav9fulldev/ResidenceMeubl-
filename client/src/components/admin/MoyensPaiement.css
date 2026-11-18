@@ -119,3 +119,19 @@
   .mp-tete .adm-badge { order: 3; margin-left: 60px; }
   .mp-identite { flex-basis: calc(100% - 130px); }
 }
+
+/* Logo officiel du moyen de paiement */
+.mp-logo.mp-logo-image {
+  width: 96px;
+  height: 48px;
+  padding: 6px 8px;
+  background: #ffffff;
+  border: 1px solid var(--border);
+}
+
+.mp-logo-image img { width: 100%; height: 100%; object-fit: contain; display: block; }
+
+@media (max-width: 560px) {
+  .mp-logo.mp-logo-image { width: 76px; height: 40px; }
+  .mp-tete .adm-badge { margin-left: 90px; }
+}

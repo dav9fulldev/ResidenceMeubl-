@@ -401,3 +401,22 @@
 .acompte-genius-modes { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
 .acompte-genius-modes li { padding: 4px 10px; border-radius: 999px; background: var(--surface-2); font-size: 0.8rem; color: var(--text); }
 .acompte-genius .acompte-valider { display: inline-flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none; }
+
+/* Logos officiels des moyens de paiement */
+.acompte-moyen-logo {
+  flex-shrink: 0;
+  width: 92px;
+  height: 46px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.acompte-moyen-logo img { width: 100%; height: 100%; object-fit: contain; display: block; }
+
+.acompte-pied { display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; }
+.acompte-pied-logo { height: 18px; width: auto; border-radius: 3px; background: #fff; padding: 1px 3px; }
