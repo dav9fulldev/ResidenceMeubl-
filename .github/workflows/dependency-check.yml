@@ -38,10 +38,25 @@ jobs:
           key: dependency-check-${{ env.DC_VERSION }}-${{ github.run_id }}
           restore-keys: dependency-check-${{ env.DC_VERSION }}-
 
+      # Diagnostic : la clé NVD est-elle acceptée ? (n'affiche jamais la clé)
+      - name: Vérification de la clé NVD
+        env:
+          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+        run: |
+          CLE="$(printf '%s' "$NVD_API_KEY" | tr -d '[:space:]')"
+          if [ -z "$CLE" ]; then echo "::warning::Secret NVD_API_KEY absent : téléchargement lent sans clé."; exit 0; fi
+          CODE=$(curl -s -o /dev/null -w '%{http_code}' -H "apiKey: $CLE" "https://services.nvd.nist.gov/rest/json/cves/2.0?resultsPerPage=1")
+          echo "Réponse du NVD avec la clé : HTTP $CODE"
+          if [ "$CODE" = "404" ] || [ "$CODE" = "403" ]; then
+            echo "::error::Clé NVD refusée (HTTP $CODE). Activez-la via le lien reçu par email, puis recopiez-la sans espace dans le secret NVD_API_KEY."
+            exit 1
+          fi
+
       - name: Analyse OWASP Dependency-Check
         env:
           NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
         run: |
+          NVD_API_KEY="$(printf '%s' "$NVD_API_KEY" | tr -d '[:space:]')"
           mkdir -p reports ~/.dependency-check-data
           docker run --rm \
             --user "$(id -u):$(id -g)" \
@@ -57,6 +72,7 @@ jobs:
             --nodeAuditSkipDevDependencies --nodePackageSkipDevDependencies \
             --disableOssIndex --disableYarnAudit --disablePnpmAudit --disableAssembly \
             ${NVD_API_KEY:+--nvdApiKey "$NVD_API_KEY"} \
+            --nvdApiDelay 6000 --nvdMaxRetryCount 10 --nvdValidForHours 12 \
             --failOnCVSS 7 \
             --format HTML --format SARIF --format JSON \
             --out /report
