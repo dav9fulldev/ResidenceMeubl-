@@ -243,6 +243,12 @@ export const ResidencesProvider = ({ children }) => {
 
   const getPaymentConfig = useCallback(async () => (await adminRequest(API_ENDPOINTS.admin.paymentConfig)).data, [adminRequest]);
 
+  const getPaymentMethods = useCallback(async () => (await adminRequest(API_ENDPOINTS.admin.paymentMethods)).data, [adminRequest]);
+
+  const setPaymentMethodActive = useCallback(async (id, actif) => (
+    await adminRequest(API_ENDPOINTS.admin.paymentMethod(id), { method: 'PUT', body: { actif } })
+  ).data, [adminRequest]);
+
   const getStats = useCallback(async (annee) => {
     const response = await adminRequest(API_ENDPOINTS.admin.stats(annee));
     return response.data;
@@ -299,11 +305,13 @@ export const ResidencesProvider = ({ children }) => {
     getEstablishment,
     updateEstablishment,
     getPaymentConfig,
+    getPaymentMethods,
+    setPaymentMethodActive,
     downloadReservationsCsv,
   }), [
     residences, loading, offline, isAdmin, loadResidences, getResidenceById, searchResidences,
     createReservation, smartSearch, getSimilarResidences, loginAdmin, logoutAdmin, updateResidenceStatus, addResidence,
-    updateResidence, deleteResidence, getReservations, updateReservationStatus, decideCancellation, updateStayLimits, markRefunded, retryRefund, getStats, getSettings, updateSettings, getEstablishment, updateEstablishment, getPaymentConfig, downloadReservationsCsv,
+    updateResidence, deleteResidence, getReservations, updateReservationStatus, decideCancellation, updateStayLimits, markRefunded, retryRefund, getStats, getSettings, updateSettings, getEstablishment, updateEstablishment, getPaymentConfig, getPaymentMethods, setPaymentMethodActive, downloadReservationsCsv,
   ]);
 
   return (

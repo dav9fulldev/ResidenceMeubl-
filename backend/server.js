@@ -96,6 +96,8 @@ app.get('/api/etablissement', (req, res) => {
     success: true,
     data: {
       ...Settings.etablissement({ publique: true }),
+      // Moyens de paiement proposés aux clients
+      moyensPaiement: require('./services/paiement/fournisseurs').actifs().map(m => ({ id: m.id, nom: m.nom, modes: m.modes })),
       // Règles publiques de l'acompte (affichées avant la réservation)
       acompte: {
         pourcentage: Settings.get('acomptePourcentage'),

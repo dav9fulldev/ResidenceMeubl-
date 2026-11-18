@@ -37,6 +37,8 @@ export const API_ENDPOINTS = {
     settings: `${API_BASE_URL}/admin/parametres`,
     establishment: `${API_BASE_URL}/admin/etablissement`,
     paymentConfig: `${API_BASE_URL}/admin/paiements/config`,
+    paymentMethods: `${API_BASE_URL}/admin/paiements/moyens`,
+    paymentMethod: (id) => `${API_BASE_URL}/admin/paiements/moyens/${encodeURIComponent(id)}`,
     stats: (annee) => `${API_BASE_URL}/admin/statistiques?annee=${annee}`,
     exportCsv: (annee) => `${API_BASE_URL}/admin/export/reservations.csv${annee ? `?annee=${annee}` : ''}`,
   },

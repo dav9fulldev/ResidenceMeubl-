@@ -10,6 +10,7 @@ const StatsService = require('../services/StatsService');
 const acompte = require('../services/paiement/acompte');
 const PiSpi = require('../services/paiement/PiSpiClient');
 const Settings = require('../services/SettingsService');
+const Moyens = require('../services/paiement/fournisseurs');
 
 // Limiter les tentatives de connexion (anti force brute)
 const loginLimiter = rateLimit({
@@ -131,6 +132,33 @@ router.delete('/residences/:id', async (req, res) => {
  * @route   GET /api/admin/paiements/config
  * @desc    Mode de paiement, pourcentage d'acompte, réglages PI-SPI manquants, URL du webhook
  */
+/**
+ * @route   GET /api/admin/paiements/moyens
+ * @desc    Moyens de paiement : intégrés, configurés sur le serveur, activés par l'admin
+ * @route   PUT /api/admin/paiements/moyens/:id   { actif: true|false }
+ */
+router.get('/paiements/moyens', (req, res) => {
+  res.json({
+    success: true,
+    data: {
+      mode: acompte.mode(),
+      moyens: Moyens.liste(),
+      webhookUrl: `${req.protocol}://${req.get('host')}/api/paiements/pispi/webhook`,
+      webhookSecretDefini: Boolean((process.env.PISPI_WEBHOOK_SECRET || '').trim()),
+    },
+  });
+});
+
+router.put('/paiements/moyens/:id', async (req, res) => {
+  try {
+    const moyen = await Moyens.activer(req.params.id, Boolean(req.body?.actif));
+    res.json({ success: true, data: { moyen, mode: acompte.mode() } });
+  } catch (error) {
+    if (error instanceof Moyens.ErreurMoyen) return res.status(error.status).json({ success: false, message: error.message });
+    gererErreur(res, error, 'lors de la modification du moyen de paiement');
+  }
+});
+
 router.get('/paiements/config', (req, res) => {
   res.json({
     success: true,
