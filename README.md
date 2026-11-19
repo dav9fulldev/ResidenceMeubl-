@@ -136,6 +136,7 @@ cd backend && npm test    # MongoDB en mémoire, aucun appel aux prestataires
 - [DEPLOIEMENT.md](DEPLOIEMENT.md) — mise en ligne, prestataires de paiement, sécurité continue, dépannage
 - [backend/README.md](backend/README.md) — variables d'environnement, routes de l'API, fonctionnement des paiements
 - [client/README.md](client/README.md) — pages, charte graphique, fichiers clés
+- [.github/SECURITY.md](.github/SECURITY.md) — signaler une faille de sécurité
 
 ---
 
