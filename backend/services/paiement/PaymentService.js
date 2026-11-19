@@ -43,8 +43,6 @@ const normaliserAlias = (valeur) => {
   return hex.length === 32 ? `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}` : brut;
 };
 
-// Valeur sûre pour les journaux : une ligne, longueur bornée (pas d'injection de fausses lignes)
-const pourJournal = (v) => String(v ?? '').replace(/[\r\n\t]/g, ' ').slice(0, 80);
 
 class ErreurPaiement extends Error {
   constructor(message, status = 400) {
@@ -184,7 +182,7 @@ class PaymentService {
       if (STATUTS_ECHEC_GENIUSPAY[g?.status]) return this.cloturer(r.id, p.txId, 'refuse', STATUTS_ECHEC_GENIUSPAY[g.status]);
       if (g?.status === 'expired') return this.cloturer(r.id, p.txId, 'expire', 'Délai dépassé');
     } catch (error) {
-      console.error('⚠️ Vérification GeniusPay impossible (%s) :', pourJournal(p.txId), error.message);
+      console.error('⚠️ Vérification GeniusPay impossible (%s) :', String(p.txId).replace(/\n|\r/g, ''), error.message);
     }
     return p;
   }
@@ -224,7 +222,7 @@ class PaymentService {
         }
       }
     } catch (error) {
-      console.error('⚠️ Vérification PI-SPI impossible (%s) :', pourJournal(txId), error.message);
+      console.error('⚠️ Vérification PI-SPI impossible (%s) :', String(txId).replace(/\n|\r/g, ''), error.message);
     }
 
     if (p.statut === 'en_attente' && Date.now() > new Date(p.expireLe).getTime() + acompte.MARGE_VERIFICATION_MS) {
@@ -256,7 +254,7 @@ class PaymentService {
         { id: { $eq: String(reservationId) }, 'paiements.txId': txId },
         { $set: { 'paiements.$.statut': 'doublon', 'paiements.$.payeLe': maintenant, 'paiements.$.end2endId': end2endId, 'paiements.$.raison': 'Acompte déjà réglé : à rembourser' } }
       );
-      console.error('⚠️ Paiement en double sur %s (%s) : à rembourser', pourJournal(reservationId), pourJournal(txId));
+      console.error('⚠️ Paiement en double sur %s (%s) : à rembourser', String(reservationId).replace(/\n|\r/g, ''), String(txId).replace(/\n|\r/g, ''));
       const maj = await this.collection.findOne({ id: { $eq: String(reservationId) } }, { projection: { _id: 0 } });
       return maj.paiements.find(x => x.txId === txId);
     }
@@ -301,7 +299,7 @@ class PaymentService {
         { id: avant.id, 'paiements.txId': p.txId },
         { $set: { 'paiements.$.statut': 'doublon', 'paiements.$.payeLe': maintenant, 'paiements.$.end2endId': end2endId, 'paiements.$.raison': 'Solde déjà réglé : à rembourser' } }
       );
-      console.error('⚠️ Solde payé en double sur %s (%s) : à rembourser', pourJournal(avant.id), pourJournal(p.txId));
+      console.error('⚠️ Solde payé en double sur %s (%s) : à rembourser', String(avant.id).replace(/\n|\r/g, ''), String(p.txId).replace(/\n|\r/g, ''));
     } else {
       const resultat = await this.collection.updateOne(
         { id: avant.id, 'solde.paye': { $ne: true }, paiements: { $elemMatch: { txId: p.txId, statut: { $in: ['en_attente', 'expire'] } } } },
