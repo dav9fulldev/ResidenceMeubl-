@@ -314,12 +314,12 @@
 }
 
 /* Emblème BABI RESIDENCE : grand, en haut du panneau ; le titre reste en bas */
-.admin-login-embleme { display: block; width: 200px; max-width: 70%; height: auto; color: #ffffff; margin: 8px auto auto; padding-bottom: 32px; filter: drop-shadow(0 6px 18px rgba(0, 0, 0, 0.35)); }
+.admin-login-embleme { display: block; width: 88%; max-width: 400px; height: auto; color: #ffffff; margin: 16px auto auto; padding-bottom: 32px; filter: drop-shadow(0 6px 18px rgba(0, 0, 0, 0.35)); }
 
 @media (max-width: 768px) {
   .admin-login-header { min-height: 0; padding: 28px 24px; }
   .admin-login-header .admin-logo h2 { font-size: 1.9rem; }
-  .admin-login-embleme { width: 120px; padding-bottom: 18px; }
+  .admin-login-embleme { width: 62%; max-width: 240px; padding-bottom: 18px; }
 }
 
 /* Connexion et inscription des gestionnaires */
