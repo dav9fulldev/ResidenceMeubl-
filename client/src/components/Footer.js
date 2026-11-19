@@ -82,7 +82,7 @@ const Footer = () => {
 
         <div className="footer-bottom">
           <p>&copy; {new Date().getFullYear()} {etab.nom}. Tous droits réservés.</p>
-          <p>Paiement sécurisé de l'acompte par PI-SPI (BCEAO)</p>
+          <p>Paiements sécurisés : Mobile Money, carte bancaire, PI-SPI</p>
         </div>
       </div>
     </footer>

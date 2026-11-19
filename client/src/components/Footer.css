@@ -1,6 +1,6 @@
 /* ---------- Pied de page ---------- */
 .footer {
-  background: #1F332D;
+  background: #0B1B36; /* bleu nuit profond, distinct du bandeau d'appel au-dessus */
   color: rgba(255, 255, 255, 0.78);
   padding: 64px 0 24px;
   margin-top: 80px;
