@@ -115,6 +115,7 @@ const ResidenceDetail = () => {
               <span><FaMapMarkerAlt aria-hidden="true" /> {residence.location}{residence.neighborhood ? `, ${residence.neighborhood}` : ''}</span>
               {residence.reference && <span className="rd-ref">Réf. {residence.reference}</span>}
             </p>
+            {residence.company?.nom && <p className="rd-proprietaire">Proposé par <b>{residence.company.nom}</b></p>}
           </div>
           <button
             type="button"

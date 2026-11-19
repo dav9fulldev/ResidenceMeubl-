@@ -31,8 +31,16 @@ export const API_ENDPOINTS = {
     hide: `${API_BASE_URL}/client/reservations/masquer`,
     requestCancellation: (id) => `${API_BASE_URL}/client/reservations/${id}/annulation`,
   },
+  companies: {
+    signup: `${API_BASE_URL}/entreprises/inscription`,
+  },
   admin: {
     login: `${API_BASE_URL}/admin/login`,
+    me: `${API_BASE_URL}/admin/moi`,
+    password: `${API_BASE_URL}/admin/moi/mot-de-passe`,
+    companies: `${API_BASE_URL}/admin/plateforme/entreprises`,
+    companyStatus: (id) => `${API_BASE_URL}/admin/plateforme/entreprises/${encodeURIComponent(id)}/statut`,
+    paymentKeys: (id) => `${API_BASE_URL}/admin/paiements/cles/${encodeURIComponent(id)}`,
     residences: `${API_BASE_URL}/admin/residences`,
     residence: (id) => `${API_BASE_URL}/admin/residences/${id}`,
     residenceStatus: (id) => `${API_BASE_URL}/admin/residences/${id}/status`,

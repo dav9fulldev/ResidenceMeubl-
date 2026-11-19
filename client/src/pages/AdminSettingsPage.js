@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import {
-  FaBuilding, FaAddressBook, FaCoins, FaEnvelope, FaCreditCard, FaSave, FaCheckCircle, FaExclamationTriangle,
+  FaBuilding, FaAddressBook, FaCoins, FaEnvelope, FaCreditCard, FaSave, FaCheckCircle, FaExclamationTriangle, FaUserLock,
 } from 'react-icons/fa';
 import { useResidences } from '../context/ResidencesContext';
+import { useCompte } from '../context/CompteContext';
+import { API_ENDPOINTS } from '../config/api';
 import MoyensPaiement from '../components/admin/MoyensPaiement';
 import './AdminSettingsPage.css';
 
@@ -12,6 +14,7 @@ const CATEGORIES = [
   { cle: 'remboursements', icone: <FaCoins />, titre: 'Acompte et remboursements', resume: 'Montant de l\'acompte, règles d\'annulation' },
   { cle: 'emails', icone: <FaEnvelope />, titre: 'Emails', resume: 'Destinataire des alertes' },
   { cle: 'paiement', icone: <FaCreditCard />, titre: 'Moyens de paiement', resume: 'PI-SPI, GeniusPay…' },
+  { cle: 'compte', icone: <FaUserLock />, titre: 'Mon compte', resume: 'Identifiant et mot de passe', gestionnaire: true },
 ];
 
 const CHAMPS_ACOMPTE = [
@@ -27,7 +30,11 @@ const fcfa = (n) => `${Math.round(n).toLocaleString('fr-FR')} FCFA`;
 
 /** Paramètres du back-office, par catégories. */
 const AdminSettingsPage = () => {
-  const { getSettings, updateSettings, getEstablishment, updateEstablishment } = useResidences();
+  const { getSettings, updateSettings, getEstablishment, updateEstablishment, adminRequest } = useResidences();
+  const { compte } = useCompte();
+  const [mdp, setMdp] = useState({ actuel: '', nouveau: '', confirmation: '' });
+  // « Mon compte » : gestionnaires seulement (l'administrateur de la plateforme se règle sur le serveur)
+  const categories = CATEGORIES.filter(c => !c.gestionnaire || (compte && !compte.superAdmin));
   const [categorie, setCategorie] = useState('etablissement');
   const [acompte, setAcompte] = useState(null);
   const [acompteInitial, setAcompteInitial] = useState(null);
@@ -72,7 +79,16 @@ const AdminSettingsPage = () => {
     return { a, partiel: Math.floor(a * Number(acompte.remboursementPourcentage || 0) / 100) };
   })();
 
-  const cat = CATEGORIES.find(c => c.cle === categorie);
+  const cat = categories.find(c => c.cle === categorie) || categories[0];
+
+  const changerMdp = (ev) => {
+    ev.preventDefault();
+    if (mdp.nouveau !== mdp.confirmation) { setEtat({ erreur: 'Les deux nouveaux mots de passe ne sont pas identiques.', ok: '', enCours: false }); return; }
+    enregistrer(async () => {
+      await adminRequest(API_ENDPOINTS.admin.password, { method: 'PUT', body: { actuel: mdp.actuel, nouveau: mdp.nouveau } });
+      setMdp({ actuel: '', nouveau: '', confirmation: '' });
+    }, 'Mot de passe modifié.');
+  };
   const bouton = (actif) => (
     <div className="params-pied">
       <button type="submit" className="adm-btn principal" disabled={!actif || etat.enCours}><FaSave /> Enregistrer</button>
@@ -90,7 +106,7 @@ const AdminSettingsPage = () => {
 
       <div className="params-cadre">
         <nav className="params-nav" aria-label="Catégories de paramètres">
-          {CATEGORIES.map(c => (
+          {categories.map(c => (
             <button key={c.cle} type="button" className={`params-nav-lien ${categorie === c.cle ? 'actif' : ''}`}
               onClick={() => choisir(c.cle)} aria-current={categorie === c.cle ? 'page' : undefined}>
               <span className="params-nav-icone">{c.icone}</span>
@@ -118,7 +134,7 @@ const AdminSettingsPage = () => {
               <div className="params-champ">
                 <label htmlFor="f-slogan">Phrase de présentation</label>
                 {champ('slogan', { maxLength: 160 })}
-                <p>Une phrase courte qui résume votre offre, reprise sur la page d'accueil.</p>
+                <p>{compte && !compte.entreprise?.principale ? 'Une phrase courte qui résume votre offre.' : 'Une phrase courte qui résume votre offre, reprise sur la page d\'accueil.'}</p>
               </div>
               <div className="params-apercu">
                 <p className="surtitre">Aperçu</p>
@@ -201,6 +217,29 @@ const AdminSettingsPage = () => {
           )}
 
           {categorie === 'paiement' && <MoyensPaiement />}
+
+          {categorie === 'compte' && compte?.utilisateur && (
+            <form className="params-form" onSubmit={changerMdp}>
+              <div className="params-champ">
+                <label htmlFor="f-identifiant">Identifiant de connexion</label>
+                <input id="f-identifiant" value={compte.utilisateur.email || ''} readOnly />
+              </div>
+              <div className="params-champ">
+                <label htmlFor="f-mdp-actuel">Mot de passe actuel</label>
+                <input id="f-mdp-actuel" type="password" autoComplete="current-password" required value={mdp.actuel} onChange={(e) => setMdp(v => ({ ...v, actuel: e.target.value }))} />
+              </div>
+              <div className="params-champ">
+                <label htmlFor="f-mdp-nouveau">Nouveau mot de passe</label>
+                <input id="f-mdp-nouveau" type="password" autoComplete="new-password" required minLength={10} value={mdp.nouveau} onChange={(e) => setMdp(v => ({ ...v, nouveau: e.target.value }))} />
+                <p>10 caractères minimum.</p>
+              </div>
+              <div className="params-champ">
+                <label htmlFor="f-mdp-confirmation">Confirmer le nouveau mot de passe</label>
+                <input id="f-mdp-confirmation" type="password" autoComplete="new-password" required value={mdp.confirmation} onChange={(e) => setMdp(v => ({ ...v, confirmation: e.target.value }))} />
+              </div>
+              {bouton(mdp.actuel && mdp.nouveau.length >= 10 && mdp.confirmation)}
+            </form>
+          )}
         </section>
       </div>
     </div>

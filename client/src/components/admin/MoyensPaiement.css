@@ -135,3 +135,8 @@
   .mp-logo.mp-logo-image { width: 76px; height: 40px; }
   .mp-tete .adm-badge { margin-left: 90px; }
 }
+
+/* Clés propres à l'entreprise */
+.mp-cles { display: flex; flex-direction: column; gap: 4px; margin: 12px 0 8px; padding: 14px; border-radius: 12px; background: var(--surface-2); }
+.mp-cles input { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.85rem; }
+.mp-cles .btn { align-self: flex-start; margin-top: 8px; }

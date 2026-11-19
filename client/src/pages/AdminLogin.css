@@ -318,3 +318,12 @@
 
 /* Emblème BABI RESIDENCE sur le panneau d'accueil */
 .admin-login-embleme { display: block; width: 84px; height: auto; color: #ffffff; margin: 0 auto 18px; filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.35)); }
+
+/* Connexion et inscription des gestionnaires */
+.admin-login-sous-titre { margin: -8px 0 22px; text-align: center; font-size: 0.9rem; color: var(--text-muted); }
+.admin-login-inscription { line-height: 1.6; }
+.admin-login-inscription a { color: var(--gold-ink); font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
+.form-ligne-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.form-aide { display: block; margin-top: 6px; font-size: 0.8rem; color: var(--text-muted); }
+.admin-logo > p { max-width: 34ch; margin-left: auto; margin-right: auto; }
+@media (max-width: 480px) { .form-ligne-2 { grid-template-columns: 1fr; gap: 0; } }

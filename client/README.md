@@ -49,7 +49,8 @@ Logo : composant [`LogoBabi`](src/components/LogoBabi.js) (le bleu nuit suit le 
 | `/reservation?residence=:id` | Réservation en 3 étapes avec récapitulatif |
 | `/mes-reservations` | Espace client : suivi, paiement de l'acompte et du solde, annulation |
 | `/favorites` | Favoris (navigateur) |
-| `/admin/*` | Back-office : vue d'ensemble, réservations, calendrier, résidences, statistiques, paramètres |
+| `/admin/inscription` | Création du compte d'une entreprise de gestion (validée ensuite par la plateforme) |
+| `/admin/*` | Back-office de l'entreprise connectée : vue d'ensemble, réservations, calendrier, résidences, statistiques, paramètres ; **entreprises** pour l'administrateur de la plateforme |
 | autre | Page 404 |
 
 Les pages sont **chargées à la demande** : l'accueil ne télécharge ni le back-office ni le paiement.
@@ -69,7 +70,8 @@ client/
 └── src/
     ├── App.js                    # Routes, chargement à la demande, Vercel Analytics (filtré)
     ├── config/api.js             # Adresses de l'API et requêtes
-    ├── context/ResidencesContext.js
+    ├── context/ResidencesContext.js  # Catalogue public sur le site, résidences de l'entreprise dans le back-office
+    ├── context/CompteContext.js      # Compte connecté et son entreprise (statut, droits)
     ├── hooks/                    # useEtablissement, useVoiceInput, useTheme, useAdminReservations…
     ├── components/
     │   ├── ResidenceCard.js      # Carte de résidence commune

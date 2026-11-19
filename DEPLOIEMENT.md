@@ -53,7 +53,9 @@ Render gratuit **bloque le SMTP** : les emails passent par l'API [Brevo](https:/
    | `PISPI_*` | voir étape 5 |
    | `GENIUSPAY_*` | voir étape 6 |
 
-   `ADMIN_TOKEN_SECRET` est généré par Render ; `CLIENT_IP_HEADER=cf-connecting-ip` est déjà défini (limites anti-spam par visiteur).
+   `ADMIN_TOKEN_SECRET` et `CLES_CHIFFREMENT` sont générés par Render ; `CLIENT_IP_HEADER=cf-connecting-ip` est déjà défini (limites anti-spam par visiteur).
+
+   > **Service déjà en ligne** : ajoutez à la main `CLES_CHIFFREMENT` (*Environment → Add*, valeur `openssl rand -hex 32`) **avant** que la première entreprise saisisse ses clés de paiement, puis ne la changez plus.
 3. Vérifiez `https://<service>.onrender.com/health` → `"success": true`. Dans **Logs** : `Connecté à MongoDB`, `Emails : API Brevo`, et la ligne `Paiement de l'acompte : …` qui liste les moyens actifs.
 
 ---
@@ -107,7 +109,16 @@ GeniusPay n'offre pas d'API de remboursement : un acompte ou un solde GeniusPay 
 
 ---
 
-## 7. Réglages dans le back-office
+## 7. Entreprises de gestion
+
+- Les gestionnaires s'inscrivent sur `https://<site>/admin/inscription`. Vous recevez un email « Nouvelle entreprise à valider » (adresse des alertes de la plateforme).
+- Back-office (identifiants `ADMIN_*`) → **Entreprises** : **Valider** rend leurs résidences visibles ; **Suspendre** les masque et ferme leur espace.
+- Chaque entreprise saisit ses propres clés GeniusPay / PI-SPI dans *Paramètres → Moyens de paiement* et déclare **ses** adresses de webhook (affichées sur la même page, de la forme `…/api/paiements/geniuspay/webhook/<entreprise>`). L'argent arrive sur son compte.
+- Au premier démarrage, les résidences et réservations existantes sont rattachées à l'entreprise principale **BABI RESIDENCE** : rien ne change pour elles.
+
+---
+
+## 8. Réglages dans le back-office
 
 Après la mise en ligne, dans `/admin` → **Paramètres** :
 - **Établissement** et **Coordonnées et réseaux** : nom, téléphone, WhatsApp, adresses des réseaux sociaux (affichés dans le pied de page et les emails).
@@ -119,7 +130,7 @@ Les valeurs réglées ici remplacent les variables d'environnement correspondant
 
 ---
 
-## 8. Sécurité continue (GitHub)
+## 9. Sécurité continue (GitHub)
 
 | Outil | Quand | Où voir les résultats |
 |---|---|---|
@@ -133,7 +144,7 @@ Secret GitHub requis : **`NVD_API_KEY`** (*Settings → Secrets and variables �
 
 ---
 
-## 9. Vérification après mise en ligne
+## 10. Vérification après mise en ligne
 
 - [ ] L'accueil affiche les résidences ; la recherche par dates fonctionne.
 - [ ] Une réservation de test arrive dans `/admin` et les emails sont reçus.
@@ -141,6 +152,7 @@ Secret GitHub requis : **`NVD_API_KEY`** (*Settings → Secrets and variables �
 - [ ] L'acompte se paie (GeniusPay et/ou PI-SPI) et passe « Payé » dans le back-office.
 - [ ] Le solde se paie en ligne, ou s'enregistre « reçu sur place ».
 - [ ] Recharger `/residence/3` fonctionne (pas de 404).
+- [ ] Une inscription de test sur `/admin/inscription` apparaît dans **Entreprises** ; une fois validée, sa résidence est visible avec « Proposé par … ».
 
 ---
 

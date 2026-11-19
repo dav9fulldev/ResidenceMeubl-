@@ -2,7 +2,7 @@
 
 *Réservez. Séjournez. Profitez.*
 
-Plateforme de réservation de résidences meublées à Abidjan : site vitrine, réservation en ligne, paiement de l'acompte et du solde (PI-SPI, GeniusPay), back-office complet et recherche intelligente par IA, à l'écrit comme à la voix.
+Plateforme de réservation de résidences meublées à Abidjan, **ouverte aux entreprises de gestion** : chaque gestionnaire crée le compte de son entreprise, publie ses résidences sur le site commun et gère ses réservations et ses paiements depuis son propre espace. Site vitrine, réservation en ligne, paiement de l'acompte et du solde (PI-SPI, GeniusPay), recherche intelligente par IA, à l'écrit comme à la voix.
 
 | | |
 |---|---|
@@ -34,8 +34,19 @@ Mise en ligne : voir [DEPLOIEMENT.md](DEPLOIEMENT.md).
 - **Remboursement de l'acompte par paliers** (réglables) : 100 % dans les 5 jours suivant le paiement, puis 50 %, rien à moins de 3 jours de l'arrivée.
 - **Favoris** enregistrés dans le navigateur.
 
-### Pour l'administrateur (`/admin`)
-Le back-office n'est lié nulle part sur le site public : on y accède par **`/admin`** ou par l'application **BABI Admin** installable (ordinateur et téléphone). Il n'est pas indexé par les moteurs de recherche.
+### Pour les entreprises de gestion (`/admin`)
+- **Inscription** sur `/admin/inscription` (lien « Vous gérez des résidences ? Publiez-les » en pied de page) : nom de l'entreprise, gestionnaire, email, mot de passe.
+- L'entreprise est **vérifiée par la plateforme** : en attendant, le gestionnaire prépare ses résidences, ses règles d'acompte et ses moyens de paiement ; rien n'est visible sur le site.
+- Chaque entreprise ne voit **que ses données** : résidences, réservations, calendrier, statistiques, paramètres.
+- **Paiements sur son propre compte** : l'entreprise saisit ses clés GeniusPay et/ou PI-SPI (chiffrées) et déclare ses propres adresses de webhook. Sans moyen actif, ses clients règlent sur place.
+- Emails aux clients au nom de l'entreprise (les réponses lui parviennent) ; alertes à son adresse.
+- Sur le site, chaque fiche indique « Proposé par … » et applique les règles d'acompte de l'entreprise.
+
+### Pour l'administrateur de la plateforme
+Connexion avec les identifiants `ADMIN_USERNAME` / `ADMIN_PASSWORD`. Il gère les résidences de BABI RESIDENCE comme une entreprise, et dispose en plus de la page **Entreprises** : liste des inscriptions, **validation**, refus, suspension (le gestionnaire est prévenu par email).
+
+### Le back-office
+Il n'est pas indexé par les moteurs de recherche ; on y accède par **`/admin`** ou par l'application **BABI Admin** installable (ordinateur et téléphone).
 
 | Page | Contenu |
 |---|---|
@@ -44,13 +55,15 @@ Le back-office n'est lié nulle part sur le site public : on y accède par **`/a
 | Calendrier | Disponibilités de toutes les résidences jour par jour ; maintenance et durées de séjour |
 | Résidences | Ajout, modification, suppression, maintenance en un clic |
 | Statistiques | Chiffre d'affaires, cumul, occupation, panier moyen, classement ; **export Excel (CSV)** |
-| Paramètres | Établissement, coordonnées et réseaux sociaux, règles d'acompte et de remboursement, email des alertes, **moyens de paiement** (activation de PI-SPI et GeniusPay) |
+| Paramètres | Établissement, coordonnées et réseaux sociaux, règles d'acompte et de remboursement, email des alertes, **moyens de paiement** (clés et activation de PI-SPI et GeniusPay), mon compte (mot de passe) |
+| Entreprises | *Plateforme uniquement* : inscriptions à valider, entreprises validées et suspendues |
 
 Les statuts « Réservé » / « Occupé » des résidences se calculent automatiquement à partir des réservations confirmées.
 
 ### Sécurité et confidentialité
 - Coordonnées des clients jamais exposées publiquement ; lecture d'une réservation réservée à l'admin.
-- Jetons signés distincts pour l'admin (8 h) et les clients ; limitation des tentatives (connexion, accès client, paiement, réservation).
+- Jetons signés distincts pour le back-office (8 h) et les clients ; limitation des tentatives (connexion, inscription, accès client, paiement, réservation).
+- Cloisonnement des entreprises : chaque requête du back-office est limitée aux données de l'entreprise du compte ; mots de passe hachés (scrypt) ; clés de paiement des entreprises chiffrées (AES-256-GCM), jamais réaffichées.
 - Paiements validés uniquement après relecture auprès du prestataire ; webhooks signés (HMAC) et horodatés.
 - Validation stricte des entrées, taille des requêtes limitée, en-têtes de sécurité et politique de contenu (CSP) sur le site et l'API.
 - Statistiques de visite sans le back-office ni les paramètres d'adresse (les liens « Mes réservations » contiennent une clé d'accès personnelle).

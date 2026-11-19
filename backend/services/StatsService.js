@@ -1,4 +1,5 @@
 const db = require('../db');
+const Tenant = require('./Tenant');
 
 /**
  * Statistiques du back-office et export des réservations.
@@ -32,8 +33,8 @@ class StatsService {
   async calculer(annee = new Date().getUTCFullYear()) {
     annee = parseInt(annee, 10);
     const [reservations, nbResidences] = await Promise.all([
-      db.collection('reservations').find({}, { projection: { _id: 0 } }).toArray(),
-      db.collection('residences').countDocuments({ actif: { $ne: false } }),
+      db.collection('reservations').find(Tenant.filtre(), { projection: { _id: 0 } }).toArray(),
+      db.collection('residences').countDocuments({ actif: { $ne: false }, ...Tenant.filtre() }),
     ]);
 
     const mois = MOIS.map((libelle, i) => ({
@@ -163,7 +164,7 @@ class StatsService {
   // ---------- Export CSV (ouvrable dans Excel) ----------
 
   async exporterCsv(annee = null) {
-    const filtre = annee ? { 'dates.arrivee': { $gte: `${annee}-01-01`, $lte: `${annee}-12-31` } } : {};
+    const filtre = { ...Tenant.filtre(), ...(annee ? { 'dates.arrivee': { $gte: `${annee}-01-01`, $lte: `${annee}-12-31` } } : {}) };
     const reservations = await db.collection('reservations')
       .find(filtre, { projection: { _id: 0 } })
       .sort({ 'dates.arrivee': 1 })

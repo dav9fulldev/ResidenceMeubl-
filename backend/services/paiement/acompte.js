@@ -17,6 +17,8 @@
  */
 const PiSpi = require('./PiSpiClient');
 const Settings = require('../SettingsService');
+const Tenant = require('../Tenant');
+const Cles = require('./Cles');
 
 const DUREE_QR_MS = 15 * 60 * 1000;      // durée de validité d'un QR affiché
 // La banque garde la demande valable ~3 mois (sandbox) : on la suit pendant 7 jours
@@ -24,7 +26,9 @@ const DUREE_DEMANDE_MS = 7 * 24 * 60 * 60 * 1000;
 const MARGE_VERIFICATION_MS = 3 * 60 * 1000; // on vérifie encore un peu après l'expiration
 
 function mode() {
-  const demande = (process.env.PAIEMENT_MODE || '').trim().toLowerCase();
+  // PAIEMENT_MODE vaut pour la plateforme ; une entreprise ne garde que la simulation (démonstrations)
+  const brut = (process.env.PAIEMENT_MODE || '').trim().toLowerCase();
+  const demande = Tenant.estPrincipale() || brut === 'simulation' ? brut : '';
   let m = ['pispi', 'simulation', 'desactive'].includes(demande) ? demande : (PiSpi.estConfigure() ? 'pispi' : 'desactive');
   // L'admin peut désactiver PI-SPI depuis le back-office (Paramètres > Moyens de paiement)
   if (m === 'pispi' && !Settings.moyenActif('pispi')) m = 'desactive';
@@ -147,7 +151,7 @@ function etatSolde(r) {
     possible,
     aRegler: acomptePaye && !paye && montant > 0 && r.statut === 'confirmee',
     moyens,
-    appUrl: /^https:\/\//.test((process.env.PISPI_APP_URL || '').trim()) ? process.env.PISPI_APP_URL.trim() : null,
+    appUrl: /^https:\/\//.test(Cles.lire('PISPI_APP_URL').trim()) ? Cles.lire('PISPI_APP_URL').trim() : null,
     enCours: enCours ? { txId: enCours.txId, methode: enCours.methode, expireLe: enCours.expireLe, checkoutUrl: enCours.checkoutUrl || null } : null,
     remboursement: s.remboursement || null,
   };
@@ -178,7 +182,7 @@ function etatAcompte(r) {
     // Évaluée à la date de la demande d'annulation en cours, sinon à aujourd'hui
     politique: politiqueRemboursement(r, r.demandeAnnulation?.statut === 'en_attente' ? r.demandeAnnulation.dateDemande : new Date()),
     conditions: conditionsRemboursement(),
-    appUrl: /^https:\/\//.test((process.env.PISPI_APP_URL || '').trim()) ? process.env.PISPI_APP_URL.trim() : null,
+    appUrl: /^https:\/\//.test(Cles.lire('PISPI_APP_URL').trim()) ? Cles.lire('PISPI_APP_URL').trim() : null,
     enCours: enCours ? { txId: enCours.txId, methode: enCours.methode, expireLe: enCours.expireLe, checkoutUrl: enCours.checkoutUrl || null } : null,
     doublons: (r.paiements || []).filter(p => p.statut === 'doublon').map(p => ({ txId: p.txId, montant: p.montant, payeLe: p.payeLe })),
   };

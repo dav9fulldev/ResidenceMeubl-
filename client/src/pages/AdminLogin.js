@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { FaLock, FaUser, FaEye, FaEyeSlash } from 'react-icons/fa';
 import { useResidences } from '../context/ResidencesContext';
 import './AdminLogin.css';
@@ -62,7 +62,8 @@ const AdminLogin = () => {
         </div>
 
         <div className="admin-login-form">
-          <h3>Connexion Administrateur</h3>
+          <h3>Connexion</h3>
+          <p className="admin-login-sous-titre">Gestionnaires de résidences et administrateur de la plateforme</p>
           
           {error && (
             <div className="error-message">
@@ -74,7 +75,7 @@ const AdminLogin = () => {
             <div className="form-group">
               <label htmlFor="username">
                 <FaUser />
-                Nom d'utilisateur
+                Email
               </label>
               <input
                 type="text"
@@ -82,7 +83,7 @@ const AdminLogin = () => {
                 name="username"
                 value={credentials.username}
                 onChange={handleInputChange}
-                placeholder="Entrez votre nom d'utilisateur"
+                placeholder="vous@entreprise.com"
                 required
                 autoComplete="username"
               />
@@ -125,7 +126,7 @@ const AdminLogin = () => {
           </form>
 
           <div className="admin-login-footer">
-            <p>Accès réservé au personnel autorisé</p>
+            <p className="admin-login-inscription">Vous gérez des résidences meublées ?<br /><Link to="/admin/inscription">Créer le compte de votre entreprise</Link></p>
             <button
               className="btn btn-outline btn-back"
               onClick={() => navigate('/')}

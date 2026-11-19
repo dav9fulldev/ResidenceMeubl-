@@ -595,3 +595,7 @@
 }
 
 .residence-detail-page .rd-equipements .rd-eq-icone svg { color: inherit; }
+
+/* Entreprise qui propose la résidence */
+.residence-detail .rd-proprietaire, .rd-proprietaire { margin: 6px 0 0; font-size: 0.9rem; color: var(--text-muted); }
+.rd-proprietaire b { color: var(--text); font-weight: 600; }

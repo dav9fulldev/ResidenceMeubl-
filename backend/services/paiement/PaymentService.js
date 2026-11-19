@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const { buildPayloadString, generateQrCodeSvg } = require('@pi-spi/qrcode');
 const db = require('../../db');
+const Tenant = require('../Tenant');
 const PiSpi = require('./PiSpiClient');
 const GeniusPay = require('./GeniusPayClient');
 const acompte = require('./acompte');
@@ -42,6 +43,7 @@ const normaliserAlias = (valeur) => {
   return hex.length === 32 ? `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}` : brut;
 };
 
+
 class ErreurPaiement extends Error {
   constructor(message, status = 400) {
     super(message);
@@ -69,9 +71,13 @@ class PaymentService {
     if (client.ref && client.ref !== String(reservationId)) throw new ErreurPaiement('Accès non autorisé à cette réservation', 403);
     if (!['qr', 'demande', 'geniuspay'].includes(methode)) throw new ErreurPaiement('Méthode de paiement invalide');
 
-    const r = await this.collection.findOne({ id: String(reservationId), 'client.email': client.email }, { projection: { _id: 0 } });
+    const r = await this.collection.findOne({ id: { $eq: String(reservationId) }, 'client.email': { $eq: String(client.email) } }, { projection: { _id: 0 } });
     if (!r) throw new ErreurPaiement('Réservation introuvable', 404);
+    // Règles, moyens et clés de paiement de l'entreprise qui propose la résidence
+    return Tenant.pour(r, () => this.demarrerPour(r, { methode, payeurAlias, objet }));
+  }
 
+  async demarrerPour(r, { methode, payeurAlias, objet }) {
     const etat = objet === 'solde' ? acompte.etatSolde(r) : acompte.etatAcompte(r);
     if (etat.paye) throw new ErreurPaiement(objet === 'solde' ? 'Le solde de ce séjour est déjà réglé' : 'L\'acompte de cette réservation est déjà réglé');
     if (!etat.possible) {
@@ -176,7 +182,7 @@ class PaymentService {
       if (STATUTS_ECHEC_GENIUSPAY[g?.status]) return this.cloturer(r.id, p.txId, 'refuse', STATUTS_ECHEC_GENIUSPAY[g.status]);
       if (g?.status === 'expired') return this.cloturer(r.id, p.txId, 'expire', 'Délai dépassé');
     } catch (error) {
-      console.error(`⚠️ Vérification GeniusPay impossible (${p.txId}) :`, error.message);
+      console.error('⚠️ Vérification GeniusPay impossible (%s) :', String(p.txId).replace(/\n|\r/g, ''), error.message);
     }
     return p;
   }
@@ -186,9 +192,13 @@ class PaymentService {
    * Idempotent : peut être appelé par le client, le webhook et la vérification périodique.
    * @returns le paiement à jour (ou null)
    */
-  async verifier(txId, { forcer = false } = {}) {
-    const r = await this.collection.findOne({ 'paiements.txId': txId }, { projection: { _id: 0 } });
+  async verifier(txId, options = {}) {
+    const r = await this.collection.findOne({ 'paiements.txId': { $eq: String(txId) } }, { projection: { _id: 0 } });
     if (!r) return null;
+    return Tenant.pour(r, () => this.verifierPour(r, txId, options));
+  }
+
+  async verifierPour(r, txId, { forcer = false } = {}) {
     const p = r.paiements.find(x => x.txId === txId);
     // « expire » reste vérifiable : un client peut payer une demande après notre délai
     if (!['en_attente', 'expire'].includes(p.statut)) return p;
@@ -212,7 +222,7 @@ class PaymentService {
         }
       }
     } catch (error) {
-      console.error(`⚠️ Vérification PI-SPI impossible (${txId}) :`, error.message);
+      console.error('⚠️ Vérification PI-SPI impossible (%s) :', String(txId).replace(/\n|\r/g, ''), error.message);
     }
 
     if (p.statut === 'en_attente' && Date.now() > new Date(p.expireLe).getTime() + acompte.MARGE_VERIFICATION_MS) {
@@ -223,10 +233,10 @@ class PaymentService {
 
   async cloturer(reservationId, txId, statut, raison) {
     await this.collection.updateOne(
-      { id: reservationId, paiements: { $elemMatch: { txId, statut: 'en_attente' } } },
+      { id: { $eq: String(reservationId) }, paiements: { $elemMatch: { txId, statut: 'en_attente' } } },
       { $set: { 'paiements.$.statut': statut, 'paiements.$.raison': raison, 'paiements.$.clotureLe': new Date() } }
     );
-    const r = await this.collection.findOne({ id: reservationId }, { projection: { _id: 0 } });
+    const r = await this.collection.findOne({ id: { $eq: String(reservationId) } }, { projection: { _id: 0 } });
     return r.paiements.find(x => x.txId === txId);
   }
 
@@ -234,22 +244,22 @@ class PaymentService {
    * Enregistre l'acompte comme payé (une seule fois) et envoie les emails.
    */
   async marquerPaye(reservationId, txId, { end2endId = null, payeurNom = null, payeurAlias = null } = {}) {
-    const avant = await this.collection.findOne({ id: reservationId }, { projection: { _id: 0 } });
+    const avant = await this.collection.findOne({ id: { $eq: String(reservationId) } }, { projection: { _id: 0 } });
     const p = avant.paiements.find(x => x.txId === txId);
     if ((p.objet || 'acompte') === 'solde') return this.marquerSoldePaye(avant, p, { end2endId, payeurNom });
     const maintenant = new Date();
     // Acompte déjà réglé par un autre paiement : doublon à rembourser, signalé à l'admin
     if (avant.acompte?.paye && avant.acompte.txId !== txId) {
       await this.collection.updateOne(
-        { id: reservationId, 'paiements.txId': txId },
+        { id: { $eq: String(reservationId) }, 'paiements.txId': txId },
         { $set: { 'paiements.$.statut': 'doublon', 'paiements.$.payeLe': maintenant, 'paiements.$.end2endId': end2endId, 'paiements.$.raison': 'Acompte déjà réglé : à rembourser' } }
       );
-      console.error(`⚠️ Paiement en double sur ${reservationId} (${txId}) : à rembourser`);
-      const maj = await this.collection.findOne({ id: reservationId }, { projection: { _id: 0 } });
+      console.error('⚠️ Paiement en double sur %s (%s) : à rembourser', String(reservationId).replace(/\n|\r/g, ''), String(txId).replace(/\n|\r/g, ''));
+      const maj = await this.collection.findOne({ id: { $eq: String(reservationId) } }, { projection: { _id: 0 } });
       return maj.paiements.find(x => x.txId === txId);
     }
     const resultat = await this.collection.updateOne(
-      { id: reservationId, 'acompte.paye': { $ne: true }, paiements: { $elemMatch: { txId, statut: { $in: ['en_attente', 'expire'] } } } },
+      { id: { $eq: String(reservationId) }, 'acompte.paye': { $ne: true }, paiements: { $elemMatch: { txId, statut: { $in: ['en_attente', 'expire'] } } } },
       {
         $set: {
           'paiements.$.statut': 'paye',
@@ -269,7 +279,7 @@ class PaymentService {
         },
       }
     );
-    const r = await this.collection.findOne({ id: reservationId }, { projection: { _id: 0 } });
+    const r = await this.collection.findOne({ id: { $eq: String(reservationId) } }, { projection: { _id: 0 } });
 
     if (resultat.modifiedCount === 1 && this.emailService) {
       Promise.allSettled([
@@ -289,7 +299,7 @@ class PaymentService {
         { id: avant.id, 'paiements.txId': p.txId },
         { $set: { 'paiements.$.statut': 'doublon', 'paiements.$.payeLe': maintenant, 'paiements.$.end2endId': end2endId, 'paiements.$.raison': 'Solde déjà réglé : à rembourser' } }
       );
-      console.error(`⚠️ Solde payé en double sur ${avant.id} (${p.txId}) : à rembourser`);
+      console.error('⚠️ Solde payé en double sur %s (%s) : à rembourser', String(avant.id).replace(/\n|\r/g, ''), String(p.txId).replace(/\n|\r/g, ''));
     } else {
       const resultat = await this.collection.updateOne(
         { id: avant.id, 'solde.paye': { $ne: true }, paiements: { $elemMatch: { txId: p.txId, statut: { $in: ['en_attente', 'expire'] } } } },
@@ -316,19 +326,19 @@ class PaymentService {
   async simuler(reservationId, client, txId) {
     if (acompte.mode() !== 'simulation') throw new ErreurPaiement('Simulation désactivée', 403);
     if (client.ref && client.ref !== String(reservationId)) throw new ErreurPaiement('Accès non autorisé', 403);
-    const r = await this.collection.findOne({ id: String(reservationId), 'client.email': client.email, 'paiements.txId': txId });
+    const r = await this.collection.findOne({ id: { $eq: String(reservationId) }, 'client.email': { $eq: String(client.email) }, 'paiements.txId': { $eq: String(txId) } });
     if (!r) throw new ErreurPaiement('Paiement introuvable', 404);
-    return this.marquerPaye(r.id, txId, { end2endId: `SIMULATION-${txId}` });
+    return Tenant.pour(r, () => this.marquerPaye(r.id, txId, { end2endId: `SIMULATION-${txId}` }));
   }
 
   // État d'un paiement pour le client (vérifie au passage auprès de PI-SPI)
   async statutPourClient(reservationId, client, txId) {
     if (client.ref && client.ref !== String(reservationId)) throw new ErreurPaiement('Accès non autorisé', 403);
-    const r = await this.collection.findOne({ id: String(reservationId), 'client.email': client.email, 'paiements.txId': txId });
+    const r = await this.collection.findOne({ id: { $eq: String(reservationId) }, 'client.email': { $eq: String(client.email) }, 'paiements.txId': { $eq: String(txId) } });
     if (!r) throw new ErreurPaiement('Paiement introuvable', 404);
     const p = await this.verifier(txId);
     const maj = await this.collection.findOne({ id: r.id }, { projection: { _id: 0 } });
-    return { statut: p.statut, raison: p.raison || null, objet: p.objet || 'acompte', acompte: acompte.etatAcompte(maj), solde: acompte.etatSolde(maj) };
+    return Tenant.pour(maj, () => ({ statut: p.statut, raison: p.raison || null, objet: p.objet || 'acompte', acompte: acompte.etatAcompte(maj), solde: acompte.etatSolde(maj) }));
   }
 
   // ---------- Webhook ----------
@@ -338,7 +348,7 @@ class PaymentService {
    * Accepte une signature hexadécimale ou base64, avec ou sans préfixe « sha256= ».
    */
   signatureValide(corpsBrut, signature) {
-    const secret = (process.env.PISPI_WEBHOOK_SECRET || '').trim();
+    const secret = (require('./Cles').lire('PISPI_WEBHOOK_SECRET') || '').trim(); // secret de l'entreprise courante
     if (!secret || !signature) return false;
     const recue = String(signature).trim().replace(/^sha256=/i, '');
     const hmac = crypto.createHmac('sha256', secret).update(corpsBrut).digest();
@@ -355,7 +365,7 @@ class PaymentService {
     const evenements = Array.isArray(corps?.data) ? corps.data : [];
     for (const ev of evenements) {
       if (['PAIEMENT_ENVOYE', 'PAIEMENT_REJETE'].includes(ev?.evCode) && ev.txId && String(ev.txId).startsWith('RMB')) {
-        const r = await this.collection.findOne({ 'acompte.remboursement.txId': String(ev.txId) }, { projection: { id: 1 } });
+        const r = await this.collection.findOne({ 'acompte.remboursement.txId': { $eq: String(ev.txId) } }, { projection: { id: 1 } });
         if (r) await require('./RefundService').verifier(r.id).catch(e => console.error('⚠️ Webhook remboursement :', e.message));
         continue;
       }
@@ -382,7 +392,7 @@ class PaymentService {
   async traiterEvenementGeniusPay(corps) {
     const d = corps?.data || {};
     if (!String(corps?.event || '').startsWith('payment.')) return;
-    const filtre = d.metadata?.txId ? { 'paiements.txId': String(d.metadata.txId) } : { 'paiements.reference': String(d.reference || '') };
+    const filtre = d.metadata?.txId ? { 'paiements.txId': { $eq: String(d.metadata.txId) } } : { 'paiements.reference': { $eq: String(d.reference || '') } };
     const r = await this.collection.findOne(filtre, { projection: { _id: 0, paiements: 1 } });
     const p = r?.paiements?.find(x => (d.metadata?.txId ? x.txId === String(d.metadata.txId) : x.reference === String(d.reference)));
     if (p) await this.verifier(p.txId, { forcer: true });
@@ -391,7 +401,6 @@ class PaymentService {
   // ---------- Vérification périodique (secours si un webhook se perd) ----------
 
   async verifierEnAttente() {
-    if (acompte.moyensDisponibles().length === 0) return;
     const limite = new Date(Date.now() - acompte.MARGE_VERIFICATION_MS);
     const reservations = await this.collection
       .find({ paiements: { $elemMatch: { statut: 'en_attente', expireLe: { $gt: limite } } } }, { projection: { paiements: 1 } })

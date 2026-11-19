@@ -2,6 +2,7 @@ const Reservation = require('../models/Reservation');
 const ResidenceService = require('./ResidenceService');
 const EmailService = require('./EmailService');
 const db = require('../db');
+const Tenant = require('./Tenant');
 const acompte = require('./paiement/acompte');
 const PaymentService = require('./paiement/PaymentService');
 const RefundService = require('./paiement/RefundService');
@@ -12,6 +13,7 @@ const FORMAT_DATE = /^\d{4}-\d{2}-\d{2}$/;
 // Champs enregistrés en base pour une réservation
 const versDocument = (reservation) => ({
   id: reservation.id,
+  entrepriseId: reservation.entrepriseId,
   residenceId: reservation.residenceId,
   residenceInfo: reservation.residenceInfo,
   client: reservation.client,
@@ -35,7 +37,7 @@ const peutDemanderAnnulation = (r) =>
   r.demandeAnnulation?.statut !== 'en_attente';
 
 // Ce que le client voit de sa réservation (sans données internes)
-const vueClient = (r) => ({
+const vueClient = (r) => Tenant.pour(r, () => ({
   id: r.id,
   residence: {
     id: r.residenceInfo?.id,
@@ -53,7 +55,8 @@ const vueClient = (r) => ({
   peutMasquer: r.statut === 'annulee' || r.dates.depart <= aujourdhui(),
   acompte: { ...acompte.etatAcompte(r), remboursement: r.acompte?.remboursement || null },
   solde: acompte.etatSolde(r),
-});
+  etablissement: (({ nom, telephone, whatsapp, email }) => ({ nom, telephone, whatsapp, email }))(require('./SettingsService').etablissement({ publique: true })),
+}));
 
 /**
  * Service de gestion des réservations (stockage MongoDB, collection « reservations »)
@@ -112,6 +115,7 @@ class ReservationService {
         prixTotal: residence.prix * nuits
       });
 
+      reservation.entrepriseId = residence.entrepriseId || Tenant.PRINCIPALE;
       const validation = reservation.valider();
       if (!validation.valide) {
         throw new Error(`Validation échouée: ${validation.erreurs.join(', ')}`);
@@ -119,10 +123,10 @@ class ReservationService {
 
       await this.collection.insertOne(versDocument(reservation));
 
-      // Envoyer les emails : un échec d'envoi ne doit pas annuler la réservation
+      // Envoyer les emails (au nom de l'entreprise de la résidence) : un échec d'envoi ne doit pas annuler la réservation
       let emailEnvoye = false;
       try {
-        await this.emailService.sendReservationEmail(reservation);
+        await Tenant.pour(reservation, () => this.emailService.sendReservationEmail(reservation));
         emailEnvoye = true;
       } catch (emailError) {
         console.error('⚠️ Réservation enregistrée mais email non envoyé:', emailError.message);
@@ -150,13 +154,13 @@ class ReservationService {
 
   // Obtenir une réservation par ID
   async getReservationById(id) {
-    return this.collection.findOne({ id: String(id) }, { projection: { _id: 0 } });
+    return this.collection.findOne({ id: { $eq: String(id) }, ...Tenant.filtre() }, { projection: { _id: 0 } });
   }
 
   // Obtenir toutes les réservations, les plus récentes d'abord (pour l'admin)
   async getAllReservations() {
     const reservations = await this.collection
-      .find({}, { projection: { _id: 0 } })
+      .find(Tenant.filtre(), { projection: { _id: 0 } })
       .sort({ dateCreation: -1 })
       .toArray();
 
@@ -182,18 +186,18 @@ class ReservationService {
   // Réservation dont la référence et l'email correspondent (null sinon)
   async trouverPourClient(reference, email) {
     return this.collection.findOne(
-      { id: String(reference).trim(), 'client.email': String(email).trim().toLowerCase() },
+      { id: { $eq: String(reference).trim() }, 'client.email': { $eq: String(email).trim().toLowerCase() } },
       { projection: { _id: 0 } }
     );
   }
 
   async compterPourEmail(email) {
-    return this.collection.countDocuments({ 'client.email': String(email).trim().toLowerCase() });
+    return this.collection.countDocuments({ 'client.email': { $eq: String(email).trim().toLowerCase() } });
   }
 
   // Historique du client ; limité à une réservation si l'accès vient d'une référence
   async getReservationsClient({ email, ref }) {
-    const filtre = { 'client.email': email, masqueeParClient: { $ne: true }, ...(ref ? { id: ref } : {}) };
+    const filtre = { 'client.email': { $eq: String(email) }, masqueeParClient: { $ne: true }, ...(ref ? { id: { $eq: String(ref) } } : {}) };
     const docs = await this.collection.find(filtre, { projection: { _id: 0 } }).sort({ dateCreation: -1 }).toArray();
     return docs.map(vueClient);
   }
@@ -205,10 +209,10 @@ class ReservationService {
    */
   async masquerPourClient({ email, ref }, ids = null) {
     const filtre = {
-      'client.email': email,
+      'client.email': { $eq: String(email) },
       $or: [{ statut: 'annulee' }, { 'dates.depart': { $lte: aujourdhui() } }],
       ...(ids ? { id: { $in: ids.map(String) } } : {}),
-      ...(ref ? { id: ref } : {}),
+      ...(ref ? { id: { $eq: String(ref) } } : {}),
     };
     const res = await this.collection.updateMany(filtre, { $set: { masqueeParClient: true, masqueeLe: new Date() } });
     return res.modifiedCount;
@@ -216,10 +220,10 @@ class ReservationService {
 
   // L'admin relance le remboursement automatique (après un échec)
   async relancerRemboursement(id) {
-    const r = await this.collection.findOne({ id: String(id) }, { projection: { _id: 0, acompte: 1, statut: 1 } });
+    const r = await this.collection.findOne({ id: { $eq: String(id) }, ...Tenant.filtre() }, { projection: { _id: 0, acompte: 1, statut: 1 } });
     if (!r?.acompte?.paye || r.statut !== 'annulee') throw new ErreurClient('Aucun acompte à rembourser pour cette réservation', 404);
     if (r.acompte.remboursement?.statut === 'rembourse') throw new ErreurClient('Acompte déjà remboursé');
-    await this.collection.updateOne({ id: String(id) }, { $set: { 'acompte.remboursement.statut': 'a_rembourser' } });
+    await this.collection.updateOne({ id: { $eq: String(id) }, ...Tenant.filtre() }, { $set: { 'acompte.remboursement.statut': 'a_rembourser' } });
     // Relance par l'admin : y compris un acompte non remboursable (geste commercial)
     return RefundService.rembourser(id, { ignorerPolitique: true });
   }
@@ -227,7 +231,7 @@ class ReservationService {
   // L'admin indique que l'acompte a été remboursé hors PI-SPI (après un échec)
   async marquerRembourse(id, reference = '') {
     const res = await this.collection.findOneAndUpdate(
-      { id: String(id), 'acompte.remboursement.statut': { $in: ['a_rembourser', 'echec'] } },
+      { id: { $eq: String(id) }, ...Tenant.filtre(), 'acompte.remboursement.statut': { $in: ['a_rembourser', 'echec'] } },
       { $set: { 'acompte.remboursement.statut': 'rembourse', 'acompte.remboursement.le': new Date(), 'acompte.remboursement.reference': String(reference || '').slice(0, 80) } },
       { returnDocument: 'after', projection: { _id: 0 } }
     );
@@ -243,7 +247,7 @@ class ReservationService {
     if (ref && ref !== String(id)) {
       throw new ErreurClient('Accès non autorisé à cette réservation', 403);
     }
-    const reservation = await this.collection.findOne({ id: String(id), 'client.email': email }, { projection: { _id: 0 } });
+    const reservation = await this.collection.findOne({ id: { $eq: String(id) }, 'client.email': { $eq: String(email) } }, { projection: { _id: 0 } });
     if (!reservation) throw new ErreurClient('Réservation introuvable', 404);
     if (reservation.statut === 'annulee') throw new ErreurClient('Cette réservation est déjà annulée');
     if (reservation.demandeAnnulation?.statut === 'en_attente') {
@@ -265,7 +269,7 @@ class ReservationService {
 
     let emailEnvoye = false;
     try {
-      await this.emailService.sendDemandeAnnulationAdmin(misAJour);
+      await Tenant.pour(misAJour, () => this.emailService.sendDemandeAnnulationAdmin(misAJour));
       emailEnvoye = true;
     } catch (emailError) {
       console.error('⚠️ Demande d\'annulation enregistrée mais admin non prévenu:', emailError.message);
@@ -279,7 +283,7 @@ class ReservationService {
    */
   async traiterDemandeAnnulation(id, decision, message = '') {
     if (!['accepter', 'refuser'].includes(decision)) throw new ErreurClient('Décision invalide');
-    const reservation = await this.collection.findOne({ id: String(id) }, { projection: { _id: 0 } });
+    const reservation = await this.collection.findOne({ id: { $eq: String(id) }, ...Tenant.filtre() }, { projection: { _id: 0 } });
     if (!reservation) return null;
     if (reservation.demandeAnnulation?.statut !== 'en_attente') {
       throw new ErreurClient('Aucune demande d\'annulation en attente pour cette réservation');
@@ -320,7 +324,7 @@ class ReservationService {
 
     // Une réservation confirmée ne s'annule que sur demande du client
     if (nouveauStatut === 'annulee' && !surDemandeClient) {
-      const actuelle = await this.collection.findOne({ id: String(id) }, { projection: { _id: 0, statut: 1, demandeAnnulation: 1 } });
+      const actuelle = await this.collection.findOne({ id: { $eq: String(id) }, ...Tenant.filtre() }, { projection: { _id: 0, statut: 1, demandeAnnulation: 1 } });
       if (actuelle?.statut === 'confirmee') {
         throw new ErreurClient(
           actuelle.demandeAnnulation?.statut === 'en_attente'
@@ -332,7 +336,7 @@ class ReservationService {
     }
 
     const avant = await this.collection.findOneAndUpdate(
-      { id: String(id) },
+      { id: { $eq: String(id) }, ...Tenant.filtre() },
       { $set: { statut: nouveauStatut, statutLe: new Date() } },
       { returnDocument: 'before', projection: { _id: 0 } }
     );
@@ -376,7 +380,7 @@ class ReservationService {
   // Obtenir les statistiques des réservations
   async getReservationStats() {
     const groupes = await this.collection
-      .aggregate([{ $group: { _id: '$statut', total: { $sum: 1 } } }])
+      .aggregate([{ $match: Tenant.filtre() }, { $group: { _id: '$statut', total: { $sum: 1 } } }])
       .toArray();
     const compte = (statut) => groupes.find(g => g._id === statut)?.total || 0;
 
@@ -393,7 +397,7 @@ class ReservationService {
   /** L'admin enregistre le solde reçu sur place (espèces, Mobile Money, carte, virement…). */
   async enregistrerSoldeSurPlace(id, { moyen, reference = '' } = {}) {
     if (!acompte.MOYENS_SUR_PLACE[moyen]) throw new ErreurClient('Moyen de paiement invalide');
-    const r = await this.collection.findOne({ id: String(id) }, { projection: { _id: 0 } });
+    const r = await this.collection.findOne({ id: { $eq: String(id) }, ...Tenant.filtre() }, { projection: { _id: 0 } });
     if (!r) throw new ErreurClient('Réservation introuvable', 404);
     if (r.statut !== 'confirmee') throw new ErreurClient('Seul le solde d\'un séjour confirmé peut être enregistré', 409);
     if (r.solde?.paye) throw new ErreurClient('Le solde de ce séjour est déjà enregistré', 409);
@@ -414,7 +418,7 @@ class ReservationService {
   /** Le solde d'un séjour annulé a été rendu au client (hors ligne). */
   async marquerSoldeRembourse(id, reference = '') {
     const res = await this.collection.findOneAndUpdate(
-      { id: String(id), 'solde.remboursement.statut': 'a_rembourser' },
+      { id: { $eq: String(id) }, ...Tenant.filtre(), 'solde.remboursement.statut': 'a_rembourser' },
       { $set: { 'solde.remboursement.statut': 'rembourse', 'solde.remboursement.le': new Date(), 'solde.remboursement.reference': String(reference || '').slice(0, 80) } },
       { returnDocument: 'after', projection: { _id: 0 } }
     );
@@ -442,10 +446,10 @@ class ReservationService {
       const pris = await this.collection.updateOne({ id: r.id, 'solde.rappelLe': { $exists: false } }, { $set: { 'solde.rappelLe': new Date() } });
       if (pris.modifiedCount !== 1) continue;
       try {
-        await this.emailService.sendRappelSolde(r);
+        await Tenant.pour(r, () => this.emailService.sendRappelSolde(r));
         envoyes += 1;
       } catch (error) {
-        console.error(`⚠️ Rappel de solde non envoyé (${r.id}) :`, error.message);
+        console.error('⚠️ Rappel de solde non envoyé (%s) :', String(r.id), error.message);
         await this.collection.updateOne({ id: r.id }, { $unset: { 'solde.rappelLe': '' } });
       }
     }

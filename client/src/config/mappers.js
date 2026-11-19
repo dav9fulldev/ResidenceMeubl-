@@ -22,6 +22,8 @@ export const fromApiResidence = (r) => ({
   images: r.photos || [],
   amenities: r.equipements || [],
   active: r.actif !== false,
+  // Entreprise qui propose la résidence ; sur la fiche, avec ses conditions (acompte, moyens de paiement)
+  company: r.entreprise || null,
   available: r.disponibilite?.statut === 'disponible',
   availability: {
     status: r.disponibilite?.statut || 'disponible',

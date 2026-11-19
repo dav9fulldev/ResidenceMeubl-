@@ -1,9 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import {
   FaChartPie, FaChartLine, FaCalendarAlt, FaHome, FaSignOutAlt, FaExternalLinkAlt,
-  FaMoon, FaSun, FaDownload, FaTimes, FaCog, FaRegCalendarCheck,
+  FaMoon, FaSun, FaDownload, FaTimes, FaCog, FaRegCalendarCheck, FaBuilding, FaHourglassHalf,
 } from 'react-icons/fa';
+import { API_ENDPOINTS } from '../../config/api';
+import { CompteContext } from '../../context/CompteContext';
 import { useResidences } from '../../context/ResidencesContext';
 import ErrorBoundary from '../ErrorBoundary';
 import useTheme from '../../hooks/useTheme';
@@ -19,6 +21,7 @@ const TITRES = {
   '/admin/residences': 'Résidences',
   '/admin/statistiques': 'Statistiques',
   '/admin/parametres': 'Paramètres',
+  '/admin/entreprises': 'Entreprises',
 };
 
 /**
@@ -28,7 +31,30 @@ const TITRES = {
 const AdminLayout = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { logoutAdmin } = useResidences();
+  const { logoutAdmin, adminRequest, setEspaceAdmin } = useResidences();
+  // Le back-office travaille sur les résidences de l'entreprise connectée
+  useEffect(() => {
+    setEspaceAdmin(true);
+    return () => setEspaceAdmin(false);
+  }, [setEspaceAdmin]);
+  const [compte, setCompte] = useState(null);
+  const [enAttente, setEnAttente] = useState(0); // entreprises à valider (administrateur de la plateforme)
+
+  // Compte connecté et son entreprise (statut de validation, droits)
+  const recharger = useCallback(async () => {
+    try {
+      const moi = (await adminRequest(API_ENDPOINTS.admin.me)).data;
+      setCompte(moi);
+      if (moi.superAdmin) {
+        const liste = (await adminRequest(API_ENDPOINTS.admin.companies)).data;
+        setEnAttente(liste.filter(e => e.statut === 'en_attente').length);
+      }
+    } catch {
+      // jeton refusé : adminRequest déconnecte déjà
+    }
+  }, [adminRequest]);
+  useEffect(() => { recharger(); }, [recharger]);
+  const valeurCompte = useMemo(() => ({ compte, recharger }), [compte, recharger]);
   const { theme, toggleTheme } = useTheme();
   const { installee, peutInstaller, ios, installer } = useInstallPrompt();
   const { aTraiter } = useAdminReservations();
@@ -62,17 +88,20 @@ const AdminLayout = () => {
     { to: '/admin/residences', icone: <FaHome />, texte: 'Résidences', section: 'Gestion' },
     { to: '/admin/statistiques', icone: <FaChartLine />, texte: 'Statistiques', section: 'Pilotage', mobile: false },
     { to: '/admin/parametres', icone: <FaCog />, texte: 'Paramètres', section: 'Pilotage' },
+    ...(compte?.superAdmin ? [{ to: '/admin/entreprises', icone: <FaBuilding />, texte: 'Entreprises', court: 'Entreprises', badge: enAttente, section: 'Plateforme' }] : []),
   ];
+  const nomEntreprise = compte?.entreprise?.nom || 'BABI RESIDENCE';
 
   return (
+    <CompteContext.Provider value={valeurCompte}>
     <div className="admin-shell">
       {/* Menu latéral (ordinateur) */}
       <aside className="admin-sidebar">
         <div className="admin-brand">
           <LogoBabi className="admin-brand-logo" />
           <div>
-            <strong>BABI RESIDENCE</strong>
-            <span>Administration</span>
+            <strong title={nomEntreprise}>{nomEntreprise}</strong>
+            <span>{compte?.superAdmin ? 'Administration de la plateforme' : 'Espace de gestion'}</span>
           </div>
         </div>
 
@@ -124,6 +153,12 @@ const AdminLayout = () => {
       </header>
 
       <main className="admin-main">
+        {compte?.entreprise?.statut === 'en_attente' && (
+          <div className="admin-bandeau-attente" role="status">
+            <FaHourglassHalf aria-hidden="true" />
+            <p><strong>Votre entreprise est en cours de vérification.</strong> Préparez vos résidences, vos coordonnées et vos moyens de paiement : elles apparaîtront sur le site dès la validation (vous serez prévenu par email).</p>
+          </div>
+        )}
         <ErrorBoundary cle={location.pathname}>
           <React.Suspense fallback={<div className="page-chargement" role="status">Chargement…</div>}>
             <Outlet />
@@ -160,6 +195,7 @@ const AdminLayout = () => {
         </div>
       )}
     </div>
+    </CompteContext.Provider>
   );
 };
 

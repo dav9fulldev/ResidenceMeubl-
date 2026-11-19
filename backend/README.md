@@ -25,8 +25,9 @@ Copier [`.env.example`](.env.example) en `.env`. Ne jamais commiter `.env`.
 ### Accès administrateur
 | Variable | Obligatoire | Description |
 |---|---|---|
-| `ADMIN_USERNAME` / `ADMIN_PASSWORD` | oui | Identifiants du back-office (identifiant non trivial, mot de passe d'au moins 20 caractères aléatoires). |
+| `ADMIN_USERNAME` / `ADMIN_PASSWORD` | oui | Identifiants de l'**administrateur de la plateforme** (identifiant non trivial, mot de passe d'au moins 20 caractères aléatoires). Les gestionnaires d'entreprise ont leur propre compte (email + mot de passe). |
 | `ADMIN_TOKEN_SECRET` | oui en production | Clé de signature des jetons (`openssl rand -hex 32`). |
+| `CLES_CHIFFREMENT` | oui en production | Chiffrement (AES-256-GCM) des clés de paiement saisies par les entreprises (`openssl rand -hex 32`). À ne plus changer : sinon les entreprises ressaisissent leurs clés. À défaut, dérivée de `ADMIN_TOKEN_SECRET`. |
 
 ### Emails
 | Variable | Obligatoire | Description |
@@ -84,7 +85,8 @@ Réponses au format `{ success, data?, message? }`. 🔒 = jeton admin, 👤 = j
 | POST | `/api/residences/search`, `/check-disponibilite` | Filtres classiques ; disponibilité d'une résidence |
 | GET | `/api/residences/types`, `/villes`, `/quartiers/:ville` | Listes pour les filtres |
 | POST | `/api/reservations` | Demande de réservation (entrées validées : types, formats, longueurs) |
-| GET | `/api/etablissement` | Identité publique, moyens de paiement actifs, règles d'acompte |
+| GET | `/api/etablissement` | Identité publique de la plateforme, moyens de paiement actifs, règles d'acompte |
+| POST | `/api/entreprises/inscription` | `{ entreprise, prenom, nom, email, telephone, motDePasse }` → compte « en attente » + jeton (5 / heure) |
 
 ### Espace client (sans compte)
 | Méthode | Route | Description |
@@ -112,7 +114,11 @@ Réponses au format `{ success, data?, message? }`. 🔒 = jeton admin, 👤 = j
 ### Administration
 | Méthode | Route | Description |
 |---|---|---|
-| POST | `/api/admin/login` | `{ username, password }` → jeton (8 h ; 10 tentatives / 15 min) |
+| POST | `/api/admin/login` | `{ username \| email, password }` → jeton (8 h ; 10 tentatives / 15 min). Email = gestionnaire ; identifiant = plateforme |
+| GET 🔒 | `/api/admin/moi` | Compte connecté, son entreprise et son statut |
+| PUT 🔒 | `/api/admin/moi/mot-de-passe` | `{ actuel, nouveau }` (gestionnaires) |
+| GET 🔒⭐ | `/api/admin/plateforme/entreprises` | Entreprises inscrites, chiffres et gestionnaires |
+| PUT 🔒⭐ | `/api/admin/plateforme/entreprises/:id/statut` | `{ statut: validee \| suspendue \| en_attente, motif? }` |
 | GET / POST 🔒 | `/api/admin/residences` | Lister / créer |
 | PUT / DELETE 🔒 | `/api/admin/residences/:id` | Modifier / supprimer |
 | PUT 🔒 | `/api/admin/residences/:id/status` | Statut manuel (maintenance…) |
@@ -122,17 +128,24 @@ Réponses au format `{ success, data?, message? }`. 🔒 = jeton admin, 👤 = j
 | GET / PUT 🔒 | `/api/admin/etablissement` | Identité, coordonnées, réseaux, email des alertes |
 | GET 🔒 | `/api/admin/paiements/moyens` | Moyens de paiement : configurés, activés, adresses des webhooks |
 | PUT 🔒 | `/api/admin/paiements/moyens/:id` | `{ actif }` — activer / désactiver un moyen |
+| PUT 🔒 | `/api/admin/paiements/cles/:id` | Clés propres à l'entreprise (`GENIUSPAY_API_KEY`…), chiffrées ; secret vide = inchangé |
+
+Toutes les routes 🔒 sont limitées aux données de l'entreprise du compte connecté. ⭐ = administrateur de la plateforme uniquement.
 
 ### Webhooks et divers
 | Méthode | Route | Description |
 |---|---|---|
-| POST | `/api/paiements/pispi/webhook` | Signé `X-Signature` (HMAC-SHA256 du corps) |
-| POST | `/api/paiements/geniuspay/webhook` | Signé `X-Webhook-Signature` + `X-Webhook-Timestamp` (HMAC-SHA256 de `timestamp.corps`, ±5 min) |
+| POST | `/api/paiements/pispi/webhook[/:entreprise]` | Signé `X-Signature` (HMAC-SHA256 du corps) avec le secret de l'entreprise |
+| POST | `/api/paiements/geniuspay/webhook[/:entreprise]` | Signé `X-Webhook-Signature` + `X-Webhook-Timestamp` (HMAC-SHA256 de `timestamp.corps`, ±5 min) |
+
+Sans `/:entreprise` : la plateforme (clés des variables d'environnement).
 | GET | `/health` | État du service |
 
 ---
 
 ## Fonctionnement
+
+**Multi-entreprises.** Chaque gestionnaire crée le compte de son entreprise (`/admin/inscription`) ; l'administrateur de la plateforme la valide avant que ses résidences apparaissent sur le site. Résidences et réservations portent un `entrepriseId`. Le contexte d'entreprise ([`services/Tenant.js`](services/Tenant.js), `AsyncLocalStorage`) est posé par `requireAdmin` pour le back-office, et par réservation pour les paiements, webhooks, emails et tâches de fond : paramètres, clés de paiement et emails suivent ainsi automatiquement l'entreprise concernée, et `Tenant.filtre()` limite les requêtes du back-office à ses données. L'entreprise principale `babi` (la plateforme) garde ses données existantes, ses paramètres et ses clés en variables d'environnement. Chaque entreprise encaisse sur **son propre compte** : ses clés GeniusPay / PI-SPI sont saisies dans le back-office et chiffrées ([`services/paiement/Cles.js`](services/paiement/Cles.js)).
 
 **Réservation.** Demande → confirmation par l'admin → acompte payable en ligne. Une réservation est refusée si une autre, non annulée, chevauche les dates (arriver le jour d'un départ est autorisé).
 
@@ -152,7 +165,7 @@ Réponses au format `{ success, data?, message? }`. 🔒 = jeton admin, 👤 = j
 
 **Sécurité.** En-têtes de sécurité et CSP sur toutes les réponses, `X-Powered-By` masqué, requêtes limitées à 100 ko (2 Mo pour `/api/admin`), validation stricte des entrées, comparaisons de jetons en temps constant.
 
-**Collections MongoDB** : `residences`, `reservations`, `residence_embeddings`, `counters`, `parametres` (documents `acompte`, `etablissement`, `paiement`).
+**Collections MongoDB** : `entreprises`, `utilisateurs` (mots de passe scrypt), `residences`, `reservations`, `residence_embeddings`, `counters`, `parametres` (documents `acompte`, `etablissement`, `paiement` pour la plateforme, suffixés `:<entreprise>` pour les autres), `cles_paiement` (clés chiffrées des entreprises).
 
 ---
 
@@ -164,11 +177,13 @@ backend/
 ├── db.js                      # Connexion MongoDB, index, catalogue initial
 ├── middleware/                # requireAdmin, requireClient, clientIp
 ├── models/                    # Residence, Reservation
-├── routes/                    # residences, reservations, client, admin
+├── routes/                    # residences, reservations, client, admin, entreprises
 ├── services/
 │   ├── ReservationService.js  # Réservations, disponibilité, annulations, solde, rappels
 │   ├── ResidenceService.js    # Résidences et statut calculé
-│   ├── SettingsService.js     # Paramètres du back-office (acompte, établissement, moyens actifs)
+│   ├── Tenant.js              # Entreprise courante (contexte) et filtre du back-office
+│   ├── EntrepriseService.js   # Entreprises, comptes gestionnaires, validation
+│   ├── SettingsService.js     # Paramètres par entreprise (acompte, établissement, moyens actifs)
 │   ├── EmailService.js        # Emails (Brevo / SMTP)
 │   ├── AuthService.js         # Jetons signés admin et client
 │   ├── StatsService.js        # Statistiques et export CSV
@@ -177,6 +192,7 @@ backend/
 │       ├── acompte.js         # Règles : acompte, solde, politique de remboursement
 │       ├── PaymentService.js  # Démarrage, vérification, webhooks, suivi périodique
 │       ├── RefundService.js   # Remboursements PI-SPI
+│       ├── Cles.js            # Clés de paiement par entreprise (chiffrées)
 │       ├── PiSpiClient.js, GeniusPayClient.js
 │       └── fournisseurs/      # Registre des moyens de paiement (pispi, geniuspay)
 └── tests/api.test.js          # Tests de bout en bout de l'API

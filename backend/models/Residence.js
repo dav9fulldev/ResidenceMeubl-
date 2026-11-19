@@ -6,6 +6,7 @@ const STATUTS = ['disponible', 'occupé', 'réservé', 'maintenance'];
 class Residence {
   constructor(data) {
     this.id = data.id;
+    this.entrepriseId = data.entrepriseId;
     this.nom = data.nom;
     this.reference = data.reference;
     this.typeAppartement = data.typeAppartement;
@@ -62,6 +63,7 @@ class Residence {
   toJSON() {
     return {
       id: this.id,
+      entrepriseId: this.entrepriseId,
       nom: this.nom,
       reference: this.reference,
       typeAppartement: this.typeAppartement,

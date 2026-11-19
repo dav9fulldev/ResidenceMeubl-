@@ -5,12 +5,17 @@ const router = express.Router();
 const AuthService = require('../services/AuthService');
 const ResidenceService = require('../services/ResidenceService');
 const requireAdmin = require('../middleware/requireAdmin');
+const { superAdmin } = requireAdmin;
 const SmartSearchService = require('../services/SmartSearchService');
 const StatsService = require('../services/StatsService');
 const acompte = require('../services/paiement/acompte');
 const PiSpi = require('../services/paiement/PiSpiClient');
 const Settings = require('../services/SettingsService');
 const Moyens = require('../services/paiement/fournisseurs');
+const Cles = require('../services/paiement/Cles');
+const Tenant = require('../services/Tenant');
+const EntrepriseService = require('../services/EntrepriseService');
+const ReservationService = require('../services/ReservationService');
 
 // Limiter les tentatives de connexion (anti force brute)
 const loginLimiter = rateLimit({
@@ -36,23 +41,99 @@ const gererErreur = (res, error, contexte) => {
  * @access  Public
  */
 router.post('/login', loginLimiter, async (req, res) => {
-  if (!AuthService.estConfigure()) {
-    return res.status(503).json({
-      success: false,
-      message: 'Accès admin non configuré (ADMIN_USERNAME / ADMIN_PASSWORD manquants)',
-    });
+  // Identifiant : email du gestionnaire, ou nom d'utilisateur de l'administrateur de la plateforme
+  const { username, email, password } = req.body || {};
+  const identifiant = String(email || username || '').trim();
+  if (!identifiant || typeof password !== 'string' || !password) {
+    return res.status(400).json({ success: false, message: 'Identifiant et mot de passe requis' });
   }
 
-  const { username, password } = req.body || {};
-  if (!AuthService.verifierIdentifiants(username, password)) {
-    return res.status(401).json({ success: false, message: 'Identifiants incorrects' });
-  }
+  try {
+    // Administrateur de la plateforme (variables ADMIN_USERNAME / ADMIN_PASSWORD)
+    if (AuthService.estConfigure() && AuthService.verifierIdentifiants(identifiant, password)) {
+      return res.json({ success: true, data: { token: AuthService.creerJeton(identifiant) } });
+    }
 
-  res.json({ success: true, data: { token: AuthService.creerJeton(username) } });
+    // Gestionnaire d'une entreprise
+    const u = identifiant.includes('@') ? await EntrepriseService.verifierConnexion(identifiant, password) : null;
+    if (!u) return res.status(401).json({ success: false, message: 'Identifiants incorrects' });
+    if (EntrepriseService.statut(u.entrepriseId) === 'suspendue') {
+      return res.status(403).json({ success: false, message: 'Le compte de votre entreprise est suspendu. Contactez BABI RESIDENCE.' });
+    }
+    const token = AuthService.creerJeton(u.email, { entrepriseId: u.entrepriseId, utilisateurId: u._id, superAdmin: false });
+    res.json({ success: true, data: { token } });
+  } catch (error) {
+    gererErreur(res, error, 'lors de la connexion');
+  }
 });
 
 // Toutes les routes suivantes exigent un jeton admin
 router.use(requireAdmin);
+
+/**
+ * @route   GET /api/admin/moi
+ * @desc    Compte connecté et son entreprise (statut de validation, rôle)
+ */
+router.get('/moi', async (req, res) => {
+  try {
+    const entreprise = await EntrepriseService.trouver(req.admin.ent);
+    const utilisateur = req.admin.uid ? EntrepriseService.publicUtilisateur(await EntrepriseService.utilisateur(req.admin.uid)) : null;
+    res.json({
+      success: true,
+      data: {
+        superAdmin: Boolean(req.admin.sa),
+        utilisateur: utilisateur || { prenom: 'Administrateur', nom: '', email: null, role: 'super_admin' },
+        entreprise: { id: entreprise._id, nom: entreprise.nom, statut: entreprise.statut, principale: Boolean(entreprise.principale), motif: entreprise.motif || null },
+      },
+    });
+  } catch (error) {
+    gererErreur(res, error, 'lors de la lecture du compte');
+  }
+});
+
+/**
+ * @route   PUT /api/admin/moi/mot-de-passe   { actuel, nouveau }
+ */
+router.put('/moi/mot-de-passe', async (req, res) => {
+  if (!req.admin.uid) return res.status(409).json({ success: false, message: 'Le mot de passe de l\'administrateur de la plateforme se change dans les variables du serveur' });
+  try {
+    await EntrepriseService.changerMotDePasse(req.admin.uid, req.body?.actuel, req.body?.nouveau);
+    res.json({ success: true, message: 'Mot de passe modifié' });
+  } catch (error) {
+    if (error instanceof EntrepriseService.ErreurEntreprise) return res.status(error.status).json({ success: false, message: error.message });
+    gererErreur(res, error, 'lors du changement de mot de passe');
+  }
+});
+
+/**
+ * @route   GET /api/admin/plateforme/entreprises
+ * @route   PUT /api/admin/plateforme/entreprises/:id/statut   { statut, motif? }
+ * @desc    Administrateur de la plateforme : validation et suspension des entreprises
+ */
+router.get('/plateforme/entreprises', superAdmin, async (req, res) => {
+  try {
+    res.json({ success: true, data: await EntrepriseService.lister() });
+  } catch (error) {
+    gererErreur(res, error, 'lors de la récupération des entreprises');
+  }
+});
+
+router.put('/plateforme/entreprises/:id/statut', superAdmin, async (req, res) => {
+  try {
+    const avant = EntrepriseService.statut(req.params.id);
+    const entreprise = await EntrepriseService.changerStatut(req.params.id, req.body?.statut, req.body?.motif);
+    if (avant !== entreprise.statut) {
+      EntrepriseService.gestionnaires(entreprise._id)
+        .then(g => ReservationService.emailService.sendStatutEntreprise(entreprise, g))
+        .catch(e => console.error('⚠️ Email de statut d\'entreprise non envoyé :', e.message));
+    }
+    require('../services/SmartSearchService').synchroniserEnFond();
+    res.json({ success: true, data: { id: entreprise._id, nom: entreprise.nom, statut: entreprise.statut } });
+  } catch (error) {
+    if (error instanceof EntrepriseService.ErreurEntreprise) return res.status(error.status).json({ success: false, message: error.message });
+    gererErreur(res, error, 'lors du changement de statut de l\'entreprise');
+  }
+});
 
 /**
  * @route   GET /api/admin/residences
@@ -137,20 +218,39 @@ router.delete('/residences/:id', async (req, res) => {
  * @desc    Moyens de paiement : intégrés, configurés sur le serveur, activés par l'admin
  * @route   PUT /api/admin/paiements/moyens/:id   { actif: true|false }
  */
+// Adresses des webhooks : propres à l'entreprise (la plateforme garde les adresses historiques)
+const urlWebhook = (req, fournisseur) => `${req.protocol}://${req.get('host')}/api/paiements/${fournisseur}/webhook${Tenant.estPrincipale() ? '' : `/${Tenant.courante()}`}`;
+
 router.get('/paiements/moyens', (req, res) => {
+  const principale = Tenant.estPrincipale();
   res.json({
     success: true,
     data: {
       mode: acompte.mode(),
-      moyens: Moyens.liste(),
-      webhookUrl: `${req.protocol}://${req.get('host')}/api/paiements/pispi/webhook`,
-      webhookSecretDefini: Boolean((process.env.PISPI_WEBHOOK_SECRET || '').trim()),
-      webhooks: {
-        pispi: `${req.protocol}://${req.get('host')}/api/paiements/pispi/webhook`,
-        geniuspay: `${req.protocol}://${req.get('host')}/api/paiements/geniuspay/webhook`,
-      },
+      moyens: Moyens.liste().map(m => ({ ...m, ...(principale ? {} : { cles: Cles.formulaire(m.id) }) })),
+      // Plateforme : clés dans les variables du serveur ; entreprise : clés saisies dans le back-office
+      clesParEntreprise: !principale,
+      chiffrementDisponible: principale || Cles.chiffrementDisponible(),
+      webhookUrl: urlWebhook(req, 'pispi'),
+      webhookSecretDefini: Boolean(Cles.lire('PISPI_WEBHOOK_SECRET').trim()),
+      webhooks: { pispi: urlWebhook(req, 'pispi'), geniuspay: urlWebhook(req, 'geniuspay') },
     },
   });
+});
+
+/**
+ * @route   PUT /api/admin/paiements/cles/:id   { NOM_DU_CHAMP: valeur, … }
+ * @desc    Une entreprise enregistre ses propres clés (chiffrées) : l'argent arrive sur son compte
+ */
+router.put('/paiements/cles/:id', async (req, res) => {
+  try {
+    const cles = await Cles.enregistrer(req.params.id, req.body || {});
+    const f = Moyens.parId(req.params.id);
+    res.json({ success: true, data: { cles, moyen: f ? Moyens.etat(f) : null } });
+  } catch (error) {
+    if (error instanceof Cles.ErreurCles) return res.status(error.status).json({ success: false, message: error.message });
+    gererErreur(res, error, 'lors de l\'enregistrement des clés');
+  }
 });
 
 router.put('/paiements/moyens/:id', async (req, res) => {
@@ -170,8 +270,8 @@ router.get('/paiements/config', (req, res) => {
       mode: acompte.mode(),
       pourcentage: acompte.pourcentage(),
       problemes: PiSpi.problemesConfiguration(),
-      webhookSecretDefini: Boolean((process.env.PISPI_WEBHOOK_SECRET || '').trim()),
-      webhookUrl: `${req.protocol}://${req.get('host')}/api/paiements/pispi/webhook`,
+      webhookSecretDefini: Boolean(Cles.lire('PISPI_WEBHOOK_SECRET').trim()),
+      webhookUrl: urlWebhook(req, 'pispi'),
     },
   });
 });

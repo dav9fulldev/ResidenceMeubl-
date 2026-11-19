@@ -1,4 +1,5 @@
 const db = require('../../db');
+const Tenant = require('../Tenant');
 const PiSpi = require('./PiSpiClient');
 const acompte = require('./acompte');
 
@@ -38,9 +39,14 @@ class RefundService {
    * Lance le remboursement d'une réservation annulée dont l'acompte est payé.
    * Sans effet si rien n'est à rembourser ou si c'est déjà fait.
    */
-  async rembourser(reservationId, { ignorerPolitique = false } = {}) {
-    const r = await this.collection.findOne({ id: String(reservationId) }, { projection: { _id: 0 } });
+  async rembourser(reservationId, options = {}) {
+    const r = await this.collection.findOne({ id: { $eq: String(reservationId) } }, { projection: { _id: 0 } });
     if (!r?.acompte?.paye || r.statut !== 'annulee') return null;
+    // Règles et clés de paiement de l'entreprise de la réservation
+    return Tenant.pour(r, () => this.rembourserPour(r, options));
+  }
+
+  async rembourserPour(r, { ignorerPolitique = false } = {}) {
     const etat = r.acompte.remboursement?.statut;
     if (etat === 'rembourse' || etat === 'en_cours') return r;
 
@@ -104,7 +110,7 @@ class RefundService {
       return this.appliquerStatutPaiement(r.id, reponse);
     } catch (error) {
       const delai = error.status === 403;
-      console.error(`⚠️ Retour de fonds impossible (${r.id}) :`, error.message);
+      console.error('⚠️ Retour de fonds impossible (%s) :', String(r.id), error.message);
       return this.majRemboursement(r.id, {
         ...base,
         statut: 'echec',
@@ -144,8 +150,12 @@ class RefundService {
 
   // Relit le statut des remboursements en cours (webhooks ou vérification périodique)
   async verifier(reservationId) {
-    const r = await this.collection.findOne({ id: String(reservationId) }, { projection: { _id: 0 } });
+    const r = await this.collection.findOne({ id: { $eq: String(reservationId) } }, { projection: { _id: 0 } });
     if (r?.acompte?.remboursement?.statut !== 'en_cours') return r;
+    return Tenant.pour(r, () => this.verifierPour(r));
+  }
+
+  async verifierPour(r) {
     try {
       if (r.acompte.remboursement.methode === 'paiement') {
         const paiement = await PiSpi.lirePaiementEnvoye(r.acompte.remboursement.txId);
@@ -156,19 +166,18 @@ class RefundService {
       const paiement = await PiSpi.lirePaiement(r.acompte.end2endId);
       if (paiement) return this.appliquerStatut(r.id, paiement);
     } catch (error) {
-      console.error(`⚠️ Suivi du remboursement impossible (${r.id}) :`, error.message);
+      console.error('⚠️ Suivi du remboursement impossible (%s) :', String(r.id), error.message);
     }
     return r;
   }
 
   async verifierEnCours() {
-    if (acompte.mode() !== 'pispi') return;
     const enCours = await this.collection.find({ 'acompte.remboursement.statut': 'en_cours' }, { projection: { id: 1 } }).toArray();
     for (const r of enCours) await this.verifier(r.id);
   }
 
   async verifierParEnd2endId(end2endId) {
-    const r = await this.collection.findOne({ 'acompte.end2endId': end2endId }, { projection: { id: 1 } });
+    const r = await this.collection.findOne({ 'acompte.end2endId': { $eq: String(end2endId) } }, { projection: { id: 1 } });
     if (r) await this.verifier(r.id);
   }
 
