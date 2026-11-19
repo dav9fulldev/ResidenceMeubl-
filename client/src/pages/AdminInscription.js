@@ -41,8 +41,8 @@ const AdminInscription = () => {
   return (
     <div className="admin-login-page">
       <div className="admin-login-container">
-        <PanneauMarque>
-          <p><strong>Espace gestionnaires</strong> Publiez vos résidences meublées sur BABI RESIDENCE : réservations, paiements et suivi au même endroit.</p>
+        <PanneauMarque mention="Espace gestionnaires">
+          <p>Publiez vos résidences meublées sur BABI RESIDENCE : réservations, paiements et suivi au même endroit.</p>
         </PanneauMarque>
 
         <div className="admin-login-form">

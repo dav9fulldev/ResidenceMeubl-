@@ -5,13 +5,13 @@ import LogoBabi from './LogoBabi';
  * Panneau de marque des pages de connexion et d'inscription :
  * emblème, nom BABI RESIDENCE, slogan et vagues aux couleurs de la marque.
  */
-const PanneauMarque = ({ children }) => (
+const PanneauMarque = ({ mention = 'Administration', children }) => (
   <div className="admin-login-header">
     <div className="marque">
       <LogoBabi className="marque-embleme" titre="BABI RESIDENCE" />
       <p className="marque-nom" aria-hidden="true"><span>BABI</span><span>RESIDENCE</span></p>
       <span className="marque-trait" aria-hidden="true" />
-      <p className="marque-slogan">Réservez <i>•</i> Séjournez <i>•</i> Profitez</p>
+      <p className="marque-mention">{mention}</p>
       {children && <div className="marque-texte">{children}</div>}
     </div>
     <svg className="marque-vagues" viewBox="0 0 500 120" preserveAspectRatio="none" aria-hidden="true">
