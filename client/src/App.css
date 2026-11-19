@@ -10,13 +10,13 @@
    Le thème est choisi par data-theme sur <html> (voir public/index.html et useTheme). */
 :root {
   color-scheme: light;
-  /* Charte Sankofart : ivoire, vert profond, or doux */
+  /* Charte BABI RESIDENCE : ivoire, bleu nuit, or */
   --ivory: #F7F5F0;
-  --green-deep: #243C35;
-  --green-deeper: #1A2C26;
-  --gold: #C49A62;
-  --gold-ink: #8A6A3D;      /* or lisible sur fond clair (texte, liens) */
-  --gold-soft: rgba(196, 154, 98, 0.14);
+  --green-deep: #12284C;
+  --green-deeper: #0B1B36;
+  --gold: #E0A526;
+  --gold-ink: #8F6200;      /* or lisible sur fond clair (texte, liens) */
+  --gold-soft: rgba(224, 165, 38, 0.14);
 
   --bg: #F7F5F0;
   --bg-soft: #F7F5F0;
@@ -26,46 +26,46 @@
   --text-muted: #646A70;
   --border: #E6E1D8;
   --header-bg: rgba(247, 245, 240, 0.94);
-  --overlay-hover: rgba(36, 60, 53, 0.08);
+  --overlay-hover: rgba(18, 40, 76, 0.08);
 
-  --btn-primary-bg: #243C35;
-  --btn-primary-bg-hover: #1A2C26;
+  --btn-primary-bg: #12284C;
+  --btn-primary-bg-hover: #0B1B36;
   --btn-primary-fg: #FFFFFF;
 
   --font-titre: 'Playfair Display', Georgia, 'Times New Roman', serif;
   --font-texte: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --rayon: 14px;
   --rayon-petit: 10px;
-  --ombre-carte: 0 1px 2px rgba(36, 60, 53, 0.04), 0 8px 24px rgba(36, 60, 53, 0.06);
+  --ombre-carte: 0 1px 2px rgba(18, 40, 76, 0.04), 0 8px 24px rgba(18, 40, 76, 0.06);
 }
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --green-deep: #2F4E45;
-  --gold: #C49A62;
-  --gold-ink: #D9B98A;
-  --gold-soft: rgba(196, 154, 98, 0.16);
+  --green-deep: #1E3A66;
+  --gold: #E0A526;
+  --gold-ink: #F0C463;
+  --gold-soft: rgba(224, 165, 38, 0.16);
 
-  --bg: #111513;
-  --bg-soft: #0D110F;
-  --surface: #181E1B;
-  --surface-2: #202824;
+  --bg: #0D1220;
+  --bg-soft: #0A0E19;
+  --surface: #141B2B;
+  --surface-2: #1B2438;
   --text: #ECEAE4;
-  --text-muted: #A9AEA9;
-  --border: #2C3530;
+  --text-muted: #A9B1C2;
+  --border: #283247;
   --header-bg: rgba(17, 21, 19, 0.92);
-  --overlay-hover: rgba(196, 154, 98, 0.12);
+  --overlay-hover: rgba(224, 165, 38, 0.12);
 
-  --btn-primary-bg: #C49A62;
-  --btn-primary-bg-hover: #D3AE7B;
-  --btn-primary-fg: #15201C;
+  --btn-primary-bg: #E0A526;
+  --btn-primary-bg-hover: #EBB84A;
+  --btn-primary-fg: #0F1A2E;
 
   --text-primary: #ECEAE4;
-  --text-secondary: #A9AEA9;
-  --text-light: #7F8580;
-  --background-light: #181E1B;
-  --background-gray: #202824;
-  --border-color: #2C3530;
+  --text-secondary: #A9B1C2;
+  --text-light: #7F8899;
+  --background-light: #141B2B;
+  --background-gray: #1B2438;
+  --border-color: #283247;
   --ombre-carte: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.25);
 }
 
@@ -110,9 +110,9 @@ body {
 
 /* Variables CSS pour les couleurs modernes */
 :root {
-  --primary-color: #243C35;
-  --primary-dark: #1A2C26;
-  --primary-light: #C49A62;
+  --primary-color: #12284C;
+  --primary-dark: #0B1B36;
+  --primary-light: #E0A526;
   --secondary-color: #f59e0b;
   --secondary-dark: #d97706;
   --accent-color: #10b981;
@@ -173,7 +173,7 @@ body {
 
 .btn-gold {
   background: var(--gold);
-  color: #1F2A26;
+  color: #0F1A2E;
 }
 
 .btn-gold:hover {
@@ -222,7 +222,7 @@ body {
 }
 
 .btn:focus-visible {
-  outline: 3px solid rgba(196, 154, 98, 0.75);
+  outline: 3px solid rgba(224, 165, 38, 0.75);
   outline-offset: 2px;
 }
 
@@ -383,7 +383,7 @@ h1, h2,
 }
 
 ::selection {
-  background: rgba(196, 154, 98, 0.35);
+  background: rgba(224, 165, 38, 0.35);
 }
 
 /* Boutons secondaires partagés */

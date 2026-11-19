@@ -278,7 +278,7 @@ export const ResidencesProvider = ({ children }) => {
     const url = URL.createObjectURL(blob);
     const lien = document.createElement('a');
     lien.href = url;
-    lien.download = `reservations-sankofart${annee ? `-${annee}` : ''}.csv`;
+    lien.download = `reservations-babi${annee ? `-${annee}` : ''}.csv`;
     document.body.appendChild(lien);
     lien.click();
     lien.remove();

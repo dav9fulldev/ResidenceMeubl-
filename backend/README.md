@@ -1,4 +1,4 @@
-# Sankofart Résidence — API
+# BABI RESIDENCE — API
 
 API Express : résidences, réservations, paiements (PI-SPI, GeniusPay), remboursements, emails, back-office et recherche intelligente. Données dans MongoDB Atlas.
 

@@ -238,7 +238,7 @@ router.get('/export/reservations.csv', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Année invalide' });
     }
     const csv = await StatsService.exporterCsv(annee);
-    const nom = `reservations-sankofart${annee ? `-${annee}` : ''}.csv`;
+    const nom = `reservations-babi${annee ? `-${annee}` : ''}.csv`;
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="${nom}"`);
     res.send(csv);

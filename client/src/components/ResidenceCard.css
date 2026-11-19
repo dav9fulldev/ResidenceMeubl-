@@ -22,7 +22,7 @@
 }
 
 .rc:focus-within {
-  outline: 3px solid rgba(196, 154, 98, 0.6);
+  outline: 3px solid rgba(224, 165, 38, 0.6);
   outline-offset: 2px;
 }
 

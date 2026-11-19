@@ -93,7 +93,7 @@
   outline: none;
   border-color: var(--gold);
   background: var(--surface);
-  box-shadow: 0 0 0 4px rgba(196, 154, 98, 0.1);
+  box-shadow: 0 0 0 4px rgba(224, 165, 38, 0.1);
 }
 
 /* Conteneur du mot de passe */
@@ -270,7 +270,7 @@
 
 .btn-login:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(196, 154, 98, 0.3);
+  box-shadow: 0 8px 25px rgba(224, 165, 38, 0.3);
 }
 
 .password-toggle {
@@ -315,3 +315,6 @@
   .admin-login-header { min-height: 220px; padding: 28px 24px; }
   .admin-login-header .admin-logo h2 { font-size: 1.9rem; }
 }
+
+/* Emblème BABI RESIDENCE sur le panneau d'accueil */
+.admin-login-embleme { display: block; width: 84px; height: auto; color: #ffffff; margin: 0 auto 18px; filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.35)); }

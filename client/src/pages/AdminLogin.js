@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { FaLock, FaUser, FaEye, FaEyeSlash } from 'react-icons/fa';
 import { useResidences } from '../context/ResidencesContext';
 import './AdminLogin.css';
+import LogoBabi from '../components/LogoBabi';
 
 const AdminLogin = () => {
   const navigate = useNavigate();
@@ -53,9 +54,10 @@ const AdminLogin = () => {
       <div className="admin-login-container">
         <div className="admin-login-header">
           <div className="admin-logo">
+            <LogoBabi className="admin-login-embleme" />
             <span className="surtitre">Espace de gestion</span>
             <h2>Administration</h2>
-            <p>Sankofart Résidence</p>
+            <p>BABI RESIDENCE</p>
           </div>
         </div>
 

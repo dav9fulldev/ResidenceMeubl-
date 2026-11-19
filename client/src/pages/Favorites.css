@@ -111,7 +111,7 @@
 
 .favorites-page .residence-rating {
   background: var(--gold);
-  color: white;
+  color: #0F1A2E;
   padding: 8px 12px;
   border-radius: 20px;
   display: flex;
@@ -213,7 +213,7 @@
 
 .favorites-page .amenity-more {
   background: var(--gold);
-  color: white;
+  color: #0F1A2E;
   padding: 6px 12px;
   border-radius: 20px;
   font-size: 12px;

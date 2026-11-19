@@ -1,4 +1,4 @@
-# Configuration Render (Blueprint) — backend Sankofart Résidence
+# Configuration Render (Blueprint) — backend BABI RESIDENCE (nom du service conservé)
 # Render > New > Blueprint > choisir ce dépôt : le service est créé automatiquement.
 services:
   - type: web

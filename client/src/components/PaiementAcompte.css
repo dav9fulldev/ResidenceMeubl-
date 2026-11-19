@@ -73,7 +73,7 @@
 
 .acompte-methodes button.active {
   border-color: var(--gold);
-  background: rgba(196, 154, 98, 0.12);
+  background: rgba(224, 165, 38, 0.12);
   font-weight: 700;
 }
 
@@ -207,7 +207,7 @@
   padding: 12px 10px;
   border-radius: 10px;
   border: 2px solid var(--gold);
-  background: rgba(196, 154, 98, 0.12);
+  background: rgba(224, 165, 38, 0.12);
   color: var(--text);
   font-weight: 600;
   font-size: 0.9rem;
@@ -254,7 +254,7 @@
   align-items: flex-start;
   padding: 12px;
   border-radius: 12px;
-  background: rgba(196, 154, 98, 0.12);
+  background: rgba(224, 165, 38, 0.12);
 }
 
 .acompte-envoyee svg {
@@ -379,7 +379,7 @@
 }
 
 .acompte-moyen-icone.gp { background: #3B2A6B; color: #fff; }
-.acompte-moyen-icone.pi { background: #F2B705; color: #1F2A26; }
+.acompte-moyen-icone.pi { background: #F2B705; color: #0F1A2E; }
 
 .acompte-retour-choix {
   align-self: flex-start;

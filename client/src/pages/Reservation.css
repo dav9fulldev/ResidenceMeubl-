@@ -63,7 +63,7 @@
 }
 
 .reservation-page .resa-stepper li.actif .resa-stepper-pastille { background: var(--btn-primary-bg); color: var(--btn-primary-fg); }
-.reservation-page .resa-stepper li.fait .resa-stepper-pastille { background: var(--gold); color: #1F2A26; }
+.reservation-page .resa-stepper li.fait .resa-stepper-pastille { background: var(--gold); color: #0F1A2E; }
 
 /* Cadre : formulaire + récapitulatif */
 .reservation-page .resa-cadre {

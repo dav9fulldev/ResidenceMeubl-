@@ -481,7 +481,7 @@ test("avec BREVO_API_KEY, les emails partent par l'API Brevo (HTTPS, pas de SMTP
   assert.equal(appels[0].url, 'https://api.brevo.com/v3/smtp/email');
   assert.equal(appels[0].options.headers['api-key'], 'cle-brevo-test');
   const corps = JSON.parse(appels[0].options.body);
-  assert.deepEqual(corps.sender, { name: 'Sankofart Résidence', email: 'contact@exemple.com' });
+  assert.deepEqual(corps.sender, { name: 'BABI RESIDENCE', email: 'contact@exemple.com' });
   assert.deepEqual(corps.to, [{ email: 'client@exemple.com' }]);
   assert.equal(corps.htmlContent, '<p>Bonjour</p>');
 
@@ -633,7 +633,7 @@ test('statistiques : revenus par mois, cumul, occupation, et export CSV', async 
   const csvRes = await fetch(`${baseUrl}/api/admin/export/reservations.csv?annee=2031`, { headers });
   assert.equal(csvRes.status, 200);
   assert.match(csvRes.headers.get('content-type'), /text\/csv/);
-  assert.match(csvRes.headers.get('content-disposition'), /reservations-sankofart-2031\.csv/);
+  assert.match(csvRes.headers.get('content-disposition'), /reservations-babi-2031\.csv/);
   const octets = Buffer.from(await csvRes.arrayBuffer());
   assert.deepEqual([...octets.subarray(0, 3)], [0xEF, 0xBB, 0xBF], 'BOM UTF-8 pour Excel');
   const csv = octets.subarray(3).toString('utf8');
@@ -799,7 +799,7 @@ test('webhook PI-SPI : signature HMAC obligatoire, puis vérification via l\'API
 
   const qr = await api(`/api/client/reservations/${id}/acompte`, { method: 'POST', headers: headersClient, body: { methode: 'qr' } });
   const { txId, montant } = qr.body.data;
-  assert.ok(qr.body.data.qrPayload.includes(ALIAS_PAYE), 'QR vers l\'alias Sankofart');
+  assert.ok(qr.body.data.qrPayload.includes(ALIAS_PAYE), 'QR vers l\'alias de l\'établissement');
   t.mock.method(PiSpi, 'lirePaiementRecu', async () => ({ txId, statut: 'IRREVOCABLE', montant, end2endId: 'E2E-WEBHOOK' }));
 
   const corps = JSON.stringify({ data: [{ evCode: 'PAIEMENT_RECU', txId, montant, end2endId: 'E2E-WEBHOOK' }], meta: { total: 1 } });
@@ -1173,7 +1173,7 @@ test('établissement : réglable par l\'admin, partie publique sans l\'email des
   t.after(async () => { await db.collection('parametres').deleteMany({}); await Settings.charger(); });
   const pub = await api('/api/etablissement');
   assert.equal(pub.status, 200);
-  assert.equal(pub.body.data.nom, 'Sankofart Résidence');
+  assert.equal(pub.body.data.nom, 'BABI RESIDENCE');
   assert.equal(pub.body.data.acompte.pourcentage, 30);
   assert.equal('emailNotifications' in pub.body.data, false, 'champ privé non exposé');
 

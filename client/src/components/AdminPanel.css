@@ -105,7 +105,7 @@
 }
 
 .res-statut input { position: absolute; opacity: 0; pointer-events: none; }
-.res-statut.actif { border-color: var(--green-deep); box-shadow: 0 0 0 2px rgba(36, 60, 53, 0.15); }
+.res-statut.actif { border-color: var(--green-deep); box-shadow: 0 0 0 2px rgba(18, 40, 76, 0.15); }
 :root[data-theme="dark"] .res-statut.actif { border-color: var(--gold); }
 .res-statut:focus-within { outline: 3px solid var(--gold-soft); }
 .res-aide { font-size: 0.8rem !important; }

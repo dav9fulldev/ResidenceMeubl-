@@ -150,7 +150,7 @@ class PaymentService {
     const retour = `${urlSite()}/mes-reservations?paiement=geniuspay&reservation=${encodeURIComponent(r.id)}&tx=${txId}`;
     const p = await GeniusPay.creerPaiement({
       montant,
-      description: `${objet === 'solde' ? 'Solde' : 'Acompte'} réservation ${r.id} - ${r.residenceInfo?.nom || 'Sankofart'}`,
+      description: `${objet === 'solde' ? 'Solde' : 'Acompte'} réservation ${r.id} - ${r.residenceInfo?.nom || 'BABI RESIDENCE'}`,
       client: { nom: `${r.client.prenom} ${r.client.nom}`.trim(), email: r.client.email, telephone: r.client.telephone },
       successUrl: retour,
       errorUrl: `${retour}&echec=1`,

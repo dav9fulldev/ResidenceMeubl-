@@ -65,7 +65,7 @@ jobs:
             -v "$GITHUB_WORKSPACE/reports:/report:z" \
             -e NVD_API_KEY \
             owasp/dependency-check:${DC_VERSION} \
-            --project "Sankofart Residence" \
+            --project "BABI RESIDENCE" \
             --scan /src/backend --scan /src/client \
             --exclude "**/node_modules/**" --exclude "**/dist/**" --exclude "**/.git/**" \
             --suppression /src/.github/dependency-check-suppressions.xml \

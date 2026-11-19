@@ -35,7 +35,7 @@
   font-size: 0.95rem;
 }
 
-.kpi-icone.vert { background: rgba(36, 60, 53, 0.1); color: #243C35; }
+.kpi-icone.vert { background: rgba(18, 40, 76, 0.1); color: #12284C; }
 .kpi-icone.or { background: var(--gold-soft); color: var(--gold-ink); }
 .kpi-icone.orange { background: #FFF1E0; color: #B4632A; }
 .kpi-icone.bleu { background: #E8EEF9; color: #2B4C8C; }

@@ -73,7 +73,7 @@
   text-align: center;
 }
 
-:root[data-theme="dark"] .cal-jour.aujourdhui b { background: var(--gold); color: #1F2A26; }
+:root[data-theme="dark"] .cal-jour.aujourdhui b { background: var(--gold); color: #0F1A2E; }
 
 .cal-res {
   position: sticky;

@@ -9,6 +9,7 @@ import ErrorBoundary from '../ErrorBoundary';
 import useTheme from '../../hooks/useTheme';
 import useInstallPrompt from '../../hooks/useInstallPrompt';
 import useAdminReservations from '../../hooks/useAdminReservations';
+import LogoBabi from '../LogoBabi';
 import './AdminLayout.css';
 
 const TITRES = {
@@ -35,8 +36,8 @@ const AdminLayout = () => {
 
   // Titre de l'onglet / de l'application
   useEffect(() => {
-    document.title = `${TITRES[location.pathname] || 'Administration'} · Sankofart Admin`;
-    return () => { document.title = 'Sankofart Résidence'; };
+    document.title = `${TITRES[location.pathname] || 'Administration'} · BABI Admin`;
+    return () => { document.title = 'BABI RESIDENCE'; };
   }, [location.pathname]);
 
   const deconnexion = () => {
@@ -68,9 +69,9 @@ const AdminLayout = () => {
       {/* Menu latéral (ordinateur) */}
       <aside className="admin-sidebar">
         <div className="admin-brand">
-          <img src="/icons/icon-192.png" alt="" />
+          <LogoBabi className="admin-brand-logo" />
           <div>
-            <strong>Sankofart</strong>
+            <strong>BABI RESIDENCE</strong>
             <span>Administration</span>
           </div>
         </div>
@@ -154,7 +155,7 @@ const AdminLayout = () => {
               <li>Touchez le bouton <strong>Partager</strong> (carré avec une flèche vers le haut).</li>
               <li>Choisissez <strong>Sur l'écran d'accueil</strong>, puis <strong>Ajouter</strong>.</li>
             </ol>
-            <p>L'icône « Sankofart Admin » ouvrira directement le back-office, en plein écran.</p>
+            <p>L'icône « BABI Admin » ouvrira directement le back-office, en plein écran.</p>
           </div>
         </div>
       )}

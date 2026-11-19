@@ -133,7 +133,7 @@ const Home = () => {
         <div className="hero-overlay"></div>
         <div className="hero-content">
           <div className="hero-text">
-            <span className="surtitre hero-surtitre">Résidences meublées · Abidjan</span>
+            <span className="surtitre hero-surtitre">Réservez. Séjournez. Profitez.</span>
             <h1>Le confort d'un hôtel, la liberté d'un chez-soi</h1>
             <p>{String(etab.slogan || '').replace(/[.!\s]+$/, '')}. Appartements et villas entièrement équipés, réservés en quelques minutes, sans paiement avant notre confirmation.</p>
           </div>
@@ -206,7 +206,7 @@ const Home = () => {
       <section className="features">
         <div className="container">
           <div className="section-header">
-            <span className="surtitre">Pourquoi nous choisir</span>
+            <span className="surtitre">Pourquoi choisir BABI RESIDENCE</span>
             <h2>Un séjour sans souci</h2>
           </div>
           <div className="features-grid">

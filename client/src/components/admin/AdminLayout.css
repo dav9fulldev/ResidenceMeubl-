@@ -1,7 +1,7 @@
 /* ---------- Back-office : coque de l'application ---------- */
 .admin-shell {
   --sidebar-width: 252px;
-  --sidebar-bg: #243C35;
+  --sidebar-bg: #12284C;
   min-height: 100vh;
   min-height: 100dvh;
   background: var(--bg);
@@ -29,18 +29,20 @@
   padding: 0 8px;
 }
 
-.admin-brand img {
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
+.admin-brand-logo {
+  width: 52px;
+  height: auto;
+  color: #ffffff;
+  flex-shrink: 0;
 }
 
 .admin-brand strong {
   display: block;
   color: #ffffff;
-  font-family: var(--font-titre);
-  font-size: 1.2rem;
-  font-weight: 600;
+  font-family: var(--font-texte);
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
 }
 
 .admin-brand span {
@@ -124,14 +126,14 @@
 
 .admin-side-action.install {
   background: var(--gold);
-  color: #1F2A26;
+  color: #0F1A2E;
   font-weight: 700;
   margin-bottom: 8px;
 }
 
 .admin-side-action.install:hover {
-  background: #D3AE7B;
-  color: #1F2A26;
+  background: #EBB84A;
+  color: #0F1A2E;
 }
 
 .admin-side-action.danger:hover {
@@ -145,7 +147,7 @@
   padding: 0 6px;
   border-radius: 999px;
   background: var(--gold);
-  color: #1F2A26;
+  color: #0F1A2E;
   font-size: 0.75rem;
   font-weight: 700;
   display: inline-flex;
@@ -467,7 +469,7 @@
 }
 
 .adm-onglet.actif .adm-compte { background: var(--green-deep); color: #fff; }
-:root[data-theme="dark"] .adm-onglet.actif .adm-compte { background: var(--gold); color: #1F2A26; }
+:root[data-theme="dark"] .adm-onglet.actif .adm-compte { background: var(--gold); color: #0F1A2E; }
 
 /* Tableau */
 .adm-table-cadre {

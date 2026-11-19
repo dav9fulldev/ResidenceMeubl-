@@ -3,11 +3,11 @@ import { API_ENDPOINTS } from '../config/api';
 
 // Valeurs affichées tant que l'API n'a pas répondu (ou si elle est injoignable)
 export const ETABLISSEMENT_DEFAUT = {
-  nom: 'Sankofart Résidence',
+  nom: 'BABI RESIDENCE',
   slogan: 'Résidences meublées d\'exception à Abidjan',
   telephone: '+225 27 22 49 28 90',
   whatsapp: '',
-  email: 'contact@sankofart-residence.com',
+  email: 'contact@babi-residence.com',
   adresse: 'Abidjan, Côte d\'Ivoire',
   facebook: '', instagram: '', tiktok: '', x: '',
   acompte: { pourcentage: 30, remboursementPourcentage: 50, integralJours: 5, avantArriveeJours: 3 },
