@@ -1,0 +1,34 @@
+/* Administrateur de la plateforme : entreprises */
+.entreprises-page .ent-filtres { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 20px; }
+.entreprises-page .ent-filtres button { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font: inherit; font-size: 0.9rem; cursor: pointer; }
+.entreprises-page .ent-filtres button.actif { background: var(--green-deep); border-color: var(--green-deep); color: #fff; }
+.entreprises-page .ent-filtres button span { min-width: 20px; padding: 0 6px; border-radius: 999px; background: var(--gold-soft); color: var(--text); font-size: 0.75rem; font-weight: 700; text-align: center; }
+.entreprises-page .ent-filtres button.actif span { background: var(--gold); color: #0F1A2E; }
+.entreprises-page .ent-vide { color: var(--text-muted); padding: 24px 0; }
+
+.ent-liste { list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; padding: 0; margin: 0; }
+.ent-carte { display: flex; flex-direction: column; gap: 12px; padding: 18px; border-radius: var(--rayon); background: var(--surface); border: 1px solid var(--border); box-shadow: var(--ombre-carte); }
+.ent-tete { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.ent-tete h2 { margin: 0; font-size: 1.05rem; font-weight: 700; color: var(--text); }
+.ent-tete h2 small { font-weight: 500; color: var(--text-muted); }
+.ent-date { margin: 2px 0 0; font-size: 0.8rem; color: var(--text-muted); }
+.ent-statut { flex-shrink: 0; padding: 4px 10px; border-radius: 999px; font-size: 0.75rem; font-weight: 700; }
+.ent-statut.attente { background: var(--gold-soft); color: var(--gold-ink); }
+.ent-statut.validee { background: rgba(22, 163, 74, 0.12); color: #15803d; }
+.ent-statut.suspendue { background: rgba(220, 38, 38, 0.1); color: #b91c1c; }
+:root[data-theme="dark"] .ent-statut.validee { color: #4ade80; }
+:root[data-theme="dark"] .ent-statut.suspendue { color: #f87171; }
+.ent-contact { display: flex; flex-direction: column; gap: 4px; font-size: 0.88rem; }
+.ent-contact span { font-weight: 600; }
+.ent-contact a { display: inline-flex; align-items: center; gap: 6px; color: var(--text-muted); text-decoration: none; overflow-wrap: anywhere; }
+.ent-contact a:hover { color: var(--text); }
+.ent-chiffres { display: flex; flex-wrap: wrap; gap: 14px; font-size: 0.85rem; color: var(--text-muted); }
+.ent-chiffres span { display: inline-flex; align-items: center; gap: 6px; }
+.ent-motif { margin: 0; font-size: 0.85rem; color: var(--text-muted); font-style: italic; }
+.ent-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; }
+.ent-actions .btn { display: inline-flex; align-items: center; gap: 8px; padding: 9px 16px; font-size: 0.9rem; }
+.ent-suspendre { color: #b91c1c; border-color: rgba(220, 38, 38, 0.4); }
+.ent-confirmer-suspension { background: #b91c1c; border-color: #b91c1c; }
+.admin-modal label { display: block; margin: 12px 0 6px; font-weight: 600; font-size: 0.9rem; }
+.admin-modal textarea { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border); font: inherit; margin-bottom: 14px; }
+@media (max-width: 480px) { .ent-liste { grid-template-columns: 1fr; } }

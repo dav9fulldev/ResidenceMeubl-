@@ -1,5 +1,7 @@
 const Residence = require('../models/Residence');
 const db = require('../db');
+const Tenant = require('./Tenant');
+const EntrepriseService = require('./EntrepriseService');
 
 // Champs modifiables par l'administrateur
 const CHAMPS_EDITABLES = [
@@ -18,14 +20,35 @@ const choisirChamps = (data) => {
 
 const SANS_ID_MONGO = { projection: { _id: 0 } };
 const ACTIVES = { actif: { $ne: false } };
+// Site public : résidences actives des entreprises validées uniquement
+const PUBLIQUES = () => ({ ...ACTIVES, entrepriseId: { $in: EntrepriseService.validees() } });
 
 class ErreurValidation extends Error {}
 
 // Version publique : jamais le nom de l'occupant (donnée personnelle réservée à l'admin)
 const publique = (residence) => {
   const { occupant, reservationId, ...disponibilite } = residence.disponibilite;
-  return { ...residence, disponibilite };
+  return {
+    ...residence,
+    disponibilite,
+    entreprise: { id: residence.entrepriseId, nom: EntrepriseService.nom(residence.entrepriseId) },
+  };
 };
+
+/** Conditions de réservation propres à l'entreprise d'une résidence (acompte, moyens de paiement). */
+const conditionsEntreprise = (entrepriseId) => Tenant.run(entrepriseId, () => {
+  const Settings = require('./SettingsService');
+  return {
+    moyensPaiement: require('./paiement/fournisseurs').actifs().map(m => ({ id: m.id, nom: m.nom, modes: m.modes })),
+    acompte: {
+      pourcentage: Settings.get('acomptePourcentage'),
+      remboursementPourcentage: Settings.get('remboursementPourcentage'),
+      integralJours: Settings.get('remboursableApresPaiementJours'),
+      avantArriveeJours: Settings.get('nonRemboursableAvantArriveeJours'),
+    },
+    contact: (({ telephone, whatsapp, email }) => ({ telephone, whatsapp, email }))(Settings.etablissement({ publique: true })),
+  };
+});
 
 const aujourdhui = () => new Date().toISOString().slice(0, 10);
 
@@ -86,20 +109,27 @@ class ResidenceService {
 
   // Résidences visibles sur le site public
   async getAllResidences() {
-    const docs = await this.collection.find(ACTIVES, SANS_ID_MONGO).sort({ id: 1 }).toArray();
+    const docs = await this.collection.find(PUBLIQUES(), SANS_ID_MONGO).sort({ id: 1 }).toArray();
     return (await this.avecStatutReel(docs)).map(publique);
   }
 
-  // Toutes les résidences, y compris inactives (admin)
+  // Toutes les résidences de l'entreprise, y compris inactives (admin)
   async getAllResidencesAdmin() {
-    const docs = await this.collection.find({}, SANS_ID_MONGO).sort({ id: 1 }).toArray();
+    const docs = await this.collection.find(Tenant.filtre(), SANS_ID_MONGO).sort({ id: 1 }).toArray();
     return this.avecStatutReel(docs);
   }
 
   // Obtenir une résidence active par ID (version publique)
   async getResidenceById(id) {
-    const doc = await this.collection.findOne({ id: parseInt(id), ...ACTIVES }, SANS_ID_MONGO);
+    const doc = await this.collection.findOne({ id: parseInt(id), ...PUBLIQUES() }, SANS_ID_MONGO);
     return doc ? publique((await this.avecStatutReel([doc]))[0]) : null;
+  }
+
+  // Fiche publique complète : résidence + conditions de l'entreprise qui la propose
+  async getResidencePublique(id) {
+    const residence = await this.getResidenceById(id);
+    if (!residence) return null;
+    return { ...residence, entreprise: { ...residence.entreprise, ...conditionsEntreprise(residence.entrepriseId) } };
   }
 
   // Rechercher des résidences (filtrage en mémoire : le catalogue est petit)
@@ -126,15 +156,15 @@ class ResidenceService {
   }
 
   async getTypesAppartements() {
-    return this.collection.distinct('typeAppartement', ACTIVES);
+    return this.collection.distinct('typeAppartement', PUBLIQUES());
   }
 
   async getVilles() {
-    return this.collection.distinct('ville', ACTIVES);
+    return this.collection.distinct('ville', PUBLIQUES());
   }
 
   async getQuartiersByVille(ville) {
-    return this.collection.distinct('quartier', { ville: String(ville), ...ACTIVES });
+    return this.collection.distinct('quartier', { ville: String(ville), ...PUBLIQUES() });
   }
 
   // La résidence existe-t-elle et peut-elle être réservée ? (hors conflits de dates)
@@ -146,13 +176,14 @@ class ResidenceService {
   // ---------- Administration ----------
 
   async createResidence(data) {
-    const residence = new Residence({ ...choisirChamps(data), id: 0 });
+    const entrepriseId = Tenant.courante();
+    const residence = new Residence({ ...choisirChamps(data), id: 0, entrepriseId });
 
     const validation = residence.valider();
     if (!validation.valide) {
       throw new ErreurValidation(validation.erreurs.join(', '));
     }
-    if (await this.collection.findOne({ reference: residence.reference })) {
+    if (await this.collection.findOne({ entrepriseId, reference: { $eq: String(residence.reference) } })) {
       throw new ErreurValidation('Cette référence existe déjà');
     }
 
@@ -162,7 +193,7 @@ class ResidenceService {
   }
 
   async updateResidence(id, data) {
-    const doc = await this.collection.findOne({ id: parseInt(id) }, SANS_ID_MONGO);
+    const doc = await this.collection.findOne({ id: parseInt(id), ...Tenant.filtre() }, SANS_ID_MONGO);
     if (!doc) return null;
 
     const actuelle = new Residence(doc).toJSON();
@@ -171,17 +202,17 @@ class ResidenceService {
       changements.disponibilite = { ...actuelle.disponibilite, ...changements.disponibilite };
     }
 
-    const residence = new Residence({ ...actuelle, ...changements, id: actuelle.id });
+    const residence = new Residence({ ...actuelle, ...changements, id: actuelle.id, entrepriseId: actuelle.entrepriseId });
     const validation = residence.valider();
     if (!validation.valide) {
       throw new ErreurValidation(validation.erreurs.join(', '));
     }
     if (residence.reference !== actuelle.reference &&
-        await this.collection.findOne({ reference: residence.reference })) {
+        await this.collection.findOne({ entrepriseId: actuelle.entrepriseId, reference: { $eq: String(residence.reference) } })) {
       throw new ErreurValidation('Cette référence existe déjà');
     }
 
-    await this.collection.replaceOne({ id: actuelle.id }, residence.toJSON());
+    await this.collection.replaceOne({ id: actuelle.id, entrepriseId: actuelle.entrepriseId }, residence.toJSON());
     return (await this.avecStatutReel([residence.toJSON()]))[0];
   }
 
@@ -191,6 +222,7 @@ class ResidenceService {
       throw new ErreurValidation('Statut invalide');
     }
     // « Disponible » ne peut pas masquer une réservation confirmée : il faut l'annuler
+    if (!(await this.collection.findOne({ id: parseInt(id), ...Tenant.filtre() }, { projection: { _id: 1 } }))) return null;
     if (statut === 'disponible') {
       const [bloquante] = await this.reservationsConfirmees({ residenceId: parseInt(id) });
       if (bloquante) {
@@ -215,7 +247,7 @@ class ResidenceService {
   }
 
   async deleteResidence(id) {
-    const result = await this.collection.deleteOne({ id: parseInt(id) });
+    const result = await this.collection.deleteOne({ id: parseInt(id), ...Tenant.filtre() });
     return result.deletedCount === 1;
   }
 }

@@ -19,6 +19,9 @@ export const ResidencesProvider = ({ children }) => {
   // true quand l'API est injoignable : on affiche le catalogue local, en lecture seule
   const [offline, setOffline] = useState(false);
   const [isAdmin, setIsAdmin] = useState(() => Boolean(getAdminToken()));
+  // Espace affiché : back-office (résidences de l'entreprise connectée) ou site public (catalogue
+  // de toutes les entreprises validées). Un gestionnaire connecté qui visite le site voit le catalogue public.
+  const [espaceAdmin, setEspaceAdmin] = useState(() => typeof window !== 'undefined' && window.location.pathname.startsWith('/admin'));
 
   // Déconnecte l'admin si le serveur refuse le jeton (expiré ou invalide)
   const adminRequest = useCallback(async (url, options = {}) => {
@@ -36,7 +39,7 @@ export const ResidencesProvider = ({ children }) => {
   const loadResidences = useCallback(async () => {
     setLoading(true);
     try {
-      const response = isAdmin
+      const response = isAdmin && espaceAdmin
         ? await adminRequest(API_ENDPOINTS.admin.residences)
         : await apiRequest(API_ENDPOINTS.residences.getAll);
       setResidences(response.data.map(fromApiResidence));
@@ -48,7 +51,7 @@ export const ResidencesProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  }, [isAdmin, adminRequest]);
+  }, [isAdmin, espaceAdmin, adminRequest]);
 
   useEffect(() => {
     loadResidences();
@@ -132,6 +135,12 @@ export const ResidencesProvider = ({ children }) => {
     } catch (error) {
       return { success: false, message: error.message };
     }
+  }, []);
+
+  // Connexion directe après l'inscription d'une entreprise (jeton renvoyé par le serveur)
+  const connectWithToken = useCallback((token) => {
+    setAdminToken(token);
+    setIsAdmin(true);
   }, []);
 
   const logoutAdmin = useCallback(() => {
@@ -297,7 +306,10 @@ export const ResidencesProvider = ({ children }) => {
     smartSearch,
     getSimilarResidences,
     loginAdmin,
+    connectWithToken,
     logoutAdmin,
+    adminRequest, // requête authentifiée générique (pages du back-office)
+    setEspaceAdmin,
     updateResidenceStatus,
     addResidence,
     updateResidence,
@@ -321,7 +333,7 @@ export const ResidencesProvider = ({ children }) => {
     downloadReservationsCsv,
   }), [
     residences, loading, offline, isAdmin, loadResidences, getResidenceById, searchResidences,
-    createReservation, smartSearch, getSimilarResidences, loginAdmin, logoutAdmin, updateResidenceStatus, addResidence,
+    createReservation, smartSearch, getSimilarResidences, loginAdmin, connectWithToken, logoutAdmin, adminRequest, setEspaceAdmin, updateResidenceStatus, addResidence,
     updateResidence, deleteResidence, getReservations, updateReservationStatus, decideCancellation, updateStayLimits, markRefunded, retryRefund, markBalancePaid, markBalanceRefunded, getStats, getSettings, updateSettings, getEstablishment, updateEstablishment, getPaymentConfig, getPaymentMethods, setPaymentMethodActive, downloadReservationsCsv,
   ]);
 

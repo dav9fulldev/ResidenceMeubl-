@@ -19,13 +19,21 @@ async function connect(uri = process.env.MONGODB_URI, dbName = process.env.MONGO
 
   await Promise.all([
     db.collection('residences').createIndex({ id: 1 }, { unique: true }),
-    db.collection('residences').createIndex({ reference: 1 }, { unique: true }),
     db.collection('reservations').createIndex({ id: 1 }, { unique: true }),
     db.collection('reservations').createIndex({ residenceId: 1, statut: 1 }),
+    db.collection('reservations').createIndex({ entrepriseId: 1, dateCreation: -1 }),
     db.collection('residence_embeddings').createIndex({ residenceId: 1 }, { unique: true }),
+    db.collection('utilisateurs').createIndex({ email: 1 }, { unique: true }),
+    db.collection('utilisateurs').createIndex({ entrepriseId: 1 }),
   ]);
 
   await seedResidences();
+  // Multi-entreprises : entreprise principale et rattachement des données existantes
+  await require('./services/EntrepriseService').initialiser();
+  // Une référence de résidence est unique au sein de chaque entreprise (plus sur toute la plateforme)
+  const residences = db.collection('residences');
+  if (await residences.indexExists('reference_1').catch(() => false)) await residences.dropIndex('reference_1');
+  await residences.createIndex({ entrepriseId: 1, reference: 1 }, { unique: true });
   return db;
 }
 

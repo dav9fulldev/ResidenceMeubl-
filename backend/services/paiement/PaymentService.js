@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const { buildPayloadString, generateQrCodeSvg } = require('@pi-spi/qrcode');
 const db = require('../../db');
+const Tenant = require('../Tenant');
 const PiSpi = require('./PiSpiClient');
 const GeniusPay = require('./GeniusPayClient');
 const acompte = require('./acompte');
@@ -74,7 +75,11 @@ class PaymentService {
 
     const r = await this.collection.findOne({ id: { $eq: String(reservationId) }, 'client.email': { $eq: String(client.email) } }, { projection: { _id: 0 } });
     if (!r) throw new ErreurPaiement('Réservation introuvable', 404);
+    // Règles, moyens et clés de paiement de l'entreprise qui propose la résidence
+    return Tenant.pour(r, () => this.demarrerPour(r, { methode, payeurAlias, objet }));
+  }
 
+  async demarrerPour(r, { methode, payeurAlias, objet }) {
     const etat = objet === 'solde' ? acompte.etatSolde(r) : acompte.etatAcompte(r);
     if (etat.paye) throw new ErreurPaiement(objet === 'solde' ? 'Le solde de ce séjour est déjà réglé' : 'L\'acompte de cette réservation est déjà réglé');
     if (!etat.possible) {
@@ -189,9 +194,13 @@ class PaymentService {
    * Idempotent : peut être appelé par le client, le webhook et la vérification périodique.
    * @returns le paiement à jour (ou null)
    */
-  async verifier(txId, { forcer = false } = {}) {
+  async verifier(txId, options = {}) {
     const r = await this.collection.findOne({ 'paiements.txId': txId }, { projection: { _id: 0 } });
     if (!r) return null;
+    return Tenant.pour(r, () => this.verifierPour(r, txId, options));
+  }
+
+  async verifierPour(r, txId, { forcer = false } = {}) {
     const p = r.paiements.find(x => x.txId === txId);
     // « expire » reste vérifiable : un client peut payer une demande après notre délai
     if (!['en_attente', 'expire'].includes(p.statut)) return p;
@@ -321,7 +330,7 @@ class PaymentService {
     if (client.ref && client.ref !== String(reservationId)) throw new ErreurPaiement('Accès non autorisé', 403);
     const r = await this.collection.findOne({ id: { $eq: String(reservationId) }, 'client.email': { $eq: String(client.email) }, 'paiements.txId': { $eq: String(txId) } });
     if (!r) throw new ErreurPaiement('Paiement introuvable', 404);
-    return this.marquerPaye(r.id, txId, { end2endId: `SIMULATION-${txId}` });
+    return Tenant.pour(r, () => this.marquerPaye(r.id, txId, { end2endId: `SIMULATION-${txId}` }));
   }
 
   // État d'un paiement pour le client (vérifie au passage auprès de PI-SPI)
@@ -331,7 +340,7 @@ class PaymentService {
     if (!r) throw new ErreurPaiement('Paiement introuvable', 404);
     const p = await this.verifier(txId);
     const maj = await this.collection.findOne({ id: r.id }, { projection: { _id: 0 } });
-    return { statut: p.statut, raison: p.raison || null, objet: p.objet || 'acompte', acompte: acompte.etatAcompte(maj), solde: acompte.etatSolde(maj) };
+    return Tenant.pour(maj, () => ({ statut: p.statut, raison: p.raison || null, objet: p.objet || 'acompte', acompte: acompte.etatAcompte(maj), solde: acompte.etatSolde(maj) }));
   }
 
   // ---------- Webhook ----------
@@ -341,7 +350,7 @@ class PaymentService {
    * Accepte une signature hexadécimale ou base64, avec ou sans préfixe « sha256= ».
    */
   signatureValide(corpsBrut, signature) {
-    const secret = (process.env.PISPI_WEBHOOK_SECRET || '').trim();
+    const secret = (require('./Cles').lire('PISPI_WEBHOOK_SECRET') || '').trim(); // secret de l'entreprise courante
     if (!secret || !signature) return false;
     const recue = String(signature).trim().replace(/^sha256=/i, '');
     const hmac = crypto.createHmac('sha256', secret).update(corpsBrut).digest();
@@ -394,7 +403,6 @@ class PaymentService {
   // ---------- Vérification périodique (secours si un webhook se perd) ----------
 
   async verifierEnAttente() {
-    if (acompte.moyensDisponibles().length === 0) return;
     const limite = new Date(Date.now() - acompte.MARGE_VERIFICATION_MS);
     const reservations = await this.collection
       .find({ paiements: { $elemMatch: { statut: 'en_attente', expireLe: { $gt: limite } } } }, { projection: { paiements: 1 } })

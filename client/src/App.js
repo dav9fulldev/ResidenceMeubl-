@@ -19,6 +19,8 @@ const Reservation = lazy(() => import(/* webpackChunkName: "reservation" */ './p
 const Favorites = lazy(() => import(/* webpackChunkName: "favorites" */ './pages/Favorites'));
 const MesReservations = lazy(() => import(/* webpackChunkName: "mesreservations" */ './pages/MesReservations'));
 const AdminLogin = lazy(() => import(/* webpackChunkName: "adminlogin" */ './pages/AdminLogin'));
+const AdminInscription = lazy(() => import(/* webpackChunkName: "admininscription" */ './pages/AdminInscription'));
+const AdminEntreprisesPage = lazy(() => import(/* webpackChunkName: "adminentreprises" */ './pages/AdminEntreprisesPage'));
 const AdminDashboard = lazy(() => import(/* webpackChunkName: "admindashboard" */ './pages/AdminDashboard'));
 const AdminReservationsPage = lazy(() => import(/* webpackChunkName: "adminreservationspage" */ './pages/AdminReservationsPage'));
 const AdminResidencesPage = lazy(() => import(/* webpackChunkName: "adminresidencespage" */ './pages/AdminResidencesPage'));
@@ -83,6 +85,7 @@ function App() {
 
             {/* Back-office : application à part, sans les onglets du site public */}
             <Route path="/admin/login" element={<AdminLogin />} />
+            <Route path="/admin/inscription" element={<AdminInscription />} />
             <Route
               path="/admin"
               element={
@@ -98,6 +101,7 @@ function App() {
               <Route path="residences" element={<AdminResidencesPage />} />
               <Route path="statistiques" element={<AdminStatsPage />} />
               <Route path="parametres" element={<AdminSettingsPage />} />
+              <Route path="entreprises" element={<AdminEntreprisesPage />} />
               <Route path="*" element={<Navigate to="dashboard" replace />} />
             </Route>
           </Routes>

@@ -1,7 +1,8 @@
 const db = require('../db');
+const Tenant = require('./Tenant');
 
 /**
- * Paramètres modifiables depuis le back-office (collection « parametres »).
+ * Paramètres modifiables depuis le back-office (collection « parametres »), propres à chaque entreprise.
  * Valeurs par défaut : variables d'environnement, puis valeurs ci-dessous.
  * Lecture synchrone depuis un cache, rechargé au démarrage et à chaque modification.
  */
@@ -36,12 +37,27 @@ const FORMATS = {
 
 class ErreurParametre extends Error {}
 
+// Documents de la collection « parametres » : l'entreprise principale garde les identifiants
+// historiques (« acompte », « etablissement », « paiement ») ; les autres sont suffixées « :<id> ».
+const cleDoc = (type, entrepriseId) => (entrepriseId === Tenant.PRINCIPALE ? type : `${type}:${entrepriseId}`);
+const TYPES = ['acompte', 'etablissement', 'paiement'];
+
 class SettingsService {
   constructor() {
-    this.cache = {};
-    this.textes = {};
-    this.moyens = {};
+    this.parEntreprise = new Map(); // entrepriseId → { cache, textes, moyens }
   }
+
+  /** Paramètres de l'entreprise courante (voir Tenant). */
+  get donnees() {
+    return this.parEntreprise.get(Tenant.courante()) || { cache: {}, textes: {}, moyens: {} };
+  }
+
+  // Compatibilité : lecture directe des valeurs de l'entreprise courante
+  get cache() { return this.donnees.cache; }
+
+  get textes() { return this.donnees.textes; }
+
+  get moyens() { return this.donnees.moyens; }
 
   defaut(cle) {
     const d = DEFINITIONS[cle];
@@ -57,28 +73,34 @@ class SettingsService {
     return Object.fromEntries(Object.keys(DEFINITIONS).map(k => [k, this.get(k)]));
   }
 
+  /** Recharge les paramètres de toutes les entreprises. */
   async charger() {
-    const [doc, etab, paiement] = await Promise.all([
-      db.collection('parametres').findOne({ _id: 'acompte' }),
-      db.collection('parametres').findOne({ _id: 'etablissement' }),
-      db.collection('parametres').findOne({ _id: 'paiement' }),
-    ]);
-    this.moyens = paiement?.actifs && typeof paiement.actifs === 'object' ? { ...paiement.actifs } : {};
-    this.cache = {};
-    if (doc) for (const k of Object.keys(DEFINITIONS)) if (Number.isInteger(doc[k])) this.cache[k] = doc[k];
-    this.textes = {};
-    if (etab) for (const k of Object.keys(TEXTES)) if (typeof etab[k] === 'string') this.textes[k] = etab[k];
+    const docs = await db.collection('parametres').find({}).toArray();
+    const parEntreprise = new Map();
+    const entree = (id) => {
+      if (!parEntreprise.has(id)) parEntreprise.set(id, { cache: {}, textes: {}, moyens: {} });
+      return parEntreprise.get(id);
+    };
+    for (const doc of docs) {
+      const [type, id = Tenant.PRINCIPALE] = String(doc._id).split(':');
+      if (!TYPES.includes(type)) continue;
+      const e = entree(id);
+      if (type === 'acompte') for (const k of Object.keys(DEFINITIONS)) { if (Number.isInteger(doc[k])) e.cache[k] = doc[k]; }
+      if (type === 'etablissement') for (const k of Object.keys(TEXTES)) { if (typeof doc[k] === 'string') e.textes[k] = doc[k]; }
+      if (type === 'paiement' && doc.actifs && typeof doc.actifs === 'object') e.moyens = { ...doc.actifs };
+    }
+    this.parEntreprise = parEntreprise;
     return this.tous();
   }
 
-  /** Activation d'un moyen de paiement par l'admin (PI-SPI actif par défaut). */
+  /** Activation d'un moyen de paiement par l'admin (PI-SPI actif par défaut pour la plateforme). */
   moyenActif(id) {
-    return this.moyens[id] ?? (id === 'pispi');
+    return this.moyens[id] ?? (id === 'pispi' && Tenant.estPrincipale());
   }
 
   async modifierMoyen(id, actif) {
     await db.collection('parametres').updateOne(
-      { _id: 'paiement' },
+      { _id: cleDoc('paiement', Tenant.courante()) },
       { $set: { [`actifs.${id}`]: Boolean(actif), modifieLe: new Date() } },
       { upsert: true }
     );
@@ -86,11 +108,18 @@ class SettingsService {
     return this.moyenActif(id);
   }
 
+  // Valeur par défaut d'un texte : celles de la plateforme, ou le nom de l'entreprise inscrite
+  defautTexte(k, d) {
+    if (Tenant.estPrincipale()) return d.defaut;
+    if (k === 'nom') return require('./EntrepriseService').nom(Tenant.courante()) || 'Entreprise';
+    return '';
+  }
+
   /** Identité complète (back-office) ; `publique` retire les champs privés. */
   etablissement({ publique = false } = {}) {
     return Object.fromEntries(Object.entries(TEXTES)
       .filter(([, d]) => !(publique && d.prive))
-      .map(([k, d]) => [k, this.textes[k] ?? d.defaut]));
+      .map(([k, d]) => [k, this.textes[k] ?? this.defautTexte(k, d)]));
   }
 
   async modifierEtablissement(valeurs = {}) {
@@ -107,10 +136,15 @@ class SettingsService {
       maj[k] = texte;
     }
     await db.collection('parametres').updateOne(
-      { _id: 'etablissement' },
+      { _id: cleDoc('etablissement', Tenant.courante()) },
       { $set: { ...maj, modifieLe: new Date() } },
       { upsert: true }
     );
+    // Le nom de l'entreprise suit celui de l'établissement (liste des entreprises, site public)
+    if (maj.nom && !Tenant.estPrincipale()) {
+      await db.collection('entreprises').updateOne({ _id: Tenant.courante() }, { $set: { nom: maj.nom } });
+      await require('./EntrepriseService').recharger();
+    }
     await this.charger();
     return this.etablissement();
   }
@@ -126,7 +160,7 @@ class SettingsService {
       maj[k] = n;
     }
     await db.collection('parametres').updateOne(
-      { _id: 'acompte' },
+      { _id: cleDoc('acompte', Tenant.courante()) },
       { $set: { ...maj, modifieLe: new Date() } },
       { upsert: true }
     );

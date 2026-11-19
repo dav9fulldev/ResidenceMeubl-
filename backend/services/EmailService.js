@@ -95,7 +95,15 @@ class EmailService {
 
   // Destinataire des alertes : réglé dans le back-office, sinon ADMIN_EMAIL, sinon le compte d'envoi
   get destinataireAdmin() {
-    return Settings.etablissement().emailNotifications || process.env.ADMIN_EMAIL || process.env.EMAIL_USER;
+    const etab = Settings.etablissement();
+    // Une entreprise inscrite reçoit ses alertes à son adresse, jamais à celle de la plateforme
+    if (!require('./Tenant').estPrincipale()) return etab.emailNotifications || etab.email;
+    return etab.emailNotifications || process.env.ADMIN_EMAIL || process.env.EMAIL_USER;
+  }
+
+  // Les réponses des clients vont à l'entreprise qui gère la résidence
+  get adresseReponse() {
+    return Settings.etablissement().email || this.expediteur;
   }
 
   get nomEtablissement() {
@@ -185,7 +193,7 @@ class EmailService {
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:#FFFFFF;border:1px solid #E6E1D8;border-radius:12px;">
   <tr><td style="padding:28px 36px 20px;border-bottom:3px solid #E0A526;">
     <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:20px;font-weight:bold;letter-spacing:1px;color:${ACCENT};">${esc(e.nom)}</p>
-    <p style="margin:4px 0 0;font-family:Arial,Helvetica,sans-serif;font-size:12px;font-style:italic;color:#8A8F93;">Réservez. Séjournez. Profitez.</p>
+    <p style="margin:4px 0 0;font-family:Arial,Helvetica,sans-serif;font-size:12px;font-style:italic;color:#8A8F93;">${require('./Tenant').estPrincipale() ? 'Réservez. Séjournez. Profitez.' : 'Réservation via BABI RESIDENCE'}</p>
   </td></tr>
   <tr><td style="padding:32px 36px 8px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.6;color:#3A4045;">
     <h1 style="margin:0 0 18px;font-family:Georgia,'Times New Roman',serif;font-size:24px;font-weight:normal;color:#0F1A2E;">${esc(titre)}</h1>
@@ -256,7 +264,7 @@ class EmailService {
       }),
       this.envoyer({
         to: r.client.email,
-        replyTo: this.expediteur,
+        replyTo: this.adresseReponse,
         subject: `Votre demande de réservation - ${r.residence.nom}`,
         html: this.gabarit({
           titre: 'Nous avons bien reçu votre demande',
@@ -291,6 +299,64 @@ class EmailService {
     });
   }
 
+  // ---------- Entreprises (plateforme) ----------
+  // Ces emails partent toujours au nom de la plateforme (entreprise principale).
+
+  async sendBienvenueEntreprise(entreprise, utilisateur) {
+    await require('./Tenant').run(require('./Tenant').PRINCIPALE, () => this.envoyer({
+      to: utilisateur.email,
+      subject: `Bienvenue sur BABI RESIDENCE - ${entreprise.nom}`,
+      html: this.gabarit({
+        titre: 'Votre compte entreprise est créé',
+        prevue: 'Préparez vos résidences pendant que nous vérifions votre entreprise.',
+        contenu: `<p style="margin:0 0 12px;">Bonjour ${esc(utilisateur.prenom)},</p>
+          <p style="margin:0 0 12px;">Le compte de <strong>${esc(entreprise.nom)}</strong> est créé. Notre équipe le vérifie avant que vos résidences soient visibles sur le site ; vous recevrez un email dès qu'il sera validé.</p>
+          <p style="margin:0;">En attendant, vous pouvez déjà ajouter vos résidences, vos coordonnées et vos moyens de paiement dans votre espace de gestion.</p>`,
+        bouton: { texte: 'Ouvrir mon espace de gestion', url: `${urlSite()}/admin/login` },
+      }),
+    }));
+  }
+
+  async sendNouvelleEntrepriseAdmin(entreprise, utilisateur) {
+    await require('./Tenant').run(require('./Tenant').PRINCIPALE, () => this.envoyer({
+      to: this.destinataireAdmin,
+      replyTo: utilisateur.email,
+      subject: `Nouvelle entreprise à valider : ${entreprise.nom}`,
+      html: this.gabarit({
+        titre: 'Nouvelle entreprise inscrite',
+        prevue: `${entreprise.nom} attend votre validation.`,
+        contenu: `<p style="margin:0;">Une entreprise vient de créer son compte. Ses résidences ne seront visibles sur le site qu'après votre validation.</p>
+          ${this.details([
+            ['Entreprise', esc(entreprise.nom)],
+            ['Gestionnaire', `${esc(utilisateur.prenom)} ${esc(utilisateur.nom)}`],
+            ['Email', `<a href="mailto:${esc(utilisateur.email)}" style="color:${ACCENT};">${esc(utilisateur.email)}</a>`],
+            ['Téléphone', esc(utilisateur.telephone)],
+          ])}`,
+        bouton: { texte: 'Voir les entreprises', url: `${urlSite()}/admin/entreprises` },
+      }),
+    }));
+  }
+
+  async sendStatutEntreprise(entreprise, gestionnaires) {
+    const validee = entreprise.statut === 'validee';
+    const suspendue = entreprise.statut === 'suspendue';
+    if (!validee && !suspendue) return;
+    await require('./Tenant').run(require('./Tenant').PRINCIPALE, () => Promise.all(gestionnaires.map(u => this.envoyer({
+      to: u.email,
+      subject: validee ? `Votre entreprise est validée - ${entreprise.nom}` : `Compte suspendu - ${entreprise.nom}`,
+      html: this.gabarit({
+        titre: validee ? 'Votre entreprise est validée' : 'Votre compte est suspendu',
+        prevue: validee ? 'Vos résidences actives sont maintenant visibles sur le site.' : 'Vos résidences ne sont plus visibles sur le site.',
+        contenu: `<p style="margin:0 0 12px;">Bonjour ${esc(u.prenom)},</p>
+          <p style="margin:0;">${validee
+            ? `<strong>${esc(entreprise.nom)}</strong> est validée : vos résidences actives sont maintenant proposées aux voyageurs sur BABI RESIDENCE.`
+            : `Le compte de <strong>${esc(entreprise.nom)}</strong> est suspendu : vos résidences ne sont plus visibles et l'espace de gestion est fermé.`}</p>
+          ${entreprise.motif ? `<p style="margin:12px 0 0;">Message de l'équipe : ${esc(entreprise.motif)}</p>` : ''}`,
+        ...(validee ? { bouton: { texte: 'Ouvrir mon espace de gestion', url: `${urlSite()}/admin/login` } } : {}),
+      }),
+    }))));
+  }
+
   // ---------- Statut de la réservation ----------
 
   async sendStatusEmail(reservation, { message = null } = {}) {
@@ -298,7 +364,7 @@ class EmailService {
     const nomResidence = reservation.residenceInfo?.nom || 'votre résidence';
     await this.envoyer({
       to: reservation.client.email,
-      replyTo: this.expediteur,
+      replyTo: this.adresseReponse,
       subject: confirmee ? `Réservation confirmée - ${nomResidence}` : `Réservation annulée - ${nomResidence}`,
       html: this.generateStatusEmailHTML(reservation, message),
     });
@@ -365,7 +431,7 @@ class EmailService {
   async sendRefusAnnulation(r) {
     await this.envoyer({
       to: r.client.email,
-      replyTo: this.expediteur,
+      replyTo: this.adresseReponse,
       subject: `Votre demande d'annulation - ${r.residenceInfo?.nom}`,
       html: this.gabarit({
         titre: 'Votre réservation est maintenue',
@@ -387,7 +453,7 @@ class EmailService {
     const reste = Math.max(0, (Number(r.prixTotal) || 0) - (Number(a.montant) || 0));
     await this.envoyer({
       to: r.client.email,
-      replyTo: this.expediteur,
+      replyTo: this.adresseReponse,
       subject: `Reçu de votre acompte - ${r.residenceInfo?.nom}`,
       html: this.gabarit({
         titre: 'Acompte reçu, votre séjour est garanti',
@@ -436,7 +502,7 @@ class EmailService {
     const partiel = rb.pourcentage && rb.pourcentage < 100;
     await this.envoyer({
       to: r.client.email,
-      replyTo: this.expediteur,
+      replyTo: this.adresseReponse,
       subject: `Remboursement de votre acompte - ${r.residenceInfo?.nom}`,
       html: this.gabarit({
         titre: 'Votre acompte a été remboursé',
@@ -461,7 +527,7 @@ class EmailService {
     const s = r.solde;
     await this.envoyer({
       to: r.client.email,
-      replyTo: this.expediteur,
+      replyTo: this.adresseReponse,
       subject: `Reçu de paiement : séjour réglé - ${r.residenceInfo?.nom}`,
       html: this.gabarit({
         titre: 'Votre séjour est entièrement réglé',
@@ -507,7 +573,7 @@ class EmailService {
     const etat = require('./paiement/acompte').etatSolde(r);
     await this.envoyer({
       to: r.client.email,
-      replyTo: this.expediteur,
+      replyTo: this.adresseReponse,
       subject: `Votre séjour approche - ${r.residenceInfo?.nom}`,
       html: this.gabarit({
         titre: 'Votre séjour approche',

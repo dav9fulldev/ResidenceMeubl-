@@ -1,4 +1,5 @@
 const db = require('../../db');
+const Tenant = require('../Tenant');
 const PiSpi = require('./PiSpiClient');
 const acompte = require('./acompte');
 
@@ -38,9 +39,14 @@ class RefundService {
    * Lance le remboursement d'une réservation annulée dont l'acompte est payé.
    * Sans effet si rien n'est à rembourser ou si c'est déjà fait.
    */
-  async rembourser(reservationId, { ignorerPolitique = false } = {}) {
+  async rembourser(reservationId, options = {}) {
     const r = await this.collection.findOne({ id: String(reservationId) }, { projection: { _id: 0 } });
     if (!r?.acompte?.paye || r.statut !== 'annulee') return null;
+    // Règles et clés de paiement de l'entreprise de la réservation
+    return Tenant.pour(r, () => this.rembourserPour(r, options));
+  }
+
+  async rembourserPour(r, { ignorerPolitique = false } = {}) {
     const etat = r.acompte.remboursement?.statut;
     if (etat === 'rembourse' || etat === 'en_cours') return r;
 
@@ -146,6 +152,10 @@ class RefundService {
   async verifier(reservationId) {
     const r = await this.collection.findOne({ id: String(reservationId) }, { projection: { _id: 0 } });
     if (r?.acompte?.remboursement?.statut !== 'en_cours') return r;
+    return Tenant.pour(r, () => this.verifierPour(r));
+  }
+
+  async verifierPour(r) {
     try {
       if (r.acompte.remboursement.methode === 'paiement') {
         const paiement = await PiSpi.lirePaiementEnvoye(r.acompte.remboursement.txId);
@@ -162,7 +172,6 @@ class RefundService {
   }
 
   async verifierEnCours() {
-    if (acompte.mode() !== 'pispi') return;
     const enCours = await this.collection.find({ 'acompte.remboursement.statut': 'en_cours' }, { projection: { id: 1 } }).toArray();
     for (const r of enCours) await this.verifier(r.id);
   }

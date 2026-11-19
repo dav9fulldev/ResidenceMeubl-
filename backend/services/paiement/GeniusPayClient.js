@@ -21,7 +21,8 @@ class ErreurGeniusPay extends Error {
   }
 }
 
-const lire = (nom) => (process.env[nom] || '').trim();
+// Valeurs de l'entreprise courante (variables d'environnement pour la plateforme, voir Cles.js)
+const lire = (nom) => (require('./Cles').lire(nom) || '').trim();
 
 class GeniusPayClient {
   get config() {

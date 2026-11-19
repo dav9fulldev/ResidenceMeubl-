@@ -6,6 +6,7 @@ import {
 } from 'react-icons/fa';
 import { useResidences } from '../context/ResidencesContext';
 import useEtablissement from '../hooks/useEtablissement';
+import { API_ENDPOINTS, apiRequest } from '../config/api';
 import './Reservation.css';
 
 const ETAPES = ['Votre séjour', 'Vos coordonnées', 'Vérification'];
@@ -28,6 +29,25 @@ const Reservation = () => {
   const today = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 
   const { register, handleSubmit, formState: { errors }, setValue, watch, trigger, getValues } = useForm({ mode: 'onTouched' });
+
+  // Conditions de l'entreprise qui propose la résidence (acompte, moyens de paiement)
+  const [conditions, setConditions] = useState(null);
+  useEffect(() => {
+    if (!residence?.id) return undefined;
+    let actif = true;
+    apiRequest(API_ENDPOINTS.residences.getById(residence.id))
+      .then(r => { if (actif) setConditions(r.data.entreprise || null); })
+      .catch(() => {});
+    return () => { actif = false; };
+  }, [residence?.id]);
+  const regles = conditions?.acompte || etab.acompte;
+  const moyensTexte = (() => {
+    const ids = (conditions?.moyensPaiement || etab.moyensPaiement || []).map(m => m.id);
+    if (ids.includes('geniuspay') && ids.includes('pispi')) return 'Mobile Money, carte bancaire ou PI-SPI';
+    if (ids.includes('geniuspay')) return 'Mobile Money ou carte bancaire';
+    if (ids.includes('pispi')) return 'PI-SPI';
+    return null;
+  })();
 
   // Résidence et critères venus de l'URL (dates et personnes choisies sur l'accueil)
   useEffect(() => {
@@ -91,7 +111,7 @@ const Reservation = () => {
     ? Math.round((Date.parse(`${depart}T00:00:00Z`) - Date.parse(`${arrivee}T00:00:00Z`)) / 86400000)
     : 0;
   const total = residence && nuits > 0 ? nuits * Number(residence.price) : 0;
-  const pctAcompte = Number(etab.acompte?.pourcentage) || 30;
+  const pctAcompte = Number(regles?.pourcentage) || 30;
   const acompte = Math.ceil(total * pctAcompte / 100);
   const minStay = residence?.availability?.minStay || 1;
   const maxStay = residence?.availability?.maxStay || 365;
@@ -118,7 +138,7 @@ const Reservation = () => {
             <ol className="resa-suite">
               <li className="fait"><span><FaCheck /></span><div><b>Demande envoyée</b><p>Aucun paiement n'a été effectué.</p></div></li>
               <li><span>2</span><div><b>Confirmation par notre équipe</b><p>Nous vérifions la disponibilité et vous répondons par email.</p></div></li>
-              <li><span>3</span><div><b>Acompte de {fcfa(Math.ceil(Number(confirmation.prixTotal) * pctAcompte / 100))}</b><p>À régler par PI-SPI depuis « Mes réservations », une fois le séjour confirmé.</p></div></li>
+              <li><span>3</span><div><b>Acompte de {fcfa(Math.ceil(Number(confirmation.prixTotal) * pctAcompte / 100))}</b><p>{moyensTexte ? `À régler en ligne (${moyensTexte}) depuis « Mes réservations », une fois le séjour confirmé.` : 'Modalités communiquées à la confirmation du séjour.'}</p></div></li>
               <li><span>4</span><div><b>Votre séjour</b><p>Le solde de {fcfa(Number(confirmation.prixTotal) - Math.ceil(Number(confirmation.prixTotal) * pctAcompte / 100))} est réglé selon les modalités indiquées à la confirmation.</p></div></li>
             </ol>
 
@@ -270,7 +290,9 @@ const Reservation = () => {
                 </dl>
                 <div className="resa-garanties">
                   <p><FaShieldAlt aria-hidden="true" /> <b>Aucun paiement maintenant.</b> Nous confirmons d'abord la disponibilité.</p>
-                  <p>Après confirmation, vous réglez un acompte de {pctAcompte} % par PI-SPI. En cas d'annulation, il est remboursé en entier dans les {etab.acompte?.integralJours ?? 5} jours suivant le paiement{Number(etab.acompte?.remboursementPourcentage) > 0 ? `, puis à ${etab.acompte.remboursementPourcentage} %` : ''}, et plus du tout à moins de {etab.acompte?.avantArriveeJours ?? 3} jours de l'arrivée.</p>
+                  <p>{moyensTexte
+                    ? <>Après confirmation, vous réglez un acompte de {pctAcompte} % en ligne ({moyensTexte}). En cas d'annulation, il est remboursé en entier dans les {regles?.integralJours ?? 5} jours suivant le paiement{Number(regles?.remboursementPourcentage) > 0 ? `, puis à ${regles.remboursementPourcentage} %` : ''}, et plus du tout à moins de {regles?.avantArriveeJours ?? 3} jours de l'arrivée.</>
+                    : <>Après confirmation, les modalités de paiement vous sont communiquées par {conditions?.nom || 'l\'établissement'}.</>}</p>
                 </div>
               </fieldset>
             )}

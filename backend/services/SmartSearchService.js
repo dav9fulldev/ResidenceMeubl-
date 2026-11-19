@@ -1,4 +1,5 @@
 const AIService = require('./AIService');
+const Tenant = require('./Tenant');
 const ResidenceService = require('./ResidenceService');
 const db = require('../db');
 
@@ -111,7 +112,7 @@ class SmartSearchService {
 
     this.syncEnCours = (async () => {
       try {
-        const residences = await ResidenceService.getAllResidencesAdmin();
+        const residences = await Tenant.sansContexte(() => ResidenceService.getAllResidencesAdmin()); // toutes les entreprises
         const existants = new Map(
           (await this.collection.find({}, { projection: { residenceId: 1, empreinte: 1 } }).toArray())
             .map(e => [e.residenceId, e.empreinte])

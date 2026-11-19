@@ -233,7 +233,7 @@ router.get('/:id/similaires', async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const residence = await ResidenceService.getResidenceById(parseInt(id));
+    const residence = await ResidenceService.getResidencePublique(parseInt(id));
     
     if (!residence) {
       return res.status(404).json({

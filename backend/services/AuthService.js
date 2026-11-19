@@ -47,8 +47,20 @@ class AuthService {
     return userOk && passOk;
   }
 
-  creerJeton(username) {
-    return this.signerDonnees({ role: 'admin', sub: username, exp: Date.now() + DUREE_JETON_MS });
+  /**
+   * Jeton du back-office.
+   *  - super-admin (identifiants ADMIN_*) : gère la plateforme et l'entreprise principale
+   *  - gestionnaire : limité à son entreprise (ent) ; uid = son compte
+   */
+  creerJeton(username, { entrepriseId = null, utilisateurId = null, superAdmin = !utilisateurId } = {}) {
+    return this.signerDonnees({
+      role: 'admin',
+      sub: username,
+      ent: entrepriseId || require('./Tenant').PRINCIPALE,
+      ...(utilisateurId ? { uid: utilisateurId } : {}),
+      sa: Boolean(superAdmin),
+      exp: Date.now() + DUREE_JETON_MS,
+    });
   }
 
   /**

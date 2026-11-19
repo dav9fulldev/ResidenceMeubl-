@@ -25,7 +25,8 @@ const DELAI_MS = 10000;
 const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 // Nettoie une valeur de .env (espaces, guillemets copiés par erreur)
-const env = (nom) => (process.env[nom] || '').trim().replace(/^['"]|['"]$/g, '').trim();
+// Valeurs de l'entreprise courante (variables d'environnement pour la plateforme, voir Cles.js)
+const env = (nom) => (require('./Cles').lire(nom) || '').trim().replace(/^['"]|['"]$/g, '').trim();
 
 // Toutes les routes de l'API sont préfixées par le code participant (ex. /CIC999/demandes-paiements)
 function urlAvecParticipant(base, code) {
@@ -45,8 +46,7 @@ class ErreurPiSpi extends Error {
 
 class PiSpiClient {
   constructor() {
-    this.jeton = null;
-    this.expireA = 0;
+    this.jetons = new Map(); // un jeton OAuth2 par jeu d'identifiants (une entreprise = ses clés)
   }
 
   get config() {
@@ -79,8 +79,14 @@ class PiSpiClient {
   }
 
   // Jeton OAuth2 mis en cache jusqu'à une minute avant expiration
+  get cleJeton() {
+    const c = this.config;
+    return `${c.tokenUrl}|${c.clientId}`;
+  }
+
   async obtenirJeton() {
-    if (this.jeton && Date.now() < this.expireA - 60000) return this.jeton;
+    const cache = this.jetons.get(this.cleJeton);
+    if (cache && Date.now() < cache.expireA - 60000) return cache.jeton;
     const c = this.config;
     // Format du portail PI-SPI : identifiants dans le corps (client_secret_post)
     const corps = new URLSearchParams({
@@ -99,9 +105,8 @@ class PiSpiClient {
     if (!reponse.ok || !donnees.access_token) {
       throw new ErreurPiSpi(`Authentification PI-SPI refusée (${reponse.status}${donnees.error ? ` : ${donnees.error}` : ''})`, { status: reponse.status, code: donnees.error });
     }
-    this.jeton = donnees.access_token;
-    this.expireA = Date.now() + (Number(donnees.expires_in) || 3600) * 1000;
-    return this.jeton;
+    this.jetons.set(this.cleJeton, { jeton: donnees.access_token, expireA: Date.now() + (Number(donnees.expires_in) || 3600) * 1000 });
+    return donnees.access_token;
   }
 
   async requete(methode, chemin, corps) {
@@ -121,7 +126,7 @@ class PiSpiClient {
     let reponse = await executer();
     if (reponse.status === 401) {
       // Jeton expiré ou révoqué : un seul nouvel essai
-      this.jeton = null;
+      this.jetons.delete(this.cleJeton);
       reponse = await executer();
     }
     if (reponse.status === 404) return null;

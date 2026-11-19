@@ -13,6 +13,7 @@ const MAUVAIS_MDP = randomBytes(12).toString('hex');
 process.env.NODE_ENV = 'test';
 process.env.ADMIN_USERNAME = ADMIN_TEST.username;
 process.env.ADMIN_PASSWORD = ADMIN_TEST.password;
+process.env.CLES_CHIFFREMENT = randomBytes(32).toString('hex'); // clés de paiement des entreprises
 
 const { MongoMemoryServer } = require('mongodb-memory-server');
 const db = require('../db');
@@ -583,7 +584,7 @@ test('statistiques : revenus par mois, cumul, occupation, et export CSV', async 
   const headers = await connexionAdmin();
   const col = db.collection('reservations');
   const base = (id, statut, arrivee, depart, prixTotal, extra = {}) => ({
-    id, residenceId: 2, statut, prixTotal, dateCreation: new Date('2031-01-01'),
+    id, entrepriseId: 'babi', residenceId: 2, statut, prixTotal, dateCreation: new Date('2031-01-01'),
     residenceInfo: { id: 2, nom: 'Résidence 2', reference: 'RES-002' },
     client: { prenom: 'Test', nom: 'Stats', email: 'stats@example.com', telephone: '0700000000' },
     dates: { arrivee, depart }, details: { nombrePersonnes: 2 }, notes: '', demandeAnnulation: null, ...extra,
@@ -1465,4 +1466,146 @@ test('robustesse : email piégé (ReDoS) rejeté vite, clés spéciales ignorée
   assert.equal(({}).pollue, undefined, 'aucune pollution du prototype');
   const doc = await db.collection('parametres').findOne({ _id: 'acompte' });
   assert.deepEqual(Object.keys(doc).filter(k => !['_id', 'modifieLe'].includes(k)), ['remboursementPourcentage']);
+});
+
+// ---------- Multi-entreprises ----------
+
+test('multi-entreprises : inscription, cloisonnement des données, validation et suspension', async (t) => {
+  const Settings = require('../services/SettingsService');
+  const emails = ReservationService.emailService;
+  const envoyes = [];
+  for (const nom of ['sendBienvenueEntreprise', 'sendNouvelleEntrepriseAdmin', 'sendStatutEntreprise']) {
+    const original = emails[nom];
+    emails[nom] = async (...args) => { envoyes.push(nom); };
+    t.after(() => { emails[nom] = original; });
+  }
+  t.after(async () => { await db.collection('parametres').deleteMany({}); await Settings.charger(); });
+
+  const mdp = randomBytes(9).toString('hex');
+  const inscription = {
+    entreprise: 'Villas Lagune', prenom: 'Koffi', nom: 'Yao', email: 'Gestion@VillasLagune.ci', telephone: '+225 07 00 00 00 01', motDePasse: mdp,
+  };
+
+  // Inscription : validations
+  assert.equal((await api('/api/entreprises/inscription', { method: 'POST', body: { ...inscription, motDePasse: 'court' } })).status, 400);
+  assert.equal((await api('/api/entreprises/inscription', { method: 'POST', body: { ...inscription, email: 'pas-un-email' } })).status, 400);
+  const ins = await api('/api/entreprises/inscription', { method: 'POST', body: inscription });
+  assert.equal(ins.status, 201, JSON.stringify(ins.body));
+  assert.equal(ins.body.data.entreprise.statut, 'en_attente');
+  assert.equal(ins.body.data.utilisateur.email, 'gestion@villaslagune.ci');
+  assert.ok(!('motDePasse' in ins.body.data.utilisateur), 'jamais le mot de passe');
+  assert.deepEqual(envoyes.sort(), ['sendBienvenueEntreprise', 'sendNouvelleEntrepriseAdmin']);
+  assert.equal((await api('/api/entreprises/inscription', { method: 'POST', body: inscription })).status, 409, 'email déjà utilisé');
+  const enBase = await db.collection('utilisateurs').findOne({ email: 'gestion@villaslagune.ci' });
+  assert.match(enBase.motDePasse, /^scrypt\$/, 'mot de passe haché');
+  const entId = ins.body.data.entreprise.id;
+
+  // Connexion par email (insensible à la casse) ; mauvais mot de passe refusé
+  assert.equal((await api('/api/admin/login', { method: 'POST', body: { email: inscription.email, password: MAUVAIS_MDP } })).status, 401);
+  const login = await api('/api/admin/login', { method: 'POST', body: { email: 'GESTION@villaslagune.ci', password: mdp } });
+  assert.equal(login.status, 200);
+  const g = { Authorization: `Bearer ${login.body.data.token}` };
+  const moi = (await api('/api/admin/moi', { headers: g })).body.data;
+  assert.equal(moi.superAdmin, false);
+  assert.equal(moi.entreprise.id, entId);
+  assert.equal(moi.entreprise.statut, 'en_attente');
+
+  // Identité de l'entreprise reprise de l'inscription
+  const etab = (await api('/api/admin/etablissement', { headers: g })).body.data;
+  assert.equal(etab.nom, 'Villas Lagune');
+  assert.equal(etab.emailNotifications, 'gestion@villaslagune.ci');
+
+  // Le gestionnaire ne voit et ne touche que ses données
+  const headersAdmin = await connexionAdmin();
+  const residencesPlateforme = (await api('/api/admin/residences', { headers: headersAdmin })).body.data.length;
+  assert.equal((await api('/api/admin/residences', { headers: g })).body.data.length, 0);
+  assert.equal((await api('/api/admin/residences/1', { method: 'PUT', headers: g, body: { prix: 1 } })).status, 404, 'résidence d\'une autre entreprise');
+  assert.equal((await api('/api/admin/residences/1/status', { method: 'PUT', headers: g, body: { statut: 'maintenance' } })).status, 404);
+  assert.equal((await api('/api/admin/residences/1', { method: 'DELETE', headers: g })).status, 404);
+  assert.ok(await db.collection('residences').findOne({ id: 1, prix: { $ne: 1 } }), 'intacte');
+  assert.equal((await api('/api/reservations', { headers: g })).body.data.length, 0, 'aucune réservation des autres');
+  const uneResa = await db.collection('reservations').findOne({ entrepriseId: 'babi' });
+  if (uneResa) {
+    assert.equal((await api(`/api/reservations/${uneResa.id}`, { headers: g })).status, 404);
+    assert.equal((await api(`/api/reservations/${uneResa.id}/status`, { method: 'PUT', headers: g, body: { statut: 'confirmee' } })).status, 404);
+  }
+  assert.equal((await api('/api/admin/plateforme/entreprises', { headers: g })).status, 403, 'réservé à la plateforme');
+
+  // Même référence qu'une résidence de la plateforme : autorisé (unique par entreprise)
+  const fiche = {
+    nom: 'Villa Lagune', reference: 'RES-001', typeAppartement: 'Villa', localisation: 'Assinie', ville: 'Abidjan', quartier: 'Assinie',
+    prix: 80000, nombreChambres: 3, capacite: 6, photos: [], equipements: ['Piscine'],
+  };
+  const creee = await api('/api/admin/residences', { method: 'POST', headers: g, body: fiche });
+  assert.equal(creee.status, 201, JSON.stringify(creee.body));
+  assert.equal((await api('/api/admin/residences', { method: 'POST', headers: g, body: fiche })).status, 400, 'doublon dans la même entreprise');
+  const idVilla = creee.body.data.id;
+  assert.equal((await api('/api/admin/residences', { headers: headersAdmin })).body.data.length, residencesPlateforme, 'la plateforme ne la voit pas dans sa gestion');
+
+  // Règles d'acompte propres à l'entreprise
+  assert.equal((await api('/api/admin/parametres', { method: 'PUT', headers: g, body: { acomptePourcentage: 40 } })).status, 200);
+  assert.equal((await api('/api/admin/parametres', { headers: headersAdmin })).body.data.acomptePourcentage, 30, 'la plateforme garde ses règles');
+
+  // En attente de validation : invisible sur le site
+  assert.equal((await api(`/api/residences/${idVilla}`)).status, 404);
+  assert.ok(!(await api('/api/residences')).body.data.some(r => r.id === idVilla));
+
+  // Validation par la plateforme
+  const liste = (await api('/api/admin/plateforme/entreprises', { headers: headersAdmin })).body.data;
+  const ligne = liste.find(e => e.id === entId);
+  assert.equal(ligne.residences, 1);
+  assert.equal(ligne.gestionnaires[0].email, 'gestion@villaslagune.ci');
+  assert.ok(!('motDePasse' in ligne.gestionnaires[0]));
+  assert.equal((await api('/api/admin/plateforme/entreprises/babi/statut', { method: 'PUT', headers: headersAdmin, body: { statut: 'suspendue' } })).status, 409, 'plateforme non suspendable');
+  const valid = await api(`/api/admin/plateforme/entreprises/${entId}/statut`, { method: 'PUT', headers: headersAdmin, body: { statut: 'validee' } });
+  assert.equal(valid.status, 200);
+  for (let i = 0; i < 20 && !envoyes.includes('sendStatutEntreprise'); i++) await new Promise(r => setTimeout(r, 25));
+  assert.ok(envoyes.includes('sendStatutEntreprise'), 'gestionnaire prévenu');
+
+  const publique = await api(`/api/residences/${idVilla}`);
+  assert.equal(publique.status, 200);
+  assert.equal(publique.body.data.entreprise.nom, 'Villas Lagune');
+  assert.equal(publique.body.data.entreprise.acompte.pourcentage, 40);
+  assert.equal((await api('/api/residences/1')).body.data.entreprise.acompte.pourcentage, 30);
+
+  // Une réservation sur sa résidence lui revient
+  const resa = await api('/api/reservations', { method: 'POST', body: nouvelleReservation({ residenceId: idVilla, dateArrivee: jourDansNJours(200), dateDepart: jourDansNJours(203), nombrePersonnes: 4 }) });
+  assert.equal(resa.status, 201, JSON.stringify(resa.body));
+  const idResa = resa.body.data.id || resa.body.data.reservation?.id;
+  assert.equal((await db.collection('reservations').findOne({ id: idResa })).entrepriseId, entId);
+  assert.ok((await api('/api/reservations', { headers: g })).body.data.some(r => r.id === idResa));
+  assert.ok(!(await api('/api/reservations', { headers: headersAdmin })).body.data.some(r => r.id === idResa), 'pas chez la plateforme');
+  assert.equal((await api(`/api/reservations/${idResa}/status`, { method: 'PUT', headers: g, body: { statut: 'confirmee' } })).status, 200);
+
+  // Clés de paiement propres à l'entreprise (chiffrées), webhooks à son adresse
+  assert.equal((await api('/api/admin/paiements/cles/geniuspay', { method: 'PUT', headers: headersAdmin, body: { GENIUSPAY_API_KEY: 'pk_sandbox_x' } })).status, 409, 'plateforme : variables du serveur');
+  assert.equal((await api('/api/admin/paiements/cles/geniuspay', { method: 'PUT', headers: g, body: { GENIUSPAY_API_KEY: 'pas-une-cle' } })).status, 400);
+  const cles = await api('/api/admin/paiements/cles/geniuspay', { method: 'PUT', headers: g, body: { GENIUSPAY_API_KEY: 'pk_sandbox_abc123', GENIUSPAY_API_SECRET: 'sk_sandbox_secret9876' } });
+  assert.equal(cles.status, 200, JSON.stringify(cles.body));
+  const secret = cles.body.data.cles.find(c => c.nom === 'GENIUSPAY_API_SECRET');
+  assert.equal(secret.valeur, '', 'secret jamais renvoyé');
+  assert.equal(secret.apercu, '••••9876');
+  const stocke = await db.collection('cles_paiement').findOne({ _id: entId });
+  assert.ok(!JSON.stringify(stocke).includes('sk_sandbox_secret9876'), 'chiffré en base');
+  const moyensG = (await api('/api/admin/paiements/moyens', { headers: g })).body.data;
+  assert.equal(moyensG.moyens.find(m => m.id === 'geniuspay').configure, true);
+  assert.ok(moyensG.webhooks.geniuspay.endsWith(`/api/paiements/geniuspay/webhook/${entId}`));
+  const moyensP = (await api('/api/admin/paiements/moyens', { headers: headersAdmin })).body.data;
+  assert.ok(moyensP.webhooks.geniuspay.endsWith('/api/paiements/geniuspay/webhook'));
+  assert.equal(moyensP.moyens.find(m => m.id === 'geniuspay').configure, Boolean(process.env.GENIUSPAY_API_KEY && process.env.GENIUSPAY_API_SECRET), 'la plateforme n\'hérite pas des clés de l\'entreprise');
+  // Secret vide = inchangé ; activation possible
+  assert.equal((await api('/api/admin/paiements/cles/geniuspay', { method: 'PUT', headers: g, body: { GENIUSPAY_API_SECRET: '' } })).status, 200);
+  assert.equal((await api('/api/admin/paiements/moyens/geniuspay', { method: 'PUT', headers: g, body: { actif: true } })).status, 200);
+  assert.deepEqual((await api(`/api/residences/${idVilla}`)).body.data.entreprise.moyensPaiement.map(m => m.id), ['geniuspay']);
+  // Webhook d'une entreprise inconnue
+  assert.equal((await fetch(`${baseUrl}/api/paiements/geniuspay/webhook/ent_inconnue`, { method: 'POST', body: '{}' })).status, 404);
+
+  // Mot de passe
+  assert.equal((await api('/api/admin/moi/mot-de-passe', { method: 'PUT', headers: g, body: { actuel: MAUVAIS_MDP, nouveau: 'unnouveaumotdepasse' } })).status, 403);
+
+  // Suspension : site et espace de gestion fermés
+  assert.equal((await api(`/api/admin/plateforme/entreprises/${entId}/statut`, { method: 'PUT', headers: headersAdmin, body: { statut: 'suspendue', motif: 'Documents manquants' } })).status, 200);
+  assert.equal((await api(`/api/residences/${idVilla}`)).status, 404);
+  assert.equal((await api('/api/admin/residences', { headers: g })).status, 403);
+  assert.equal((await api('/api/admin/login', { method: 'POST', body: { email: inscription.email, password: mdp } })).status, 403);
 });

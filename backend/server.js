@@ -68,9 +68,22 @@ app.use(cors({
   credentials: false // authentification par jeton (en-tête), aucun cookie
 }));
 
-// Webhook PI-SPI : corps brut indispensable pour vérifier la signature X-Signature
+// Webhooks des prestataires de paiement. Chaque entreprise a sa propre adresse
+// (…/webhook/<entreprise>) et son propre secret ; l'adresse sans entreprise est celle de la plateforme.
 const PaymentService = require('./services/paiement/PaymentService');
-app.post('/api/paiements/pispi/webhook', express.raw({ type: '*/*', limit: '1mb' }), (req, res) => {
+const Tenant = require('./services/Tenant');
+const EntrepriseService = require('./services/EntrepriseService');
+const contexteWebhook = (req, res, next) => {
+  const id = req.params.entrepriseId || Tenant.PRINCIPALE;
+  if (!/^[a-z0-9_]{1,40}$/.test(id) || !EntrepriseService.statut(id)) return res.status(404).json({ success: false, message: 'Entreprise inconnue' });
+  req.entrepriseWebhook = id;
+  next();
+};
+// Le traitement (après lecture du corps) s'exécute avec les clés de cette entreprise
+const dansEntreprise = (traitement) => (req, res) => Tenant.run(req.entrepriseWebhook, () => traitement(req, res));
+
+// PI-SPI : corps brut indispensable pour vérifier la signature X-Signature
+app.post(['/api/paiements/pispi/webhook', '/api/paiements/pispi/webhook/:entrepriseId'], contexteWebhook, express.raw({ type: '*/*', limit: '1mb' }), dansEntreprise((req, res) => {
   const corpsBrut = Buffer.isBuffer(req.body) ? req.body : Buffer.from('');
   if (!PaymentService.signatureValide(corpsBrut, req.get('X-Signature'))) {
     return res.status(401).json({ success: false, message: 'Signature invalide' });
@@ -83,10 +96,10 @@ app.post('/api/paiements/pispi/webhook', express.raw({ type: '*/*', limit: '1mb'
   }
   res.status(204).end(); // répondre en moins de 5 s, traiter ensuite
   PaymentService.traiterEvenements(corps).catch(e => console.error('⚠️ Webhook PI-SPI :', e.message));
-});
+}));
 
 // Webhook GeniusPay : signature X-Webhook-Signature = HMAC-SHA256(timestamp + "." + corps)
-app.post('/api/paiements/geniuspay/webhook', express.raw({ type: '*/*', limit: '1mb' }), (req, res) => {
+app.post(['/api/paiements/geniuspay/webhook', '/api/paiements/geniuspay/webhook/:entrepriseId'], contexteWebhook, express.raw({ type: '*/*', limit: '1mb' }), dansEntreprise((req, res) => {
   const GeniusPay = require('./services/paiement/GeniusPayClient');
   const corpsBrut = Buffer.isBuffer(req.body) ? req.body : Buffer.from('');
   if (!GeniusPay.signatureValide(corpsBrut, req.get('X-Webhook-Signature'), req.get('X-Webhook-Timestamp'))) {
@@ -100,7 +113,7 @@ app.post('/api/paiements/geniuspay/webhook', express.raw({ type: '*/*', limit: '
   }
   res.status(200).json({ success: true }); // répondre vite, traiter ensuite
   PaymentService.traiterEvenementGeniusPay(corps).catch(e => console.error('⚠️ Webhook GeniusPay :', e.message));
-});
+}));
 
 // Taille maximale des requêtes : 100 ko pour le public, 2 Mo pour le back-office (fiches résidences)
 app.use('/api/admin', express.json({ limit: '2mb' }));
@@ -144,6 +157,7 @@ app.get('/api/etablissement', (req, res) => {
 app.use('/api/residences', residencesRoutes);
 app.use('/api/reservations', reservationsRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/entreprises', require('./routes/entreprises'));
 app.use('/api/client', clientRoutes);
 
 // ✅ Route de santé
@@ -214,14 +228,16 @@ if (require.main === module) {
   db.connect()
     .then(() => {
       console.log('🗄️  Connecté à MongoDB');
-      require('./services/SettingsService').charger()
+      Promise.all([require('./services/SettingsService').charger(), require('./services/paiement/Cles').charger()])
         .catch(e => console.error('⚠️ Paramètres :', e.message))
         .then(() => {
           const acompte = require('./services/paiement/acompte');
           const moyens = acompte.moyensDisponibles();
           const GeniusPay = require('./services/paiement/GeniusPayClient');
           console.log(`💳 Paiement de l'acompte : ${moyens.length ? moyens.map(m => (m === 'pispi' ? `PI-SPI (${acompte.mode()})` : `GeniusPay (${GeniusPay.environnement})`)).join(', ') : 'désactivé'}`);
-          if (moyens.length) PaymentService.demarrerVerificationPeriodique();
+          // Toutes les entreprises : chacune peut avoir ses propres moyens de paiement
+          PaymentService.demarrerVerificationPeriodique();
+          if (!require('./services/paiement/Cles').chiffrementDisponible()) console.warn('⚠️ CLES_CHIFFREMENT non défini : les entreprises ne peuvent pas enregistrer leurs clés de paiement');
           require('./services/ReservationService').demarrerRappelsSolde();
         });
       const AIService = require('./services/AIService');
