@@ -290,6 +290,7 @@ const Reservation = () => {
                 </dl>
                 <div className="resa-garanties">
                   <p><FaShieldAlt aria-hidden="true" /> <b>Aucun paiement maintenant.</b> Nous confirmons d'abord la disponibilité.</p>
+                  <p><b>Payez uniquement sur BABI RESIDENCE</b>, depuis « Mes réservations ». Ne versez jamais d'argent demandé par WhatsApp, SMS ou téléphone : vous ne seriez pas protégé.</p>
                   <p>{moyensTexte
                     ? <>Après confirmation, vous réglez un acompte de {pctAcompte} % en ligne ({moyensTexte}). En cas d'annulation, il est remboursé en entier dans les {regles?.integralJours ?? 5} jours suivant le paiement{Number(regles?.remboursementPourcentage) > 0 ? `, puis à ${regles.remboursementPourcentage} %` : ''}, et plus du tout à moins de {regles?.avantArriveeJours ?? 3} jours de l'arrivée.</>
                     : <>Après confirmation, les modalités de paiement vous sont communiquées par {conditions?.nom || 'l\'établissement'}.</>}</p>

@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import {
   FaChartPie, FaChartLine, FaCalendarAlt, FaHome, FaSignOutAlt, FaExternalLinkAlt,
-  FaMoon, FaSun, FaDownload, FaTimes, FaCog, FaRegCalendarCheck, FaBuilding, FaHourglassHalf,
+  FaMoon, FaSun, FaDownload, FaTimes, FaCog, FaRegCalendarCheck, FaBuilding, FaHourglassHalf, FaShieldAlt,
 } from 'react-icons/fa';
 import { API_ENDPOINTS } from '../../config/api';
 import { CompteContext } from '../../context/CompteContext';
@@ -22,6 +22,7 @@ const TITRES = {
   '/admin/statistiques': 'Statistiques',
   '/admin/parametres': 'Paramètres',
   '/admin/entreprises': 'Entreprises',
+  '/admin/verifications': 'Vérifications',
 };
 
 /**
@@ -39,6 +40,7 @@ const AdminLayout = () => {
   }, [setEspaceAdmin]);
   const [compte, setCompte] = useState(null);
   const [enAttente, setEnAttente] = useState(0); // entreprises à valider (administrateur de la plateforme)
+  const [aVerifier, setAVerifier] = useState(0); // résidences à vérifier + signalements non traités
 
   // Compte connecté et son entreprise (statut de validation, droits)
   const recharger = useCallback(async () => {
@@ -46,8 +48,12 @@ const AdminLayout = () => {
       const moi = (await adminRequest(API_ENDPOINTS.admin.me)).data;
       setCompte(moi);
       if (moi.superAdmin) {
-        const liste = (await adminRequest(API_ENDPOINTS.admin.companies)).data;
+        const [liste, compteurs] = await Promise.all([
+          adminRequest(API_ENDPOINTS.admin.companies).then(r => r.data),
+          adminRequest(API_ENDPOINTS.admin.verificationCounters).then(r => r.data).catch(() => ({ aExaminer: 0, signalements: 0 })),
+        ]);
         setEnAttente(liste.filter(e => e.statut === 'en_attente').length);
+        setAVerifier(compteurs.aExaminer + compteurs.signalements);
       }
     } catch {
       // jeton refusé : adminRequest déconnecte déjà
@@ -88,7 +94,10 @@ const AdminLayout = () => {
     { to: '/admin/residences', icone: <FaHome />, texte: 'Résidences', section: 'Gestion' },
     { to: '/admin/statistiques', icone: <FaChartLine />, texte: 'Statistiques', section: 'Pilotage', mobile: false },
     { to: '/admin/parametres', icone: <FaCog />, texte: 'Paramètres', section: 'Pilotage' },
-    ...(compte?.superAdmin ? [{ to: '/admin/entreprises', icone: <FaBuilding />, texte: 'Entreprises', court: 'Entreprises', badge: enAttente, section: 'Plateforme' }] : []),
+    ...(compte?.superAdmin ? [
+      { to: '/admin/entreprises', icone: <FaBuilding />, texte: 'Entreprises', court: 'Entreprises', badge: enAttente, section: 'Plateforme' },
+      { to: '/admin/verifications', icone: <FaShieldAlt />, texte: 'Vérifications', court: 'Vérif.', badge: aVerifier, section: 'Plateforme' },
+    ] : []),
   ];
   const nomEntreprise = compte?.entreprise?.nom || 'BABI RESIDENCE';
 

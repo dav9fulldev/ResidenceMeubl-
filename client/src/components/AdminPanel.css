@@ -116,3 +116,6 @@
 @media (prefers-reduced-motion: reduce) {
   .res-carte { transition: none; }
 }
+
+/* Vérification de la résidence par la plateforme */
+.res-photo .res-badge-verif { left: 12px; right: auto; top: auto; bottom: 12px; display: inline-flex; align-items: center; gap: 6px; }

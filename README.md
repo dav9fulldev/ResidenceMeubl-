@@ -41,9 +41,10 @@ Mise en ligne : voir [DEPLOIEMENT.md](DEPLOIEMENT.md).
 - **Paiements sur son propre compte** : l'entreprise saisit ses clés GeniusPay et/ou PI-SPI (chiffrées) et déclare ses propres adresses de webhook. Sans moyen actif, ses clients règlent sur place.
 - Emails aux clients au nom de l'entreprise (les réponses lui parviennent) ; alertes à son adresse.
 - Sur le site, chaque fiche indique « Proposé par … » et applique les règles d'acompte de l'entreprise.
+- **Chaque résidence est vérifiée avant publication** (contre les fausses annonces) : photos de l'annonce téléversées, position GPS, justificatifs privés (pièce d'identité, droit d'exploiter le logement : titre, bail, mandat ou autorisation du propriétaire), photos prises sur place avec un code unique et géolocalisées. La plateforme vérifie, demande des compléments, refuse ou suspend. Changer l'adresse, les photos ou les justificatifs d'une résidence vérifiée la renvoie en vérification.
 
 ### Pour l'administrateur de la plateforme
-Connexion avec les identifiants `ADMIN_USERNAME` / `ADMIN_PASSWORD`. Il gère les résidences de BABI RESIDENCE comme une entreprise, et dispose en plus de la page **Entreprises** : liste des inscriptions, **validation**, refus, suspension (le gestionnaire est prévenu par email).
+Connexion avec les identifiants `ADMIN_USERNAME` / `ADMIN_PASSWORD`. Il gère les résidences de BABI RESIDENCE comme une entreprise, et dispose en plus de la page **Entreprises** : liste des inscriptions, **validation**, refus, suspension (le gestionnaire est prévenu par email). Et de la page **Vérifications** : dossiers des résidences à examiner (photos sur place avec distance à l'adresse déclarée, justificatifs, liste de points à contrôler), décisions, et **signalements** des visiteurs (« Signaler cette annonce » sur chaque fiche).
 
 ### Le back-office
 Il n'est pas indexé par les moteurs de recherche ; on y accède par **`/admin`** ou par l'application **BABI Admin** installable (ordinateur et téléphone).

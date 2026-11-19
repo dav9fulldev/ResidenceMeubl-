@@ -357,6 +357,60 @@ class EmailService {
     }))));
   }
 
+  // ---------- Vérification des résidences ----------
+
+  async sendAlerteVerification(residence, evenement, signalement = null) {
+    const MOTIFS = { fausse_annonce: 'Fausse annonce', photos_trompeuses: 'Photos trompeuses', adresse: 'Adresse inexistante ou fausse', paiement_hors_plateforme: 'Paiement demandé hors de BABI RESIDENCE', autre: 'Autre' };
+    const entreprise = require('./EntrepriseService').nom(residence.entrepriseId) || '—';
+    const titres = {
+      soumission: [`Résidence à vérifier : ${residence.nom}`, 'Un dossier de vérification vous attend.'],
+      modification: [`Résidence modifiée, à revérifier : ${residence.nom}`, 'L\'adresse, les photos ou les justificatifs ont changé : la résidence est retirée du site jusqu\'à votre décision.'],
+      signalement: [`Annonce signalée : ${residence.nom}`, 'Un visiteur a signalé cette annonce.'],
+    };
+    const [sujet, intro] = titres[evenement] || titres.soumission;
+    await require('./Tenant').run(require('./Tenant').PRINCIPALE, () => this.envoyer({
+      to: this.destinataireAdmin,
+      ...(signalement?.email ? { replyTo: signalement.email } : {}),
+      subject: sujet,
+      html: this.gabarit({
+        titre: sujet,
+        prevue: intro,
+        contenu: `<p style="margin:0;">${esc(intro)}</p>
+          ${this.details([
+            ['Résidence', `${esc(residence.nom)} (n° ${esc(residence.id)})`],
+            ['Entreprise', esc(entreprise)],
+            signalement ? ['Motif', esc(MOTIFS[signalement.motif] || signalement.motif)] : null,
+            signalement?.message ? ['Message', esc(signalement.message)] : null,
+            signalement?.email ? ['Contact', esc(signalement.email)] : null,
+          ])}`,
+        bouton: { texte: 'Ouvrir les vérifications', url: `${urlSite()}/admin/verifications` },
+      }),
+    }));
+  }
+
+  async sendDecisionVerification(residence, motif, gestionnaires) {
+    const textes = {
+      verifiee: ['Votre résidence est vérifiée', 'Elle est maintenant visible sur BABI RESIDENCE avec le badge « Résidence vérifiée ».'],
+      a_completer: ['Votre dossier est à compléter', 'Notre équipe a besoin d\'éléments supplémentaires avant de vérifier votre résidence.'],
+      refusee: ['Votre résidence n\'a pas été validée', 'Elle ne sera pas publiée en l\'état. Vous pouvez corriger le dossier et le renvoyer.'],
+      suspendue: ['Votre résidence est suspendue', 'Elle n\'est plus visible sur le site. Contactez-nous pour en savoir plus.'],
+    };
+    const t = textes[residence.statutVerification];
+    if (!t) return;
+    await require('./Tenant').run(require('./Tenant').PRINCIPALE, () => Promise.all(gestionnaires.map(u => this.envoyer({
+      to: u.email,
+      subject: `${t[0]} - ${residence.nom}`,
+      html: this.gabarit({
+        titre: t[0],
+        prevue: t[1],
+        contenu: `<p style="margin:0 0 12px;">Bonjour ${esc(u.prenom)},</p>
+          <p style="margin:0;">Résidence <strong>${esc(residence.nom)}</strong> : ${esc(t[1])}</p>
+          ${motif ? `<p style="margin:12px 0 0;">Message de l'équipe : ${esc(motif)}</p>` : ''}`,
+        bouton: { texte: 'Ouvrir le dossier', url: `${urlSite()}/admin/residences/${residence.id}/verification` },
+      }),
+    }))));
+  }
+
   // ---------- Statut de la réservation ----------
 
   async sendStatusEmail(reservation, { message = null } = {}) {

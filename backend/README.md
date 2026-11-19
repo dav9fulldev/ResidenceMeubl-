@@ -87,6 +87,8 @@ Réponses au format `{ success, data?, message? }`. 🔒 = jeton admin, 👤 = j
 | POST | `/api/reservations` | Demande de réservation (entrées validées : types, formats, longueurs) |
 | GET | `/api/etablissement` | Identité publique de la plateforme, moyens de paiement actifs, règles d'acompte |
 | POST | `/api/entreprises/inscription` | `{ entreprise, prenom, nom, email, telephone, motDePasse }` → compte « en attente » + jeton (5 / heure) |
+| POST | `/api/residences/:id/signalement` | `{ motif, message?, email? }` → signalement d'une annonce (5 / heure) |
+| GET | `/api/photos/:id` | Photo d'annonce téléversée (cache 1 an) |
 
 ### Espace client (sans compte)
 | Méthode | Route | Description |
@@ -129,6 +131,12 @@ Réponses au format `{ success, data?, message? }`. 🔒 = jeton admin, 👤 = j
 | GET 🔒 | `/api/admin/paiements/moyens` | Moyens de paiement : configurés, activés, adresses des webhooks |
 | PUT 🔒 | `/api/admin/paiements/moyens/:id` | `{ actif }` — activer / désactiver un moyen |
 | PUT 🔒 | `/api/admin/paiements/cles/:id` | Clés propres à l'entreprise (`GENIUSPAY_API_KEY`…), chiffrées ; secret vide = inchangé |
+| GET 🔒 | `/api/admin/residences/:id/verification` | Dossier de vérification (statut, code, GPS, justificatifs, photos sur place, éléments manquants) |
+| PUT / POST / DELETE 🔒 | `…/verification/gps`, `…/documents`, `…/preuves`, `…/fichiers/:fichier` | Position, justificatifs (PDF ou image, 5 Mo, type réel contrôlé), photos sur place géolocalisées |
+| POST 🔒 | `/api/admin/residences/:id/verification/soumettre` | Envoi du dossier complet à la plateforme |
+| POST / DELETE 🔒 | `/api/admin/residences/:id/photos` | Photos de l'annonce (stockées dans MongoDB, servies par `GET /api/photos/:id`) |
+| GET / PUT 🔒⭐ | `/api/admin/plateforme/verifications[/:id]` | File d'examen ; décision `{ action: examiner \| verifier \| completer \| refuser \| suspendre \| retablir, motif }` |
+| GET / PUT 🔒⭐ | `/api/admin/plateforme/signalements[/:id]` | Signalements des visiteurs |
 
 Toutes les routes 🔒 sont limitées aux données de l'entreprise du compte connecté. ⭐ = administrateur de la plateforme uniquement.
 
@@ -144,6 +152,8 @@ Sans `/:entreprise` : la plateforme (clés des variables d'environnement).
 ---
 
 ## Fonctionnement
+
+**Vérification des résidences** ([`services/VerificationService.js`](services/VerificationService.js)). Une résidence d'entreprise n'est publiée qu'au statut `verifiee` (brouillon → en_attente → en_verification → verifiee, ou a_completer / refusee / suspendue). Le dossier réunit la position GPS, des justificatifs privés et des photos prises sur place avec un code unique, dont la position est comparée à l'adresse déclarée. Une modification de l'adresse, des photos ou des justificatifs renvoie en vérification. Les entreprises ne peuvent pas ajouter de photo par adresse externe : uniquement par téléversement. Les résidences de la plateforme sont vérifiées d'office.
 
 **Multi-entreprises.** Chaque gestionnaire crée le compte de son entreprise (`/admin/inscription`) ; l'administrateur de la plateforme la valide avant que ses résidences apparaissent sur le site. Résidences et réservations portent un `entrepriseId`. Le contexte d'entreprise ([`services/Tenant.js`](services/Tenant.js), `AsyncLocalStorage`) est posé par `requireAdmin` pour le back-office, et par réservation pour les paiements, webhooks, emails et tâches de fond : paramètres, clés de paiement et emails suivent ainsi automatiquement l'entreprise concernée, et `Tenant.filtre()` limite les requêtes du back-office à ses données. L'entreprise principale `babi` (la plateforme) garde ses données existantes, ses paramètres et ses clés en variables d'environnement. Chaque entreprise encaisse sur **son propre compte** : ses clés GeniusPay / PI-SPI sont saisies dans le back-office et chiffrées ([`services/paiement/Cles.js`](services/paiement/Cles.js)).
 
@@ -165,7 +175,7 @@ Sans `/:entreprise` : la plateforme (clés des variables d'environnement).
 
 **Sécurité.** En-têtes de sécurité et CSP sur toutes les réponses, `X-Powered-By` masqué, requêtes limitées à 100 ko (2 Mo pour `/api/admin`), validation stricte des entrées, comparaisons de jetons en temps constant.
 
-**Collections MongoDB** : `entreprises`, `utilisateurs` (mots de passe scrypt), `residences`, `reservations`, `residence_embeddings`, `counters`, `parametres` (documents `acompte`, `etablissement`, `paiement` pour la plateforme, suffixés `:<entreprise>` pour les autres), `cles_paiement` (clés chiffrées des entreprises).
+**Collections MongoDB** : `entreprises`, `utilisateurs` (mots de passe scrypt), `residences`, `reservations`, `residence_embeddings`, `counters`, `parametres` (documents `acompte`, `etablissement`, `paiement` pour la plateforme, suffixés `:<entreprise>` pour les autres), `cles_paiement` (clés chiffrées des entreprises), `verifications` (dossiers des résidences), `signalements`, et les fichiers GridFS `photos` (publiques) et `justificatifs` (privés).
 
 ---
 

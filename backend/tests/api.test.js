@@ -1561,6 +1561,9 @@ test('multi-entreprises : inscription, cloisonnement des données, validation et
   assert.equal(valid.status, 200);
   for (let i = 0; i < 20 && !envoyes.includes('sendStatutEntreprise'); i++) await new Promise(r => setTimeout(r, 25));
   assert.ok(envoyes.includes('sendStatutEntreprise'), 'gestionnaire prévenu');
+  // Résidence d'une entreprise : publiée seulement une fois vérifiée (voir test « vérification des résidences »)
+  assert.equal((await api(`/api/residences/${idVilla}`)).status, 404, 'non vérifiée : invisible');
+  await db.collection('residences').updateOne({ id: idVilla }, { $set: { statutVerification: 'verifiee' } });
 
   const publique = await api(`/api/residences/${idVilla}`);
   assert.equal(publique.status, 200);
@@ -1608,4 +1611,135 @@ test('multi-entreprises : inscription, cloisonnement des données, validation et
   assert.equal((await api(`/api/residences/${idVilla}`)).status, 404);
   assert.equal((await api('/api/admin/residences', { headers: g })).status, 403);
   assert.equal((await api('/api/admin/login', { method: 'POST', body: { email: inscription.email, password: mdp } })).status, 403);
+});
+
+test('vérification des résidences : dossier, photos, décision de la plateforme, signalements', async (t) => {
+  const Verification = require('../services/VerificationService');
+  const emails = ReservationService.emailService;
+  const envoyes = [];
+  for (const nom of ['sendBienvenueEntreprise', 'sendNouvelleEntrepriseAdmin', 'sendStatutEntreprise', 'sendAlerteVerification', 'sendDecisionVerification']) {
+    const original = emails[nom];
+    emails[nom] = async (...args) => { envoyes.push(nom); };
+    t.after(() => { emails[nom] = original; });
+  }
+  const attendreEmail = async (nom) => { for (let i = 0; i < 20 && !envoyes.includes(nom); i++) await new Promise(r => setTimeout(r, 25)); return envoyes.includes(nom); };
+  const headersAdmin = await connexionAdmin();
+
+  // Deux entreprises validées
+  const entreprise = async (nom, email) => {
+    const mdp = randomBytes(9).toString('hex');
+    const ins = await api('/api/entreprises/inscription', { method: 'POST', body: { entreprise: nom, prenom: 'Awa', nom: 'Test', email, telephone: '+225 07 00 00 00 09', motDePasse: mdp } });
+    assert.equal(ins.status, 201, JSON.stringify(ins.body));
+    await api(`/api/admin/plateforme/entreprises/${ins.body.data.entreprise.id}/statut`, { method: 'PUT', headers: headersAdmin, body: { statut: 'validee' } });
+    return { Authorization: `Bearer ${ins.body.data.token}` };
+  };
+  const g = await entreprise('Cocotiers Verif', 'gestion@cocotiers-verif.ci');
+  const autre = await entreprise('Autre Verif', 'gestion@autre-verif.ci');
+
+  // Nouvelle résidence : brouillon, photos par adresse libre ignorées
+  const creee = await api('/api/admin/residences', { method: 'POST', headers: g, body: {
+    nom: 'Villa Cocotiers', reference: 'VC-1', typeAppartement: 'Villa', localisation: 'Rue des Cocotiers', ville: 'Abidjan', quartier: 'Riviera',
+    prix: 70000, nombreChambres: 3, capacite: 6, photos: ['https://exemple.com/photo-volee.jpg'],
+  } });
+  assert.equal(creee.status, 201, JSON.stringify(creee.body));
+  const id = creee.body.data.id;
+  assert.equal(creee.body.data.statutVerification, 'brouillon');
+  assert.deepEqual(creee.body.data.photos, [], 'photos externes refusées');
+  assert.equal((await api(`/api/residences/${id}`)).status, 404, 'brouillon invisible');
+
+  // Fichiers : type réel contrôlé
+  const jpeg = Buffer.concat([Buffer.from([0xFF, 0xD8, 0xFF, 0xE0]), randomBytes(200)]).toString('base64');
+  const pdf = Buffer.concat([Buffer.from('%PDF-1.4\n'), randomBytes(200)]).toString('base64');
+  const faux = Buffer.from('<script>alert(1)</script> pas une image').toString('base64');
+  assert.equal((await api(`/api/admin/residences/${id}/photos`, { method: 'POST', headers: g, body: { contenu: faux } })).status, 400);
+  const urls = [];
+  for (let i = 0; i < 3; i++) {
+    const p = await api(`/api/admin/residences/${id}/photos`, { method: 'POST', headers: g, body: { contenu: jpeg } });
+    assert.equal(p.status, 201, JSON.stringify(p.body));
+    urls.push(p.body.data.url);
+  }
+  const photo = await fetch(`${baseUrl}/api/photos/${urls[0].split('/').pop()}`);
+  assert.equal(photo.status, 200);
+  assert.equal(photo.headers.get('content-type'), 'image/jpeg');
+  assert.equal((await fetch(`${baseUrl}/api/photos/000000000000000000000000`)).status, 404);
+  assert.equal((await api(`/api/admin/residences/${id}/photos`, { method: 'POST', headers: autre, body: { contenu: jpeg } })).status, 404, 'autre entreprise');
+
+  // Dossier incomplet
+  const incomplet = await api(`/api/admin/residences/${id}/verification/soumettre`, { method: 'POST', headers: g });
+  assert.equal(incomplet.status, 400);
+  assert.match(incomplet.body.message, /GPS/);
+  const dossier0 = (await api(`/api/admin/residences/${id}/verification`, { headers: g })).body.data;
+  assert.match(dossier0.code, /^[A-Z2-9]{6}$/);
+  assert.equal((await api(`/api/admin/residences/${id}/verification`, { headers: autre })).status, 404, 'dossier privé');
+
+  // Compléter : GPS, justificatifs, photos sur place géolocalisées
+  assert.equal((await api(`/api/admin/residences/${id}/verification/gps`, { method: 'PUT', headers: g, body: { lat: 'x', lng: 2 } })).status, 400);
+  assert.equal((await api(`/api/admin/residences/${id}/verification/gps`, { method: 'PUT', headers: g, body: { lat: 5.3600, lng: -3.9500 } })).status, 200);
+  assert.equal((await api(`/api/admin/residences/${id}/verification/documents`, { method: 'POST', headers: g, body: { type: 'inconnu', contenu: pdf } })).status, 400);
+  assert.equal((await api(`/api/admin/residences/${id}/verification/documents`, { method: 'POST', headers: g, body: { type: 'identite', nom: 'CNI.pdf', contenu: pdf } })).status, 201);
+  const droit = await api(`/api/admin/residences/${id}/verification/documents`, { method: 'POST', headers: g, body: { type: 'droit', nom: 'Mandat.pdf', contenu: pdf } });
+  assert.equal(droit.status, 201);
+  assert.equal((await api(`/api/admin/residences/${id}/verification/preuves`, { method: 'POST', headers: g, body: { type: 'facade', contenu: pdf } })).status, 400, 'photo uniquement');
+  assert.equal((await api(`/api/admin/residences/${id}/verification/preuves`, { method: 'POST', headers: g, body: { type: 'facade', contenu: jpeg, gps: { lat: 5.3605, lng: -3.9502, precision: 12 } } })).status, 201);
+  const dossier = (await api(`/api/admin/residences/${id}/verification/preuves`, { method: 'POST', headers: g, body: { type: 'interieur', contenu: jpeg } })).body.data;
+  assert.equal(dossier.manquants.length, 0, JSON.stringify(dossier.manquants));
+  const facade = dossier.preuves.find(p => p.type === 'facade');
+  assert.ok(facade.distanceM > 0 && facade.distanceM < 100, `distance ${facade.distanceM}`);
+
+  // Justificatif : téléchargement réservé à l'entreprise et à la plateforme
+  const idDoc = droit.body.data.documents.find(d => d.type === 'droit').id;
+  const telechargement = await fetch(`${baseUrl}/api/admin/residences/${id}/verification/fichiers/${idDoc}`, { headers: g });
+  assert.equal(telechargement.status, 200);
+  assert.equal(telechargement.headers.get('content-type'), 'application/pdf');
+  assert.match(telechargement.headers.get('content-disposition'), /^attachment/);
+  assert.equal((await fetch(`${baseUrl}/api/admin/residences/${id}/verification/fichiers/${idDoc}`, { headers: autre })).status, 404);
+  assert.equal((await fetch(`${baseUrl}/api/admin/residences/${id}/verification/fichiers/${idDoc}`)).status, 401);
+
+  // Envoi, puis décision de la plateforme
+  const soumis = await api(`/api/admin/residences/${id}/verification/soumettre`, { method: 'POST', headers: g });
+  assert.equal(soumis.status, 200, JSON.stringify(soumis.body));
+  assert.equal(soumis.body.data.statut, 'en_attente');
+  assert.ok(await attendreEmail('sendAlerteVerification'), 'plateforme prévenue');
+  assert.equal((await api('/api/admin/plateforme/verifications', { headers: g })).status, 403, 'réservé à la plateforme');
+  const file = (await api('/api/admin/plateforme/verifications', { headers: headersAdmin })).body.data;
+  assert.ok(file.some(v => v.id === id && v.entreprise === 'Cocotiers Verif'));
+  assert.equal((await fetch(`${baseUrl}/api/admin/plateforme/verifications/${id}/fichiers/${idDoc}`, { headers: headersAdmin })).status, 200);
+  assert.equal((await api(`/api/admin/plateforme/verifications/${id}`, { method: 'PUT', headers: headersAdmin, body: { action: 'completer' } })).status, 400, 'motif requis');
+  assert.equal((await api(`/api/admin/plateforme/verifications/${id}`, { method: 'PUT', headers: headersAdmin, body: { action: 'examiner' } })).status, 200);
+  assert.equal((await api(`/api/admin/residences/${id}/verification/gps`, { method: 'PUT', headers: g, body: { lat: 5.1, lng: -4 } })).status, 409, 'figé pendant l\'examen');
+  const ok = await api(`/api/admin/plateforme/verifications/${id}`, { method: 'PUT', headers: headersAdmin, body: { action: 'verifier' } });
+  assert.equal(ok.status, 200, JSON.stringify(ok.body));
+  assert.ok(await attendreEmail('sendDecisionVerification'), 'gestionnaire prévenu');
+  assert.equal((await api(`/api/residences/${id}`)).status, 200, 'vérifiée : publiée');
+  assert.deepEqual(ok.body.data.historique.map(h => h.statut), ['en_attente', 'en_verification', 'verifiee']);
+
+  // Changement d'adresse : retour en vérification, retrait du site
+  const modif = await api(`/api/admin/residences/${id}`, { method: 'PUT', headers: g, body: { localisation: 'Autre rue, Bingerville' } });
+  assert.equal(modif.status, 200);
+  assert.equal(modif.body.data.statutVerification, 'en_attente');
+  assert.equal((await api(`/api/residences/${id}`)).status, 404);
+  await api(`/api/admin/plateforme/verifications/${id}`, { method: 'PUT', headers: headersAdmin, body: { action: 'verifier' } });
+
+  // Signalement d'un visiteur
+  assert.equal((await api(`/api/residences/${id}/signalement`, { method: 'POST', body: { motif: 'nimporte' } })).status, 400);
+  const sig = await api(`/api/residences/${id}/signalement`, { method: 'POST', body: { motif: 'paiement_hors_plateforme', message: 'On m\'a demandé un dépôt Wave par WhatsApp', email: 'client@example.com' } });
+  assert.equal(sig.status, 201);
+  const signalements = (await api('/api/admin/plateforme/signalements', { headers: headersAdmin })).body.data;
+  const s1 = signalements.find(x => x.residenceId === id);
+  assert.equal(s1.motif, 'paiement_hors_plateforme');
+  assert.equal((await api('/api/admin/plateforme/verifications/compteurs', { headers: headersAdmin })).body.data.signalements >= 1, true);
+  assert.equal((await api(`/api/admin/plateforme/verifications/${id}`, { method: 'PUT', headers: headersAdmin, body: { action: 'suspendre', motif: 'Signalement : paiement hors plateforme' } })).status, 200);
+  assert.equal((await api(`/api/residences/${id}`)).status, 404, 'suspendue : retirée');
+  assert.equal((await api(`/api/admin/plateforme/signalements/${s1.id}`, { method: 'PUT', headers: headersAdmin })).status, 200);
+  assert.ok(!(await api('/api/admin/plateforme/signalements', { headers: headersAdmin })).body.data.some(x => x.id === s1.id), 'traité');
+
+  // Résidences de la plateforme : vérifiées d'office, non concernées
+  assert.equal((await api('/api/admin/plateforme/verifications/1', { method: 'PUT', headers: headersAdmin, body: { action: 'suspendre', motif: 'test motif' } })).status, 409);
+  assert.equal(Verification.distanceM({ lat: 5.36, lng: -3.95 }, { lat: 5.36, lng: -3.95 }), 0);
+
+  // Suppression : dossier et fichiers effacés
+  assert.equal((await api(`/api/admin/residences/${id}`, { method: 'DELETE', headers: g })).status, 200);
+  assert.equal(await db.collection('verifications').countDocuments({ _id: id }), 0);
+  assert.equal(await db.collection('justificatifs.files').countDocuments({ 'metadata.residenceId': id }), 0);
+  assert.equal(await db.collection('photos.files').countDocuments({ 'metadata.residenceId': id }), 0);
 });

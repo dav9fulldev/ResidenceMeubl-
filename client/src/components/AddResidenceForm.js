@@ -51,7 +51,7 @@ const AddResidenceForm = ({ onAddResidence, onClose }) => {
     maxGuests: '',
     surface: '',
     amenities: [],
-    images: ['/images/residence1.png'], // Image par défaut
+    images: [], // photos téléversées après la création (voir handleAdd)
     availability: {
       status: 'disponible',
       nextAvailable: null,
@@ -104,19 +104,15 @@ const AddResidenceForm = ({ onAddResidence, onClose }) => {
     const validImageFiles = files.filter(
       (file) => file && typeof file.type === 'string' && file.type.startsWith('image/')
     );
-    const imageUrls = validImageFiles
-      .map((file) => URL.createObjectURL(file))
-      .filter((url) => typeof url === 'string' && url.startsWith('blob:'));
-
-    setSelectedImages(prev => [...prev, ...imageUrls]);
+    const choisies = validImageFiles.map((file) => ({ url: URL.createObjectURL(file), file }));
+    setSelectedImages(prev => [...prev, ...choisies].slice(0, 15));
+    e.target.value = '';
   };
 
   const removeImage = (indexToRemove) => {
     setSelectedImages(prev => {
       const imageToRemove = prev[indexToRemove];
-      if (typeof imageToRemove === 'string' && imageToRemove.startsWith('blob:')) {
-        URL.revokeObjectURL(imageToRemove);
-      }
+      if (imageToRemove?.url) URL.revokeObjectURL(imageToRemove.url);
       const newImages = prev.filter((_, index) => index !== indexToRemove);
       return newImages;
     });
@@ -169,7 +165,8 @@ const AddResidenceForm = ({ onAddResidence, onClose }) => {
         maxGuests: parseInt(formData.maxGuests),
         rating: 4.5,
         available: true,
-        images: formData.images,
+        images: [],
+        fichiers: selectedImages.map(x => x.file), // envoyés un par un après la création
         amenities: formData.amenities,
         availability: formData.availability
       };
@@ -428,11 +425,9 @@ const AddResidenceForm = ({ onAddResidence, onClose }) => {
               <div className="selected-images">
                 <label>Images sélectionnées ({selectedImages.length}) :</label>
                 <div className="images-preview">
-                  {selectedImages
-                    .filter((imageUrl) => typeof imageUrl === 'string' && imageUrl.startsWith('blob:'))
-                    .map((imageUrl, index) => (
-                      <div key={index} className="image-preview-item">
-                        <img src={imageUrl} alt={`Aperçu ${index + 1}`} />
+                  {selectedImages.map(({ url }, index) => (
+                      <div key={url} className="image-preview-item">
+                        <img src={url} alt={`Aperçu ${index + 1}`} />
                         <button
                           type="button"
                           onClick={() => removeImage(index)}
@@ -447,7 +442,7 @@ const AddResidenceForm = ({ onAddResidence, onClose }) => {
               </div>
             )}
             
-            <small>Formats acceptés : JPG, PNG, GIF. Taille max : 5MB par image</small>
+            <small>JPG, PNG ou WebP, 15 photos au plus. Elles sont allégées automatiquement. Au moins 3 photos sont demandées pour la vérification de la résidence.</small>
           </div>
 
           <div className="form-actions">

@@ -10,6 +10,7 @@ import { useResidences } from '../context/ResidencesContext';
 import { useFavorites } from '../context/FavoritesContext';
 import AvailabilityStatus from '../components/AvailabilityStatus';
 import SimilarResidences from '../components/SimilarResidences';
+import SignalerAnnonce from '../components/SignalerAnnonce';
 import NotFound from './NotFound';
 import './ResidenceDetail.css';
 
@@ -115,7 +116,10 @@ const ResidenceDetail = () => {
               <span><FaMapMarkerAlt aria-hidden="true" /> {residence.location}{residence.neighborhood ? `, ${residence.neighborhood}` : ''}</span>
               {residence.reference && <span className="rd-ref">Réf. {residence.reference}</span>}
             </p>
-            {residence.company?.nom && <p className="rd-proprietaire">Proposé par <b>{residence.company.nom}</b></p>}
+            <p className="rd-proprietaire">
+              <span className="rd-verifiee"><FaShieldAlt aria-hidden="true" /> Résidence vérifiée</span>
+              {residence.company?.nom && <>Proposé par <b>{residence.company.nom}</b></>}
+            </p>
           </div>
           <button
             type="button"
@@ -213,6 +217,8 @@ const ResidenceDetail = () => {
             )}
             <AvailabilityStatus availability={residence.availability} onReserve={reserver} />
             {!enMaintenance && <p className="rd-rassurance">Aucun paiement avant notre confirmation</p>}
+            <p className="rd-hors-plateforme">Payez uniquement sur BABI RESIDENCE. Si l'on vous demande un dépôt par WhatsApp, Wave ou virement direct, ne payez pas et signalez l'annonce.</p>
+            <SignalerAnnonce residenceId={residence.id} />
           </aside>
         </div>
 

@@ -207,6 +207,32 @@ router.post('/recherche-ia', rechercheIaLimiter, async (req, res) => {
   }
 });
 
+// Signalements : 5 par heure et par visiteur
+const signalementLimiter = rateLimit({
+  keyGenerator: cleLimite,
+  skip: () => process.env.NODE_ENV === 'test',
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  message: { success: false, message: 'Trop de signalements, réessayez plus tard.' },
+});
+
+/**
+ * @route   POST /api/residences/:id/signalement
+ * @desc    Un visiteur signale une annonce (fausse annonce, photos trompeuses, paiement hors plateforme…)
+ * @body    { motif, message?, email? }
+ */
+router.post('/:id/signalement', signalementLimiter, async (req, res) => {
+  const Verification = require('../services/VerificationService');
+  try {
+    await Verification.signaler(req.params.id, req.body || {});
+    res.status(201).json({ success: true, message: 'Merci : notre équipe va examiner cette annonce.' });
+  } catch (error) {
+    if (error instanceof Verification.ErreurVerification) return res.status(error.status).json({ success: false, message: error.message });
+    console.error('Erreur lors du signalement:', error);
+    res.status(500).json({ success: false, message: 'Erreur lors du signalement' });
+  }
+});
+
 /**
  * @route   GET /api/residences/:id/similaires
  * @desc    Résidences les plus proches (« Vous aimerez aussi »)

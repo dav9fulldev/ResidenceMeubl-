@@ -16,6 +16,7 @@ const Cles = require('../services/paiement/Cles');
 const Tenant = require('../services/Tenant');
 const EntrepriseService = require('../services/EntrepriseService');
 const ReservationService = require('../services/ReservationService');
+const Verification = require('../services/VerificationService');
 
 // Limiter les tentatives de connexion (anti force brute)
 const loginLimiter = rateLimit({
@@ -207,6 +208,108 @@ router.delete('/residences/:id', async (req, res) => {
   } catch (error) {
     gererErreur(res, error, 'lors de la suppression de la résidence');
   }
+});
+
+// ---------- Vérification des résidences (gestionnaire : limité à son entreprise) ----------
+
+const erreurVerif = (res, error, contexte) => {
+  if (error instanceof Verification.ErreurVerification) return res.status(error.status).json({ success: false, message: error.message });
+  return gererErreur(res, error, contexte);
+};
+const urlApi = (req) => `${req.protocol}://${req.get('host')}`;
+
+/**
+ * Dossier de vérification d'une résidence
+ * @route GET    /api/admin/residences/:id/verification
+ * @route PUT    /api/admin/residences/:id/verification/gps          { lat, lng }
+ * @route POST   /api/admin/residences/:id/verification/documents    { type, nom, contenu (base64) }
+ * @route POST   /api/admin/residences/:id/verification/preuves      { type, contenu (base64), gps }
+ * @route DELETE /api/admin/residences/:id/verification/fichiers/:fichier
+ * @route GET    /api/admin/residences/:id/verification/fichiers/:fichier   (téléchargement privé)
+ * @route POST   /api/admin/residences/:id/verification/soumettre
+ */
+router.get('/residences/:id/verification', async (req, res) => {
+  try { res.json({ success: true, data: await Verification.dossier(req.params.id) }); } catch (e) { erreurVerif(res, e, 'lors de la lecture du dossier'); }
+});
+router.put('/residences/:id/verification/gps', async (req, res) => {
+  try { res.json({ success: true, data: await Verification.enregistrerGps(req.params.id, req.body || {}) }); } catch (e) { erreurVerif(res, e, 'lors de l\'enregistrement de la position'); }
+});
+router.post('/residences/:id/verification/documents', async (req, res) => {
+  try { res.status(201).json({ success: true, data: await Verification.ajouterDocument(req.params.id, req.body || {}) }); } catch (e) { erreurVerif(res, e, 'lors de l\'envoi du document'); }
+});
+router.post('/residences/:id/verification/preuves', async (req, res) => {
+  try { res.status(201).json({ success: true, data: await Verification.ajouterPreuve(req.params.id, req.body || {}) }); } catch (e) { erreurVerif(res, e, 'lors de l\'envoi de la photo'); }
+});
+router.delete('/residences/:id/verification/fichiers/:fichier', async (req, res) => {
+  try { res.json({ success: true, data: await Verification.retirerFichier(req.params.id, req.params.fichier) }); } catch (e) { erreurVerif(res, e, 'lors de la suppression'); }
+});
+const envoyerFichier = async (res, lecture) => {
+  const { flux, mime, nom } = await lecture;
+  res.set({
+    'Content-Type': mime,
+    'Content-Disposition': `attachment; filename="${String(nom).replace(/[^\w.\- ]/g, '_')}"`,
+    'Cache-Control': 'private, no-store',
+  });
+  flux.on('error', () => res.destroy()).pipe(res);
+};
+router.get('/residences/:id/verification/fichiers/:fichier', async (req, res) => {
+  try { await envoyerFichier(res, Verification.lireFichier(req.params.id, req.params.fichier)); } catch (e) { erreurVerif(res, e, 'lors du téléchargement'); }
+});
+router.post('/residences/:id/verification/soumettre', async (req, res) => {
+  try { res.json({ success: true, data: await Verification.soumettre(req.params.id) }); } catch (e) { erreurVerif(res, e, 'lors de l\'envoi du dossier'); }
+});
+
+/**
+ * Photos de l'annonce (téléversées, publiques une fois la résidence vérifiée)
+ * @route POST   /api/admin/residences/:id/photos   { contenu (base64) }
+ * @route DELETE /api/admin/residences/:id/photos   { url }
+ */
+router.post('/residences/:id/photos', async (req, res) => {
+  try {
+    const url = await Verification.ajouterPhoto(req.params.id, req.body?.contenu, urlApi(req));
+    const residence = (await ResidenceService.getAllResidencesAdmin()).find(r => r.id === parseInt(req.params.id, 10));
+    res.status(201).json({ success: true, data: { url, residence } });
+  } catch (e) { erreurVerif(res, e, 'lors de l\'envoi de la photo'); }
+});
+router.delete('/residences/:id/photos', async (req, res) => {
+  try {
+    await Verification.retirerPhoto(req.params.id, String(req.body?.url || ''));
+    const residence = (await ResidenceService.getAllResidencesAdmin()).find(r => r.id === parseInt(req.params.id, 10));
+    res.json({ success: true, data: { residence } });
+  } catch (e) { erreurVerif(res, e, 'lors de la suppression de la photo'); }
+});
+
+// ---------- Vérification des résidences (plateforme) ----------
+
+/**
+ * @route GET /api/admin/plateforme/verifications?statut=     file d'attente (par défaut : à traiter)
+ * @route GET /api/admin/plateforme/verifications/compteurs
+ * @route GET /api/admin/plateforme/verifications/:id
+ * @route PUT /api/admin/plateforme/verifications/:id          { action, motif }
+ * @route GET /api/admin/plateforme/verifications/:id/fichiers/:fichier
+ * @route GET /api/admin/plateforme/signalements?tous=1
+ * @route PUT /api/admin/plateforme/signalements/:id           (traité)
+ */
+router.get('/plateforme/verifications', superAdmin, async (req, res) => {
+  try { res.json({ success: true, data: await Verification.lister({ statut: req.query.statut }) }); } catch (e) { erreurVerif(res, e, 'lors de la lecture des vérifications'); }
+});
+router.get('/plateforme/verifications/compteurs', superAdmin, async (req, res) => {
+  try { res.json({ success: true, data: await Verification.compteurs() }); } catch (e) { erreurVerif(res, e, 'lors du comptage'); }
+});
+router.get('/plateforme/verifications/:id', superAdmin, async (req, res) => {
+  try { res.json({ success: true, data: await Verification.dossier(req.params.id, { plateforme: true }) }); } catch (e) { erreurVerif(res, e, 'lors de la lecture du dossier'); }
+});
+router.put('/plateforme/verifications/:id', superAdmin, async (req, res) => {
+  try { res.json({ success: true, data: await Verification.decider(req.params.id, req.body?.action, req.body?.motif) }); } catch (e) { erreurVerif(res, e, 'lors de la décision'); }
+});
+router.get('/plateforme/verifications/:id/fichiers/:fichier', superAdmin, async (req, res) => {
+  try { await envoyerFichier(res, Verification.lireFichier(req.params.id, req.params.fichier, { plateforme: true })); } catch (e) { erreurVerif(res, e, 'lors du téléchargement'); }
+});
+router.get('/plateforme/signalements', superAdmin, async (req, res) => {
+  try { res.json({ success: true, data: await Verification.signalements({ tous: req.query.tous === '1' }) }); } catch (e) { erreurVerif(res, e, 'lors de la lecture des signalements'); }
+});
+router.put('/plateforme/signalements/:id', superAdmin, async (req, res) => {
+  try { await Verification.traiterSignalement(req.params.id); res.json({ success: true }); } catch (e) { erreurVerif(res, e, 'lors du traitement du signalement'); }
 });
 
 /**
