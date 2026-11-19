@@ -5,7 +5,7 @@
   position: sticky;
   top: 0;
   z-index: 1000;
-  border-bottom: 1px solid rgba(36, 60, 53, 0.2);
+  border-bottom: 1px solid rgba(18, 40, 76, 0.2);
 }
 
 .header-container {
@@ -92,7 +92,7 @@
 .nav-link:hover,
 .nav-link.active {
   color: var(--primary-color);
-  background: rgba(36, 60, 53, 0.1);
+  background: rgba(18, 40, 76, 0.1);
   border-radius: 8px;
   padding: 10px 16px;
 }
@@ -164,7 +164,7 @@
 .theme-toggle:hover,
 .search-toggle:hover,
 .mobile-menu-toggle:hover {
-  background: rgba(36, 60, 53, 0.1);
+  background: rgba(18, 40, 76, 0.1);
   color: var(--primary-color);
   transform: scale(1.1);
 }
@@ -196,7 +196,7 @@
 
 .search-input:focus {
   border-color: var(--primary-color);
-  box-shadow: 0 0 0 3px rgba(36, 60, 53, 0.1);
+  box-shadow: 0 0 0 3px rgba(18, 40, 76, 0.1);
 }
 
 .search-button {
@@ -216,7 +216,7 @@
 .search-button:hover {
   background: linear-gradient(135deg, var(--primary-dark), var(--primary-color));
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(36, 60, 53, 0.3);
+  box-shadow: 0 4px 12px rgba(18, 40, 76, 0.3);
 }
 
 /* Responsive */
@@ -336,7 +336,7 @@
 .theme-toggle:focus-visible,
 .search-toggle:focus-visible,
 .mobile-menu-toggle:focus-visible {
-  outline: 3px solid rgba(196, 154, 98, 0.7);
+  outline: 3px solid rgba(224, 165, 38, 0.7);
   outline-offset: 2px;
 }
 
@@ -351,8 +351,14 @@
 .logo a { display: flex; align-items: center; gap: 12px; text-decoration: none; }
 
 .logo .logo-texte { display: flex; flex-direction: column; line-height: 1.1; letter-spacing: 0; text-transform: none; color: var(--text); font-size: inherit; }
-.logo .logo-texte b { font-family: var(--font-titre); font-size: 1.3rem; font-weight: 600; color: var(--text); }
-.logo .logo-texte small { font-size: 0.7rem; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--gold-ink); }
+/* Logo BABI RESIDENCE : emblème (bleu nuit = currentColor) + nom */
+.logo .logo-image { height: 46px; width: auto; border-radius: 0; box-shadow: none; color: #12284C; }
+.logo .logo-image:hover { transform: none; box-shadow: none; }
+:root[data-theme="dark"] .logo .logo-image { color: #F7F5F0; }
+.logo .logo-texte b { font-family: var(--font-texte); font-size: 1.45rem; font-weight: 800; letter-spacing: 0.03em; color: var(--green-deep); }
+.logo .logo-texte small { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase; color: var(--green-deep); }
+:root[data-theme="dark"] .logo .logo-texte b,
+:root[data-theme="dark"] .logo .logo-texte small { color: var(--text); }
 
 .nav-list { gap: 6px; }
 
@@ -373,6 +379,7 @@
 .favorites-icon { color: var(--gold); }
 
 @media (max-width: 480px) {
-  .logo .logo-texte small { display: none; }
-  .logo .logo-texte b { font-size: 1.15rem; }
+  .logo .logo-image { height: 38px; }
+  .logo .logo-texte b { font-size: 1.2rem; }
+  .logo .logo-texte small { font-size: 0.62rem; }
 }

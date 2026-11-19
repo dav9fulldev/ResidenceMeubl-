@@ -1,5 +1,5 @@
 /**
- * Script de test simple pour l'API Sankofart Résidence
+ * Script de test simple pour l'API BABI RESIDENCE
  * Exécuter avec: node test-api.js
  */
 
@@ -8,7 +8,7 @@ const axios = require('axios');
 const BASE_URL = process.env.API_URL || 'http://localhost:5001';
 
 async function testAPI() {
-  console.log('🧪 Test de l\'API Sankofart Résidence\n');
+  console.log('🧪 Test de l\'API BABI RESIDENCE\n');
 
   try {
     // Test 1: Route de santé

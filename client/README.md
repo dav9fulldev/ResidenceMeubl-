@@ -1,4 +1,4 @@
-# Sankofart Résidence — Site
+# BABI RESIDENCE — Site
 
 Site React : vitrine, recherche (dates, texte, voix), réservation, paiement en ligne, espace client et back-office installable.
 
@@ -29,11 +29,13 @@ Définie par des variables CSS dans [`src/App.css`](src/App.css), en mode clair 
 | Rôle | Couleur |
 |---|---|
 | Fond ivoire | `#F7F5F0` |
-| Vert profond (boutons, menu du back-office) | `#243C35` |
-| Or doux (accents) | `#C49A62` |
+| Bleu nuit (boutons, menu du back-office, logo) | `#12284C` |
+| Or (accents, logo) | `#E0A526` |
 | Texte | `#343A40` |
 
-Polices : *Playfair Display* pour les titres du site, *Inter* pour le texte et tout le back-office.
+Polices : *Playfair Display* pour les titres du site, *Inter* pour le texte, le logo et tout le back-office.
+
+Logo : composant [`LogoBabi`](src/components/LogoBabi.js) (le bleu nuit suit le mode sombre), fichiers `public/images/logo-babi.svg` et `logo-babi-clair.svg`, icônes dans `public/icons/`. Vidéo d'accueil : `public/videos/hero-desktop.mp4` et `hero-mobile.mp4`.
 
 ---
 
@@ -63,7 +65,7 @@ client/
 ├── public/
 │   ├── init.js                   # Thème et manifeste avant affichage (pas de script inline : CSP)
 │   ├── images/paiement/          # Logos PI-SPI et GeniusPay
-│   └── admin/                    # Manifeste et service worker de l'application Sankofart Admin
+│   └── admin/                    # Manifeste et service worker de l'application BABI Admin
 └── src/
     ├── App.js                    # Routes, chargement à la demande, Vercel Analytics (filtré)
     ├── config/api.js             # Adresses de l'API et requêtes

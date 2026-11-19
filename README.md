@@ -1,4 +1,6 @@
-# Sankofart Résidence
+# BABI RESIDENCE
+
+*Réservez. Séjournez. Profitez.*
 
 Plateforme de réservation de résidences meublées à Abidjan : site vitrine, réservation en ligne, paiement de l'acompte et du solde (PI-SPI, GeniusPay), back-office complet et recherche intelligente par IA, à l'écrit comme à la voix.
 
@@ -33,7 +35,7 @@ Mise en ligne : voir [DEPLOIEMENT.md](DEPLOIEMENT.md).
 - **Favoris** enregistrés dans le navigateur.
 
 ### Pour l'administrateur (`/admin`)
-Le back-office n'est lié nulle part sur le site public : on y accède par **`/admin`** ou par l'application **Sankofart Admin** installable (ordinateur et téléphone). Il n'est pas indexé par les moteurs de recherche.
+Le back-office n'est lié nulle part sur le site public : on y accède par **`/admin`** ou par l'application **BABI Admin** installable (ordinateur et téléphone). Il n'est pas indexé par les moteurs de recherche.
 
 | Page | Contenu |
 |---|---|

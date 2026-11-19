@@ -14,7 +14,7 @@
   document.head.appendChild(link);
   var titre = document.createElement('meta');
   titre.name = 'apple-mobile-web-app-title';
-  titre.content = admin ? 'Sankofart Admin' : 'Sankofart';
+  titre.content = admin ? 'BABI Admin' : 'BABI RESIDENCE';
   document.head.appendChild(titre);
   // Service worker du back-office (permet l'installation dès la page de connexion)
   if (admin && 'serviceWorker' in navigator) {

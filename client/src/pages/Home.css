@@ -587,7 +587,7 @@
 }
 
 /* ==========================================================================
-   Charte Sankofart : accueil
+   Charte BABI RESIDENCE : accueil
    ========================================================================== */
 .home { background: var(--bg); }
 
@@ -753,7 +753,7 @@
 .home .feature-card p { font-size: 0.92rem; }
 
 /* Bandeau final */
-.home .cta { padding: 88px 0; background: #243C35; }
+.home .cta { padding: 88px 0; background: #12284C; }
 .home .cta::before { display: none; }
 
 .home .cta-content h2 {

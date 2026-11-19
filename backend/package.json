@@ -15,7 +15,7 @@
   ],
   "author": "David YAO",
   "license": "ISC",
-  "description": "Backend API pour Sankofart Résidence - Système de réservation",
+  "description": "Backend API pour BABI RESIDENCE - Système de réservation",
   "dependencies": {
     "@pi-spi/qrcode": "1.0.0",
     "axios": "^1.11.0",

@@ -55,7 +55,7 @@ const ResidenceDetail = () => {
   }, [visionneuse, residence]);
 
   useEffect(() => {
-    if (residence) document.title = `${residence.name} · Sankofart Résidence`;
+    if (residence) document.title = `${residence.name} · BABI RESIDENCE`;
   }, [residence]);
 
   if (loading) {

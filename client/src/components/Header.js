@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { useFavorites } from '../context/FavoritesContext';
 import { FaHeart, FaBars, FaTimes, FaSearch, FaMoon, FaSun } from 'react-icons/fa';
 import useTheme from '../hooks/useTheme';
+import LogoBabi from './LogoBabi';
 import './Header.css';
 
 const Header = () => {
@@ -42,15 +43,11 @@ const Header = () => {
     <header className="header">
       <div className="header-container">
         <div className="logo">
-          <Link to="/" onClick={closeMenu}>
-            <img 
-              src="/images/logo_entreprise.png" 
-              alt="Sankofart Résidence" 
-              className="logo-image"
-            />
+          <Link to="/" onClick={closeMenu} aria-label="BABI RESIDENCE, accueil">
+            <LogoBabi className="logo-image" />
             <span className="logo-texte">
-              <b>Sankofart</b>
-              <small>Résidences meublées</small>
+              <b>BABI</b>
+              <small>RESIDENCE</small>
             </span>
           </Link>
         </div>

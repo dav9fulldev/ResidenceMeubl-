@@ -7,7 +7,7 @@ const urlSite = () => (process.env.FRONTEND_URL || '').split(',')[0].trim().repl
 const urlAbsolue = (chemin) => (/^https?:\/\//.test(chemin) ? chemin : `${urlSite()}${chemin}`);
 
 // Couleur d'accent unique des emails (vert de la charte)
-const ACCENT = '#243C35';
+const ACCENT = '#12284C';
 
 const fcfa = (n) => `${Math.round(Number(n) || 0).toLocaleString('fr-FR')} FCFA`;
 const date = (d) => (d ? new Date(d).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }) : '—');
@@ -100,7 +100,7 @@ class EmailService {
   }
 
   get nomEtablissement() {
-    return Settings.etablissement().nom || 'Sankofart Résidence';
+    return Settings.etablissement().nom || 'BABI RESIDENCE';
   }
 
   // Initialiser le transporteur SMTP (utilisé seulement sans Brevo)
@@ -184,12 +184,12 @@ class EmailService {
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F4F2EE;padding:32px 12px;">
 <tr><td align="center">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:#FFFFFF;border:1px solid #E6E1D8;border-radius:12px;">
-  <tr><td style="padding:28px 36px 20px;border-bottom:1px solid #EFEBE3;">
-    <p style="margin:0;font-family:Georgia,'Times New Roman',serif;font-size:20px;color:${ACCENT};">${esc(e.nom)}</p>
-    <p style="margin:4px 0 0;font-family:Arial,Helvetica,sans-serif;font-size:12px;letter-spacing:1px;text-transform:uppercase;color:#8A8F93;">Résidences meublées</p>
+  <tr><td style="padding:28px 36px 20px;border-bottom:3px solid #E0A526;">
+    <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:20px;font-weight:bold;letter-spacing:1px;color:${ACCENT};">${esc(e.nom)}</p>
+    <p style="margin:4px 0 0;font-family:Arial,Helvetica,sans-serif;font-size:12px;font-style:italic;color:#8A8F93;">Réservez. Séjournez. Profitez.</p>
   </td></tr>
   <tr><td style="padding:32px 36px 8px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.6;color:#3A4045;">
-    <h1 style="margin:0 0 18px;font-family:Georgia,'Times New Roman',serif;font-size:24px;font-weight:normal;color:#1F2A26;">${esc(titre)}</h1>
+    <h1 style="margin:0 0 18px;font-family:Georgia,'Times New Roman',serif;font-size:24px;font-weight:normal;color:#0F1A2E;">${esc(titre)}</h1>
     ${contenu}
     ${bouton ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:28px 0 8px;"><tr><td style="background:${ACCENT};border-radius:8px;">
       <a href="${esc(bouton.url)}" style="display:inline-block;padding:13px 24px;font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:bold;color:#FFFFFF;text-decoration:none;">${esc(bouton.texte)}</a>
@@ -210,7 +210,7 @@ class EmailService {
     return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:18px 0;border:1px solid #EFEBE3;border-radius:8px;">
       ${lignes.filter(Boolean).map(([libelle, valeur], i) => `<tr>
         <td style="padding:10px 14px;${i ? 'border-top:1px solid #EFEBE3;' : ''}font-size:13px;color:#8A8F93;width:42%;vertical-align:top;">${esc(libelle)}</td>
-        <td style="padding:10px 14px;${i ? 'border-top:1px solid #EFEBE3;' : ''}font-size:14px;color:#1F2A26;vertical-align:top;">${valeur}</td>
+        <td style="padding:10px 14px;${i ? 'border-top:1px solid #EFEBE3;' : ''}font-size:14px;color:#0F1A2E;vertical-align:top;">${valeur}</td>
       </tr>`).join('')}
     </table>`;
   }

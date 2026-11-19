@@ -41,7 +41,7 @@
 }
 
 .params-nav-lien.actif .params-nav-icone { background: var(--green-deep); color: #fff; }
-:root[data-theme="dark"] .params-nav-lien.actif .params-nav-icone { background: var(--gold); color: #1F2A26; }
+:root[data-theme="dark"] .params-nav-lien.actif .params-nav-icone { background: var(--gold); color: #0F1A2E; }
 
 .params-contenu { padding: 24px 28px; }
 
@@ -91,7 +91,7 @@
 .params-note { margin: 0; font-size: 0.82rem; color: var(--text-muted); }
 .params-pied { display: flex; justify-content: flex-end; padding-top: 16px; border-top: 1px solid var(--border); }
 
-.params-apercu { padding: 18px; border-radius: var(--rayon-petit); background: #243C35; color: rgba(255, 255, 255, 0.85); }
+.params-apercu { padding: 18px; border-radius: var(--rayon-petit); background: #12284C; color: rgba(255, 255, 255, 0.85); }
 .params-apercu p { margin: 0; }
 .params-apercu .surtitre { color: var(--gold); }
 .params-apercu-nom { font-family: var(--font-titre); font-size: 1.5rem; color: #fff; margin: 6px 0 2px !important; }
@@ -134,7 +134,7 @@
   align-items: center;
   justify-content: center;
   background: #F2B705;
-  color: #1F2A26;
+  color: #0F1A2E;
   font-weight: 800;
 }
 

@@ -150,7 +150,7 @@ app.use('/api/client', clientRoutes);
 app.get('/health', (req, res) => {
   res.json({
     success: true,
-    message: 'Sankofart Résidence API - Opérationnel',
+    message: 'BABI RESIDENCE API - Opérationnel',
     timestamp: new Date().toISOString(),
     version: '1.0.0'
   });
@@ -160,7 +160,7 @@ app.get('/health', (req, res) => {
 app.get('/', (req, res) => {
   res.json({
     success: true,
-    message: 'Bienvenue sur l\'API Sankofart Résidence',
+    message: 'Bienvenue sur l\'API BABI RESIDENCE',
     endpoints: {
       residences: '/api/residences',
       reservations: '/api/reservations',
@@ -232,7 +232,7 @@ if (require.main === module) {
         console.log('🔎 Recherche intelligente : mode mots-clés (VOYAGE_API_KEY non définie)');
       }
       app.listen(PORT, () => {
-        console.log('🏠 Sankofart Résidence API');
+        console.log('🏠 BABI RESIDENCE API');
         console.log(`🚀 Serveur démarré sur http://localhost:${PORT}`);
         console.log(process.env.BREVO_API_KEY
           ? `📧 Emails : API Brevo (expéditeur ${process.env.EMAIL_FROM || process.env.EMAIL_USER || '❌ non défini'})`
