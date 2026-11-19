@@ -4,7 +4,6 @@ const AuthService = require('./AuthService');
 
 // Adresse publique du site (première valeur de FRONTEND_URL), pour les liens et images des emails
 const urlSite = () => (process.env.FRONTEND_URL || '').split(',')[0].trim().replace(/\/$/, '');
-const urlAbsolue = (chemin) => (/^https?:\/\//.test(chemin) ? chemin : `${urlSite()}${chemin}`);
 
 // Couleur d'accent unique des emails (vert de la charte)
 const ACCENT = '#243C35';

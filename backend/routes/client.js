@@ -22,7 +22,12 @@ const accesLimiter = rateLimit({
   message: { success: false, message: 'Trop de tentatives, réessayez dans 15 minutes.' },
 });
 
-const emailValide = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || '').trim());
+// Domaine découpé en parties sans point : pas de retour arrière coûteux (ReDoS) ; longueur bornée
+const EMAIL = /^[^\s@]+@[^\s@.]+(?:\.[^\s@.]+)+$/;
+const emailValide = (email) => {
+  const e = String(email || '').trim();
+  return e.length <= 254 && EMAIL.test(e);
+};
 
 const gererErreur = (res, error, contexte) => {
   if (error instanceof ReservationService.ErreurClient || error instanceof PaymentService.ErreurPaiement) {

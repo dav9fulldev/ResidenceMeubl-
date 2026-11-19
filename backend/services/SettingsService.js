@@ -95,10 +95,9 @@ class SettingsService {
 
   async modifierEtablissement(valeurs = {}) {
     const maj = {};
-    for (const [k, v] of Object.entries(valeurs)) {
-      const d = TEXTES[k];
-      if (!d) continue;
-      const texte = String(v ?? '').trim();
+    for (const [k, d] of Object.entries(TEXTES)) {
+      if (!Object.prototype.hasOwnProperty.call(valeurs, k)) continue;
+      const texte = String(valeurs[k] ?? '').trim();
       if (d.requis && !texte) throw new ErreurParametre(`Le champ « ${k} » est obligatoire`);
       if (texte.length > d.max) throw new ErreurParametre(`« ${k} » : ${d.max} caractères au maximum`);
       if (texte && d.type && !FORMATS[d.type].test(texte)) {
@@ -118,10 +117,9 @@ class SettingsService {
 
   async modifier(valeurs = {}) {
     const maj = {};
-    for (const [k, v] of Object.entries(valeurs)) {
-      const d = DEFINITIONS[k];
-      if (!d) continue;
-      const n = Number(v);
+    for (const [k, d] of Object.entries(DEFINITIONS)) {
+      if (!Object.prototype.hasOwnProperty.call(valeurs, k)) continue;
+      const n = Number(valeurs[k]);
       if (!Number.isInteger(n) || n < d.min || n > d.max) {
         throw new ErreurParametre(`Valeur invalide pour ${k} (entier entre ${d.min} et ${d.max})`);
       }
