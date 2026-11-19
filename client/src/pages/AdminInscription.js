@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { FaEye, FaEyeSlash } from 'react-icons/fa';
 import { API_ENDPOINTS, apiRequest } from '../config/api';
 import { useResidences } from '../context/ResidencesContext';
-import LogoBabi from '../components/LogoBabi';
+import PanneauMarque from '../components/PanneauMarque';
 import './AdminLogin.css';
 
 const MIN_MDP = 10;
@@ -41,14 +41,9 @@ const AdminInscription = () => {
   return (
     <div className="admin-login-page">
       <div className="admin-login-container">
-        <div className="admin-login-header">
-          <div className="admin-logo">
-            <LogoBabi className="admin-login-embleme" />
-            <span className="surtitre">Espace gestionnaires</span>
-            <h2>Publiez vos résidences</h2>
-            <p>Créez le compte de votre entreprise : vos résidences, vos réservations, vos paiements, sur BABI RESIDENCE.</p>
-          </div>
-        </div>
+        <PanneauMarque>
+          <p><strong>Espace gestionnaires</strong> Publiez vos résidences meublées sur BABI RESIDENCE : réservations, paiements et suivi au même endroit.</p>
+        </PanneauMarque>
 
         <div className="admin-login-form">
           <h3>Créer un compte entreprise</h3>
