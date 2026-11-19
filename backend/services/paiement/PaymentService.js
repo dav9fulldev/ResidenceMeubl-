@@ -195,7 +195,7 @@ class PaymentService {
    * @returns le paiement à jour (ou null)
    */
   async verifier(txId, options = {}) {
-    const r = await this.collection.findOne({ 'paiements.txId': txId }, { projection: { _id: 0 } });
+    const r = await this.collection.findOne({ 'paiements.txId': { $eq: String(txId) } }, { projection: { _id: 0 } });
     if (!r) return null;
     return Tenant.pour(r, () => this.verifierPour(r, txId, options));
   }
@@ -235,10 +235,10 @@ class PaymentService {
 
   async cloturer(reservationId, txId, statut, raison) {
     await this.collection.updateOne(
-      { id: reservationId, paiements: { $elemMatch: { txId, statut: 'en_attente' } } },
+      { id: { $eq: String(reservationId) }, paiements: { $elemMatch: { txId, statut: 'en_attente' } } },
       { $set: { 'paiements.$.statut': statut, 'paiements.$.raison': raison, 'paiements.$.clotureLe': new Date() } }
     );
-    const r = await this.collection.findOne({ id: reservationId }, { projection: { _id: 0 } });
+    const r = await this.collection.findOne({ id: { $eq: String(reservationId) } }, { projection: { _id: 0 } });
     return r.paiements.find(x => x.txId === txId);
   }
 
@@ -246,22 +246,22 @@ class PaymentService {
    * Enregistre l'acompte comme payé (une seule fois) et envoie les emails.
    */
   async marquerPaye(reservationId, txId, { end2endId = null, payeurNom = null, payeurAlias = null } = {}) {
-    const avant = await this.collection.findOne({ id: reservationId }, { projection: { _id: 0 } });
+    const avant = await this.collection.findOne({ id: { $eq: String(reservationId) } }, { projection: { _id: 0 } });
     const p = avant.paiements.find(x => x.txId === txId);
     if ((p.objet || 'acompte') === 'solde') return this.marquerSoldePaye(avant, p, { end2endId, payeurNom });
     const maintenant = new Date();
     // Acompte déjà réglé par un autre paiement : doublon à rembourser, signalé à l'admin
     if (avant.acompte?.paye && avant.acompte.txId !== txId) {
       await this.collection.updateOne(
-        { id: reservationId, 'paiements.txId': txId },
+        { id: { $eq: String(reservationId) }, 'paiements.txId': txId },
         { $set: { 'paiements.$.statut': 'doublon', 'paiements.$.payeLe': maintenant, 'paiements.$.end2endId': end2endId, 'paiements.$.raison': 'Acompte déjà réglé : à rembourser' } }
       );
       console.error('⚠️ Paiement en double sur %s (%s) : à rembourser', pourJournal(reservationId), pourJournal(txId));
-      const maj = await this.collection.findOne({ id: reservationId }, { projection: { _id: 0 } });
+      const maj = await this.collection.findOne({ id: { $eq: String(reservationId) } }, { projection: { _id: 0 } });
       return maj.paiements.find(x => x.txId === txId);
     }
     const resultat = await this.collection.updateOne(
-      { id: reservationId, 'acompte.paye': { $ne: true }, paiements: { $elemMatch: { txId, statut: { $in: ['en_attente', 'expire'] } } } },
+      { id: { $eq: String(reservationId) }, 'acompte.paye': { $ne: true }, paiements: { $elemMatch: { txId, statut: { $in: ['en_attente', 'expire'] } } } },
       {
         $set: {
           'paiements.$.statut': 'paye',
@@ -281,7 +281,7 @@ class PaymentService {
         },
       }
     );
-    const r = await this.collection.findOne({ id: reservationId }, { projection: { _id: 0 } });
+    const r = await this.collection.findOne({ id: { $eq: String(reservationId) } }, { projection: { _id: 0 } });
 
     if (resultat.modifiedCount === 1 && this.emailService) {
       Promise.allSettled([
@@ -367,7 +367,7 @@ class PaymentService {
     const evenements = Array.isArray(corps?.data) ? corps.data : [];
     for (const ev of evenements) {
       if (['PAIEMENT_ENVOYE', 'PAIEMENT_REJETE'].includes(ev?.evCode) && ev.txId && String(ev.txId).startsWith('RMB')) {
-        const r = await this.collection.findOne({ 'acompte.remboursement.txId': String(ev.txId) }, { projection: { id: 1 } });
+        const r = await this.collection.findOne({ 'acompte.remboursement.txId': { $eq: String(ev.txId) } }, { projection: { id: 1 } });
         if (r) await require('./RefundService').verifier(r.id).catch(e => console.error('⚠️ Webhook remboursement :', e.message));
         continue;
       }
@@ -394,7 +394,7 @@ class PaymentService {
   async traiterEvenementGeniusPay(corps) {
     const d = corps?.data || {};
     if (!String(corps?.event || '').startsWith('payment.')) return;
-    const filtre = d.metadata?.txId ? { 'paiements.txId': String(d.metadata.txId) } : { 'paiements.reference': String(d.reference || '') };
+    const filtre = d.metadata?.txId ? { 'paiements.txId': { $eq: String(d.metadata.txId) } } : { 'paiements.reference': { $eq: String(d.reference || '') } };
     const r = await this.collection.findOne(filtre, { projection: { _id: 0, paiements: 1 } });
     const p = r?.paiements?.find(x => (d.metadata?.txId ? x.txId === String(d.metadata.txId) : x.reference === String(d.reference)));
     if (p) await this.verifier(p.txId, { forcer: true });

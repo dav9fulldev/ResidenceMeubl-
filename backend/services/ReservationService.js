@@ -154,7 +154,7 @@ class ReservationService {
 
   // Obtenir une réservation par ID
   async getReservationById(id) {
-    return this.collection.findOne({ id: String(id), ...Tenant.filtre() }, { projection: { _id: 0 } });
+    return this.collection.findOne({ id: { $eq: String(id) }, ...Tenant.filtre() }, { projection: { _id: 0 } });
   }
 
   // Obtenir toutes les réservations, les plus récentes d'abord (pour l'admin)
@@ -186,13 +186,13 @@ class ReservationService {
   // Réservation dont la référence et l'email correspondent (null sinon)
   async trouverPourClient(reference, email) {
     return this.collection.findOne(
-      { id: String(reference).trim(), 'client.email': String(email).trim().toLowerCase() },
+      { id: { $eq: String(reference).trim() }, 'client.email': { $eq: String(email).trim().toLowerCase() } },
       { projection: { _id: 0 } }
     );
   }
 
   async compterPourEmail(email) {
-    return this.collection.countDocuments({ 'client.email': String(email).trim().toLowerCase() });
+    return this.collection.countDocuments({ 'client.email': { $eq: String(email).trim().toLowerCase() } });
   }
 
   // Historique du client ; limité à une réservation si l'accès vient d'une référence
@@ -220,10 +220,10 @@ class ReservationService {
 
   // L'admin relance le remboursement automatique (après un échec)
   async relancerRemboursement(id) {
-    const r = await this.collection.findOne({ id: String(id), ...Tenant.filtre() }, { projection: { _id: 0, acompte: 1, statut: 1 } });
+    const r = await this.collection.findOne({ id: { $eq: String(id) }, ...Tenant.filtre() }, { projection: { _id: 0, acompte: 1, statut: 1 } });
     if (!r?.acompte?.paye || r.statut !== 'annulee') throw new ErreurClient('Aucun acompte à rembourser pour cette réservation', 404);
     if (r.acompte.remboursement?.statut === 'rembourse') throw new ErreurClient('Acompte déjà remboursé');
-    await this.collection.updateOne({ id: String(id), ...Tenant.filtre() }, { $set: { 'acompte.remboursement.statut': 'a_rembourser' } });
+    await this.collection.updateOne({ id: { $eq: String(id) }, ...Tenant.filtre() }, { $set: { 'acompte.remboursement.statut': 'a_rembourser' } });
     // Relance par l'admin : y compris un acompte non remboursable (geste commercial)
     return RefundService.rembourser(id, { ignorerPolitique: true });
   }
@@ -231,7 +231,7 @@ class ReservationService {
   // L'admin indique que l'acompte a été remboursé hors PI-SPI (après un échec)
   async marquerRembourse(id, reference = '') {
     const res = await this.collection.findOneAndUpdate(
-      { id: String(id), ...Tenant.filtre(), 'acompte.remboursement.statut': { $in: ['a_rembourser', 'echec'] } },
+      { id: { $eq: String(id) }, ...Tenant.filtre(), 'acompte.remboursement.statut': { $in: ['a_rembourser', 'echec'] } },
       { $set: { 'acompte.remboursement.statut': 'rembourse', 'acompte.remboursement.le': new Date(), 'acompte.remboursement.reference': String(reference || '').slice(0, 80) } },
       { returnDocument: 'after', projection: { _id: 0 } }
     );
@@ -283,7 +283,7 @@ class ReservationService {
    */
   async traiterDemandeAnnulation(id, decision, message = '') {
     if (!['accepter', 'refuser'].includes(decision)) throw new ErreurClient('Décision invalide');
-    const reservation = await this.collection.findOne({ id: String(id), ...Tenant.filtre() }, { projection: { _id: 0 } });
+    const reservation = await this.collection.findOne({ id: { $eq: String(id) }, ...Tenant.filtre() }, { projection: { _id: 0 } });
     if (!reservation) return null;
     if (reservation.demandeAnnulation?.statut !== 'en_attente') {
       throw new ErreurClient('Aucune demande d\'annulation en attente pour cette réservation');
@@ -324,7 +324,7 @@ class ReservationService {
 
     // Une réservation confirmée ne s'annule que sur demande du client
     if (nouveauStatut === 'annulee' && !surDemandeClient) {
-      const actuelle = await this.collection.findOne({ id: String(id), ...Tenant.filtre() }, { projection: { _id: 0, statut: 1, demandeAnnulation: 1 } });
+      const actuelle = await this.collection.findOne({ id: { $eq: String(id) }, ...Tenant.filtre() }, { projection: { _id: 0, statut: 1, demandeAnnulation: 1 } });
       if (actuelle?.statut === 'confirmee') {
         throw new ErreurClient(
           actuelle.demandeAnnulation?.statut === 'en_attente'
@@ -336,7 +336,7 @@ class ReservationService {
     }
 
     const avant = await this.collection.findOneAndUpdate(
-      { id: String(id), ...Tenant.filtre() },
+      { id: { $eq: String(id) }, ...Tenant.filtre() },
       { $set: { statut: nouveauStatut, statutLe: new Date() } },
       { returnDocument: 'before', projection: { _id: 0 } }
     );
@@ -397,7 +397,7 @@ class ReservationService {
   /** L'admin enregistre le solde reçu sur place (espèces, Mobile Money, carte, virement…). */
   async enregistrerSoldeSurPlace(id, { moyen, reference = '' } = {}) {
     if (!acompte.MOYENS_SUR_PLACE[moyen]) throw new ErreurClient('Moyen de paiement invalide');
-    const r = await this.collection.findOne({ id: String(id), ...Tenant.filtre() }, { projection: { _id: 0 } });
+    const r = await this.collection.findOne({ id: { $eq: String(id) }, ...Tenant.filtre() }, { projection: { _id: 0 } });
     if (!r) throw new ErreurClient('Réservation introuvable', 404);
     if (r.statut !== 'confirmee') throw new ErreurClient('Seul le solde d\'un séjour confirmé peut être enregistré', 409);
     if (r.solde?.paye) throw new ErreurClient('Le solde de ce séjour est déjà enregistré', 409);
@@ -418,7 +418,7 @@ class ReservationService {
   /** Le solde d'un séjour annulé a été rendu au client (hors ligne). */
   async marquerSoldeRembourse(id, reference = '') {
     const res = await this.collection.findOneAndUpdate(
-      { id: String(id), ...Tenant.filtre(), 'solde.remboursement.statut': 'a_rembourser' },
+      { id: { $eq: String(id) }, ...Tenant.filtre(), 'solde.remboursement.statut': 'a_rembourser' },
       { $set: { 'solde.remboursement.statut': 'rembourse', 'solde.remboursement.le': new Date(), 'solde.remboursement.reference': String(reference || '').slice(0, 80) } },
       { returnDocument: 'after', projection: { _id: 0 } }
     );
@@ -449,7 +449,7 @@ class ReservationService {
         await Tenant.pour(r, () => this.emailService.sendRappelSolde(r));
         envoyes += 1;
       } catch (error) {
-        console.error(`⚠️ Rappel de solde non envoyé (${r.id}) :`, error.message);
+        console.error('⚠️ Rappel de solde non envoyé (%s) :', String(r.id), error.message);
         await this.collection.updateOne({ id: r.id }, { $unset: { 'solde.rappelLe': '' } });
       }
     }
