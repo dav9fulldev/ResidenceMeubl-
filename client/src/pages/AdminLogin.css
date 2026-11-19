@@ -282,19 +282,21 @@
   justify-content: center;
 }
 
-/* Panneau gauche : illustration de tours de verre (public/images/admin-tours.svg) */
+/* Panneau gauche : bleu nuit de la marque, grand logo en haut, titre en bas */
 .admin-login-header {
   position: relative;
   min-height: 520px;
-  align-items: flex-end;
+  align-items: stretch;
   justify-content: flex-start;
   text-align: left;
-  padding: 40px;
-  background: #2A1F6B url('/images/admin-tours.svg') center / cover no-repeat;
+  padding: 44px 40px 40px;
+  background:
+    radial-gradient(120% 70% at 50% 0%, rgba(224, 165, 38, 0.16) 0%, rgba(224, 165, 38, 0) 60%),
+    linear-gradient(180deg, #12284C 0%, #0B1B36 100%);
 }
 
-.admin-login-header .admin-logo { position: relative; z-index: 1; }
-.admin-login-header .surtitre { color: #FFE3C2; margin-bottom: 8px; }
+.admin-login-header .admin-logo { position: relative; z-index: 1; display: flex; flex-direction: column; width: 100%; }
+.admin-login-header .surtitre { color: #F0C463; margin-bottom: 8px; }
 
 .admin-login-header .admin-logo h2 {
   font-family: var(--font-titre);
@@ -311,13 +313,14 @@
   text-shadow: 0 1px 10px rgba(10, 14, 50, 0.6);
 }
 
-@media (max-width: 768px) {
-  .admin-login-header { min-height: 220px; padding: 28px 24px; }
-  .admin-login-header .admin-logo h2 { font-size: 1.9rem; }
-}
+/* Emblème BABI RESIDENCE : grand, en haut du panneau ; le titre reste en bas */
+.admin-login-embleme { display: block; width: 200px; max-width: 70%; height: auto; color: #ffffff; margin: 8px auto auto; padding-bottom: 32px; filter: drop-shadow(0 6px 18px rgba(0, 0, 0, 0.35)); }
 
-/* Emblème BABI RESIDENCE sur le panneau d'accueil */
-.admin-login-embleme { display: block; width: 84px; height: auto; color: #ffffff; margin: 0 auto 18px; filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.35)); }
+@media (max-width: 768px) {
+  .admin-login-header { min-height: 0; padding: 28px 24px; }
+  .admin-login-header .admin-logo h2 { font-size: 1.9rem; }
+  .admin-login-embleme { width: 120px; padding-bottom: 18px; }
+}
 
 /* Connexion et inscription des gestionnaires */
 .admin-login-sous-titre { margin: -8px 0 22px; text-align: center; font-size: 0.9rem; color: var(--text-muted); }
@@ -327,3 +330,4 @@
 .form-aide { display: block; margin-top: 6px; font-size: 0.8rem; color: var(--text-muted); }
 .admin-logo > p { max-width: 34ch; margin-left: auto; margin-right: auto; }
 @media (max-width: 480px) { .form-ligne-2 { grid-template-columns: 1fr; gap: 0; } }
+.admin-login-header .admin-logo > p { margin-left: 0; margin-right: 0; }
