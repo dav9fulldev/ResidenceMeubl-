@@ -1,143 +1,169 @@
-# 🚀 Déploiement : backend sur Render, frontend sur Vercel
-
-Ce guide met en ligne une version de démonstration complète :
+# Déploiement : API sur Render, site sur Vercel
 
 ```
 Navigateur ──► Vercel (site React) ──► Render (API Express) ──► MongoDB Atlas
-                                              ├──► Gmail (emails)
+                                              ├──► Brevo (emails)
+                                              ├──► PI-SPI / BCEAO (acompte, solde, remboursements)
+                                              ├──► GeniusPay (Mobile Money, carte)
                                               └──► Voyage AI (recherche intelligente)
 ```
 
-Durée : environ 30 minutes. Faites les étapes **dans l'ordre** : le frontend a besoin de l'adresse du backend, et le backend a besoin de l'adresse du frontend.
+Faites les étapes **dans l'ordre** : le site a besoin de l'adresse de l'API, et l'API a besoin de l'adresse du site.
 
 ---
 
 ## 0. Avant de commencer
 
-- [ ] Le code est poussé sur GitHub.
-- [ ] Vous avez sous la main, **sans les partager** : l'URL MongoDB (`MONGODB_URI`), la clé Brevo (étape 1 bis), la clé Voyage AI, et les identifiants admin choisis.
+- [ ] Le code est sur GitHub (branche `main`).
+- [ ] Vous avez sous la main, **sans les partager** : l'URL MongoDB, la clé Brevo, la clé Voyage AI, les identifiants PI-SPI et GeniusPay, et les identifiants admin choisis.
 - [ ] Un compte [Render](https://render.com) et un compte [Vercel](https://vercel.com), connectés à GitHub.
 
 ---
 
 ## 1. MongoDB Atlas : autoriser Render
 
-Render (offre gratuite) n'a pas d'adresse IP fixe. Pour la démo :
+Render (offre gratuite) n'a pas d'adresse IP fixe : Atlas → **Security → Network Access → + Add IP Address → Allow Access from Anywhere** (`0.0.0.0/0`).
 
-1. Atlas → **Security → Network Access → + Add IP Address**.
-2. Cliquez sur **Allow Access from Anywhere** (`0.0.0.0/0`), commentaire « Render démo », puis **Confirm**.
-
-> 🔒 La base reste protégée par l'utilisateur `sankofart_app` et son mot de passe. Pour la production définitive, préférez un hébergement à IP fixe (offre payante de Render ou votre serveur Hostinger) et n'autorisez que cette IP.
+> La base reste protégée par son utilisateur et son mot de passe. Avec une IP fixe (offre payante), n'autorisez que celle-ci.
 
 ---
 
-## 1 bis. Emails : créer une clé Brevo (gratuit)
+## 2. Emails : clé Brevo (gratuit)
 
-Render (offre gratuite) **bloque l'envoi d'emails par SMTP** : Gmail échoue avec `Connection timeout`. Les emails passent donc par l'API de [Brevo](https://www.brevo.com) (gratuit jusqu'à 300 emails par jour).
+Render gratuit **bloque le SMTP** : les emails passent par l'API [Brevo](https://www.brevo.com) (300 emails par jour gratuits).
 
-1. Créez un compte Brevo.
-2. **Senders, domains & dedicated IPs → Senders → Add a sender** : ajoutez l'adresse qui enverra les emails (par exemple votre Gmail) et validez-la via l'email reçu.
-3. **SMTP & API → API keys → Generate a new API key**. Copiez-la : elle servira pour `BREVO_API_KEY`.
-
-> Pour une meilleure délivrabilité (moins de spams), utilisez plus tard une adresse de votre domaine (`contact@sankofartresidence.com`) et authentifiez le domaine dans Brevo.
+1. **Senders, domains & dedicated IPs → Senders → Add a sender** : ajoutez et validez l'adresse d'envoi.
+2. **SMTP & API → API keys → Generate a new API key** : c'est `BREVO_API_KEY` (commence par `xkeysib-`, pas la clé SMTP).
 
 ---
 
-## 2. Backend sur Render
+## 3. API sur Render
 
-1. Render → **New → Blueprint** → choisissez le dépôt GitHub.
-   Render lit le fichier [`render.yaml`](render.yaml) et prépare le service `sankofart-api` (dossier `backend`, Node, offre gratuite, région Francfort).
-2. Render demande les variables marquées « à saisir ». Remplissez-les :
+1. Render → **New → Blueprint** → choisissez le dépôt. Render lit [`render.yaml`](render.yaml).
+2. Remplissez les variables demandées :
 
    | Variable | Valeur |
    |---|---|
-   | `MONGODB_URI` | l'URL Atlas avec l'utilisateur `sankofart_app` |
-   | `FRONTEND_URL` | provisoirement `https://sankofartresidence.com` (on ajoutera l'adresse Vercel à l'étape 4) |
-   | `BREVO_API_KEY` | la clé Brevo (étape 1 bis) |
-   | `EMAIL_FROM` | l'adresse validée comme expéditeur dans Brevo |
-   | `EMAIL_USER` | l'adresse qui reçoit les nouvelles réservations (admin) |
-   | `ADMIN_USERNAME` / `ADMIN_PASSWORD` | les identifiants de l'espace admin (mot de passe long et unique) |
-   | `VOYAGE_API_KEY` | la clé Atlas « AI Model APIs » (laisser vide = recherche par mots-clés) |
+   | `MONGODB_URI` | URL Atlas |
+   | `FRONTEND_URL` | adresse du site, ex. `https://residencemeublee.vercel.app` (plusieurs adresses séparées par des virgules) |
+   | `BREVO_API_KEY` / `EMAIL_FROM` | clé Brevo et adresse d'envoi validée |
+   | `EMAIL_USER` | adresse de secours pour les alertes (l'adresse principale se règle dans *Paramètres → Emails*) |
+   | `ADMIN_USERNAME` / `ADMIN_PASSWORD` | identifiants du back-office : **pas** `admin`, mot de passe d'au moins 20 caractères aléatoires (`openssl rand -base64 24`) |
+   | `VOYAGE_API_KEY` | clé Atlas *AI Model APIs* (vide = recherche par mots-clés) |
+   | `PISPI_*` | voir étape 5 |
+   | `GENIUSPAY_*` | voir étape 6 |
 
-   `ADMIN_TOKEN_SECRET` est généré automatiquement par Render, et `CLIENT_IP_HEADER=cf-connecting-ip` est déjà défini : il permet d'appliquer les limites anti-spam à chaque visiteur (Render passe par Cloudflare).
-3. **Apply** / **Create**. Le premier déploiement prend 2 à 4 minutes.
-4. Vérifiez : ouvrez `https://<votre-service>.onrender.com/health`. Vous devez voir `"success": true`.
-   Dans **Logs**, vous devez lire `🗄️ Connecté à MongoDB`, `🧠 Recherche intelligente : Voyage AI` et `📧 Emails : API Brevo`.
-
-<details>
-<summary>Sans Blueprint (configuration manuelle)</summary>
-
-Render → **New → Web Service** → dépôt GitHub, puis :
-- Root Directory : `backend`
-- Build Command : `npm ci --omit=dev`
-- Start Command : `npm start`
-- Health Check Path : `/health`
-- Variables : celles du tableau ci-dessus, plus `NODE_ENV=production`, `CLIENT_IP_HEADER=cf-connecting-ip` et `ADMIN_TOKEN_SECRET` (générer avec `openssl rand -hex 32`).
-</details>
+   `ADMIN_TOKEN_SECRET` est généré par Render ; `CLIENT_IP_HEADER=cf-connecting-ip` est déjà défini (limites anti-spam par visiteur).
+3. Vérifiez `https://<service>.onrender.com/health` → `"success": true`. Dans **Logs** : `Connecté à MongoDB`, `Emails : API Brevo`, et la ligne `Paiement de l'acompte : …` qui liste les moyens actifs.
 
 ---
 
-## 3. Frontend sur Vercel
+## 4. Site sur Vercel
 
-1. Vercel → **Add New → Project** → importez le dépôt.
-2. **Root Directory** : `client` (bouton *Edit*). Framework : *Other*.
-   Le fichier [`client/vercel.json`](client/vercel.json) règle le build (`npm run build` → `dist`) et la navigation entre les pages.
-3. **Environment Variables** :
+1. Vercel → **Add New → Project** → dépôt, **Root Directory : `client`**, Framework : *Other*.
+2. Variable : `REACT_APP_API_URL` = `https://<service>.onrender.com/api` (avec `/api`, sans `/` final). Elle est intégrée au build : après modification, **Redeploy**.
+3. [`client/vercel.json`](client/vercel.json) règle le build, la navigation et les **en-têtes de sécurité** (CSP, anti-iframe). Si l'adresse de l'API change, mettez aussi à jour `connect-src` dans ce fichier.
+4. **Analytics** : Vercel → projet → **Analyse → Activer**. Les visites du back-office ne sont pas comptées.
 
-   | Variable | Valeur |
-   |---|---|
-   | `REACT_APP_API_URL` | `https://<votre-service>.onrender.com/api` (**avec** `/api`, **sans** `/` final) |
-
-4. **Deploy**. Notez l'adresse obtenue, par exemple `https://sankofart-residence.vercel.app`.
-
-> ⚠️ `REACT_APP_API_URL` est intégrée au moment du build. Si vous la modifiez plus tard, relancez un déploiement (**Deployments → … → Redeploy**).
+Ajoutez ensuite l'adresse Vercel à `FRONTEND_URL` sur Render (CORS).
 
 ---
 
-## 4. Relier les deux (CORS)
+## 5. Paiements PI-SPI (BCEAO)
 
-Le backend n'accepte que les sites autorisés. Sur Render → service → **Environment** :
+Portail : [developer.pispi.bceao.int](https://developer.pispi.bceao.int).
 
-```
-FRONTEND_URL=https://sankofart-residence.vercel.app,https://sankofartresidence.com,https://www.sankofartresidence.com
-```
+| Variable | Où la trouver |
+|---|---|
+| `PISPI_BASE_URL`, `PISPI_TOKEN_URL` | *Credentials* (sandbox : `https://no-mtls.piz.simulateurs.pi-bceao.com`) |
+| `PISPI_PARTICIPANT_CODE` | code participant, préfixe des routes (ex. `CIC999`) |
+| `PISPI_CLIENT_ID`, `PISPI_CLIENT_SECRET`, `PISPI_API_KEY` | *Credentials* — trois valeurs **différentes** |
+| `PISPI_PAYEE_ALIAS` | *Alias des comptes* : adresse de paiement du compte qui encaisse |
+| `PISPI_SCOPES` | `piz/demande_paiement.write piz/demande_paiement.read piz/paiement.read piz/retour_fonds.write piz/paiement.write` |
+| `PISPI_WEBHOOK_SECRET` | affiché une seule fois à la création du webhook |
+| `PISPI_APP_URL` | lien « Ouvrir l'application » (sandbox : `https://client.simulateurs.pi-bceao.com`) |
 
-(plusieurs adresses séparées par des virgules, sans `/` final). Enregistrez : Render redémarre le service.
+**Webhook** à déclarer : `https://<service>.onrender.com/api/paiements/pispi/webhook` (adresse affichée aussi dans *Paramètres → Moyens de paiement*).
 
----
-
-## 5. Vérification avant la démo
-
-- [ ] La page **Résidences** affiche les 10 résidences (et non un catalogue hors ligne).
-- [ ] La **recherche intelligente** affiche le badge « ✨ Classement par IA ».
-- [ ] Le **micro** fonctionne (Chrome, Edge ou Safari ; le site est en HTTPS sur Vercel).
-- [ ] Une **réservation de test** arrive dans le tableau de bord `/admin/login` et les emails sont reçus.
-- [ ] **Confirmer** la réservation envoie l'email au client et passe la résidence en « Réservé ».
-- [ ] Recharger une page comme `/residence/3` fonctionne (pas d'erreur 404).
-- [ ] **Mes réservations** : email + référence affichent la réservation ; « Demander l'annulation » fait apparaître la demande dans le tableau de bord (filtre « Demandes d'annulation »).
+`piz/retour_fonds.write` sert au remboursement intégral, `piz/paiement.write` au remboursement partiel.
 
 ---
 
-## 🎤 Conseils pour une démo réussie
+## 6. Paiements GeniusPay
 
-- **Réveillez le serveur avant le rendez-vous.** Sur l'offre gratuite, Render met le backend en veille après 15 minutes sans visite ; le premier chargement prend alors 30 à 60 secondes. Ouvrez `https://<votre-service>.onrender.com/health` **2 minutes avant** la démo.
-  Pour éviter la veille en permanence : un service de surveillance gratuit (ex. UptimeRobot) qui appelle `/health` toutes les 10 minutes, ou l'offre payante de Render.
-- **Levez la limite de Voyage AI.** Sans moyen de paiement, la recherche intelligente est limitée à 3 requêtes par minute (au-delà, le site bascule en recherche par mots-clés). Ajouter une carte dans Atlas → **Billing** lève cette limite ; les 200 millions de jetons gratuits de `voyage-4-lite` restent utilisés en premier.
-- **Scénario conseillé** : recherche vocale (« une villa pour une famille de six avec jardin ») → fiche résidence et « Vous aimerez aussi » → réservation → tableau de bord admin → confirmation → email reçu par le « client ».
-- **Après la démo**, annulez les réservations de test depuis le tableau de bord pour libérer les dates.
+Tableau de bord : [geniuspay.ci](https://geniuspay.ci) → *Intégrations*.
+
+| Variable | Valeur |
+|---|---|
+| `GENIUSPAY_API_KEY` | clé publique (`pk_sandbox_…` en test, `pk_live_…` en production) |
+| `GENIUSPAY_API_SECRET` | clé secrète (`sk_…`), du **même** environnement |
+| `GENIUSPAY_WEBHOOK_SECRET` | secret (`whsec_…`) **du webhook** créé ci-dessous |
+
+1. *Intégrations → Webhooks* : créez un webhook vers `https://<service>.onrender.com/api/paiements/geniuspay/webhook`, évènements `payment.success`, `payment.failed`, `payment.cancelled`, `payment.expired`. Copiez son secret dans `GENIUSPAY_WEBHOOK_SECRET`, puis cliquez **Tester**.
+2. Back-office → *Paramètres → Moyens de paiement* : activez GeniusPay (désactivé par défaut). Le badge « Test (sandbox) » s'affiche tant que les clés sont celles de test.
+3. **Passage en production** : remplacez les trois valeurs par celles de l'onglet *Production* (le webhook de production a son propre secret).
+
+GeniusPay n'offre pas d'API de remboursement : un acompte ou un solde GeniusPay à rendre apparaît « À rembourser » dans le back-office, à rembourser depuis le tableau de bord GeniusPay puis à marquer comme fait.
 
 ---
 
-## 🆘 Problèmes fréquents
+## 7. Réglages dans le back-office
+
+Après la mise en ligne, dans `/admin` → **Paramètres** :
+- **Établissement** et **Coordonnées et réseaux** : nom, téléphone, WhatsApp, adresses des réseaux sociaux (affichés dans le pied de page et les emails).
+- **Acompte et remboursements** : pourcentage d'acompte et paliers de remboursement.
+- **Emails** : adresse qui reçoit les alertes.
+- **Moyens de paiement** : activation de PI-SPI et GeniusPay.
+
+Les valeurs réglées ici remplacent les variables d'environnement correspondantes (`ACOMPTE_*`, `ADMIN_EMAIL`).
+
+---
+
+## 8. Sécurité continue (GitHub)
+
+| Outil | Quand | Où voir les résultats |
+|---|---|---|
+| Tests + compilation (`ci.yml`) | chaque PR et chaque fusion | onglet de la PR |
+| CodeQL | chaque PR + chaque lundi | *Security → Code scanning* |
+| OWASP Dependency-Check | chaque PR + chaque lundi ; bloque à partir d'un score CVSS de 7 | *Security → Code scanning* et rapport HTML dans *Actions* |
+| OWASP ZAP (analyse passive) | chaque lundi, ou *Actions → Run workflow* | rapport dans *Actions* |
+| Dependabot | chaque lundi (npm), chaque mois (actions) | PR ouvertes automatiquement |
+
+Secret GitHub requis : **`NVD_API_KEY`** (*Settings → Secrets and variables → Actions*), clé gratuite demandée sur [nvd.nist.gov](https://nvd.nist.gov/developers/request-an-api-key) puis **activée** via le lien reçu par email.
+
+---
+
+## 9. Vérification après mise en ligne
+
+- [ ] L'accueil affiche les résidences ; la recherche par dates fonctionne.
+- [ ] Une réservation de test arrive dans `/admin` et les emails sont reçus.
+- [ ] Confirmer la réservation envoie l'email au client avec le bouton de paiement.
+- [ ] L'acompte se paie (GeniusPay et/ou PI-SPI) et passe « Payé » dans le back-office.
+- [ ] Le solde se paie en ligne, ou s'enregistre « reçu sur place ».
+- [ ] Recharger `/residence/3` fonctionne (pas de 404).
+
+---
+
+## Conseils
+
+- **Veille de Render** : sur l'offre gratuite, l'API s'endort après 15 minutes ; la première visite attend 30 à 50 secondes. Solutions : offre Starter de Render, ou un service de surveillance gratuit (UptimeRobot) qui appelle `/health` toutes les 10 minutes.
+- **Limite de Voyage AI** : sans moyen de paiement dans Atlas, 3 requêtes par minute (au-delà, recherche par mots-clés).
+
+---
+
+## Problèmes fréquents
 
 | Symptôme | Cause probable | Solution |
 |---|---|---|
-| Le site affiche « catalogue hors ligne » ou les réservations sont impossibles | Backend en veille ou `REACT_APP_API_URL` incorrecte | Ouvrir `/health` sur Render ; vérifier la variable sur Vercel puis **Redeploy** |
-| Erreur « Origine non autorisée » (console du navigateur) | Adresse Vercel absente de `FRONTEND_URL` | Étape 4 |
-| Render : `Impossible de se connecter à MongoDB` | IP Render non autorisée dans Atlas ou mot de passe erroné | Étape 1 ; vérifier `MONGODB_URI` |
-| Logs Render : `Connection timeout` à l'envoi des emails | Render gratuit bloque le SMTP | Définir `BREVO_API_KEY` et `EMAIL_FROM` (étape 1 bis) |
-| Logs : `Brevo 400 … sender` | Adresse `EMAIL_FROM` non validée dans Brevo | Brevo → Senders → valider l'adresse |
-| En local : « email non envoyé » | `EMAIL_PASS` n'est pas un mot de passe d'application | Recréer un mot de passe d'application Google |
-| Logs Render : toutes les requêtes viennent d'IP `10.x.x.x`, réservations refusées « trop de réservations » | `CLIENT_IP_HEADER` absent | Ajouter `CLIENT_IP_HEADER=cf-connecting-ip` dans Render → Environment |
-| Badge « Recherche par mots-clés » au lieu de « Classement par IA » | Limite Voyage atteinte ou clé absente | Ajouter un moyen de paiement Atlas ; vérifier `VOYAGE_API_KEY` |
-| Erreur 404 en rechargeant une page | `vercel.json` non pris en compte | Vérifier que le *Root Directory* Vercel est bien `client` |
+| « Catalogue hors ligne », réservations impossibles | API en veille ou `REACT_APP_API_URL` incorrecte | Ouvrir `/health` ; vérifier la variable sur Vercel puis **Redeploy** |
+| Logs Render : « Origine non autorisée (CORS) » | Adresse du site absente de `FRONTEND_URL` | Ajouter l'adresse. Les adresses de prévisualisation Vercel (`residencemeublee-xxxx.vercel.app`) sont refusées volontairement |
+| Site : requêtes bloquées dans la console (« Content Security Policy ») | Adresse de l'API différente de `connect-src` | Mettre à jour `client/vercel.json` |
+| Logs : `Connection timeout` (emails) | SMTP bloqué par Render | Définir `BREVO_API_KEY` et `EMAIL_FROM` |
+| Logs : `Brevo 401` | Clé SMTP au lieu de la clé API | Utiliser une clé `xkeysib-…` |
+| PI-SPI : `invalid_client` | Même valeur dans les trois identifiants | Recopier `CLIENT_ID`, `CLIENT_SECRET` et `API_KEY` séparément |
+| PI-SPI : 403 « Invalid key=value » | `PISPI_PARTICIPANT_CODE` manquant | Le renseigner (ex. `CIC999`) |
+| Remboursement partiel PI-SPI refusé | Scope `piz/paiement.write` absent | L'ajouter à `PISPI_SCOPES` |
+| GeniusPay : webhooks en échec (401) | `GENIUSPAY_WEBHOOK_SECRET` d'un autre webhook | Copier le secret du webhook `…/geniuspay/webhook` |
+| GeniusPay : le client ne revient pas sur le site | `FRONTEND_URL` incorrecte | Y mettre l'adresse publique du site (ou définir `PUBLIC_SITE_URL`) |
+| Dependency-Check : « Error updating the NVD Data » | Clé NVD absente ou non activée | Activer la clé via l'email du NVD, recopier le secret `NVD_API_KEY` |
+| Une PR Dependabot casse le site | Mise à jour majeure incompatible | Ne pas fusionner ; commenter `@dependabot ignore this major version` |
