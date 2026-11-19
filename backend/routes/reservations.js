@@ -19,7 +19,7 @@ const reservationLimiter = rateLimit({
 
 // Contrôle de la demande de réservation publique : types, formats et longueurs
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
-const EMAIL = /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]{2,}$/;
+const EMAIL = /^[^\s@<>]+@[^\s@<>.]+(?:\.[^\s@<>.]+)*\.[^\s@<>.]{2,}$/;
 const TELEPHONE = /^[+]?[0-9\s\-().]{8,20}$/;
 const texte = (v, max) => typeof v === 'string' && v.trim().length > 0 && v.trim().length <= max;
 

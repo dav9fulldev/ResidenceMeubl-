@@ -1447,3 +1447,22 @@ test('solde du séjour : en ligne après l\'acompte, sur place par l\'admin, rap
   assert.equal(vueB.solde.paye, true);
   assert.equal(vueB.solde.possible, false);
 });
+
+test('robustesse : email piégé (ReDoS) rejeté vite, clés spéciales ignorées dans les paramètres', async (t) => {
+  const piege = `${'a'.repeat(50000)}@${'b.'.repeat(25000)}`;
+  const debut = Date.now();
+  const r = await api('/api/client/acces', { method: 'POST', body: { email: piege, reference: 'X' } });
+  assert.equal(r.status, 400);
+  assert.ok(Date.now() - debut < 1000, 'réponse immédiate');
+  assert.equal((await api('/api/client/acces', { method: 'POST', body: { email: 'a@b', reference: 'X' } })).status, 400, 'domaine sans extension');
+
+  const Settings = require('../services/SettingsService');
+  t.after(async () => { await db.collection('parametres').deleteMany({}); await Settings.charger(); });
+  const headersAdmin = await connexionAdmin();
+  const brut = '{"__proto__":{"pollue":true},"constructor":{"x":1},"remboursementPourcentage":40}';
+  const res = await fetch(`${baseUrl}/api/admin/parametres`, { method: 'PUT', headers: { ...headersAdmin, 'Content-Type': 'application/json' }, body: brut });
+  assert.equal(res.status, 200);
+  assert.equal(({}).pollue, undefined, 'aucune pollution du prototype');
+  const doc = await db.collection('parametres').findOne({ _id: 'acompte' });
+  assert.deepEqual(Object.keys(doc).filter(k => !['_id', 'modifieLe'].includes(k)), ['remboursementPourcentage']);
+});

@@ -42,6 +42,9 @@ const normaliserAlias = (valeur) => {
   return hex.length === 32 ? `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}` : brut;
 };
 
+// Valeur sûre pour les journaux : une ligne, longueur bornée (pas d'injection de fausses lignes)
+const pourJournal = (v) => String(v ?? '').replace(/[\r\n\t]/g, ' ').slice(0, 80);
+
 class ErreurPaiement extends Error {
   constructor(message, status = 400) {
     super(message);
@@ -69,7 +72,7 @@ class PaymentService {
     if (client.ref && client.ref !== String(reservationId)) throw new ErreurPaiement('Accès non autorisé à cette réservation', 403);
     if (!['qr', 'demande', 'geniuspay'].includes(methode)) throw new ErreurPaiement('Méthode de paiement invalide');
 
-    const r = await this.collection.findOne({ id: String(reservationId), 'client.email': client.email }, { projection: { _id: 0 } });
+    const r = await this.collection.findOne({ id: { $eq: String(reservationId) }, 'client.email': { $eq: String(client.email) } }, { projection: { _id: 0 } });
     if (!r) throw new ErreurPaiement('Réservation introuvable', 404);
 
     const etat = objet === 'solde' ? acompte.etatSolde(r) : acompte.etatAcompte(r);
@@ -176,7 +179,7 @@ class PaymentService {
       if (STATUTS_ECHEC_GENIUSPAY[g?.status]) return this.cloturer(r.id, p.txId, 'refuse', STATUTS_ECHEC_GENIUSPAY[g.status]);
       if (g?.status === 'expired') return this.cloturer(r.id, p.txId, 'expire', 'Délai dépassé');
     } catch (error) {
-      console.error(`⚠️ Vérification GeniusPay impossible (${p.txId}) :`, error.message);
+      console.error('⚠️ Vérification GeniusPay impossible (%s) :', pourJournal(p.txId), error.message);
     }
     return p;
   }
@@ -212,7 +215,7 @@ class PaymentService {
         }
       }
     } catch (error) {
-      console.error(`⚠️ Vérification PI-SPI impossible (${txId}) :`, error.message);
+      console.error('⚠️ Vérification PI-SPI impossible (%s) :', pourJournal(txId), error.message);
     }
 
     if (p.statut === 'en_attente' && Date.now() > new Date(p.expireLe).getTime() + acompte.MARGE_VERIFICATION_MS) {
@@ -244,7 +247,7 @@ class PaymentService {
         { id: reservationId, 'paiements.txId': txId },
         { $set: { 'paiements.$.statut': 'doublon', 'paiements.$.payeLe': maintenant, 'paiements.$.end2endId': end2endId, 'paiements.$.raison': 'Acompte déjà réglé : à rembourser' } }
       );
-      console.error(`⚠️ Paiement en double sur ${reservationId} (${txId}) : à rembourser`);
+      console.error('⚠️ Paiement en double sur %s (%s) : à rembourser', pourJournal(reservationId), pourJournal(txId));
       const maj = await this.collection.findOne({ id: reservationId }, { projection: { _id: 0 } });
       return maj.paiements.find(x => x.txId === txId);
     }
@@ -289,7 +292,7 @@ class PaymentService {
         { id: avant.id, 'paiements.txId': p.txId },
         { $set: { 'paiements.$.statut': 'doublon', 'paiements.$.payeLe': maintenant, 'paiements.$.end2endId': end2endId, 'paiements.$.raison': 'Solde déjà réglé : à rembourser' } }
       );
-      console.error(`⚠️ Solde payé en double sur ${avant.id} (${p.txId}) : à rembourser`);
+      console.error('⚠️ Solde payé en double sur %s (%s) : à rembourser', pourJournal(avant.id), pourJournal(p.txId));
     } else {
       const resultat = await this.collection.updateOne(
         { id: avant.id, 'solde.paye': { $ne: true }, paiements: { $elemMatch: { txId: p.txId, statut: { $in: ['en_attente', 'expire'] } } } },
@@ -316,7 +319,7 @@ class PaymentService {
   async simuler(reservationId, client, txId) {
     if (acompte.mode() !== 'simulation') throw new ErreurPaiement('Simulation désactivée', 403);
     if (client.ref && client.ref !== String(reservationId)) throw new ErreurPaiement('Accès non autorisé', 403);
-    const r = await this.collection.findOne({ id: String(reservationId), 'client.email': client.email, 'paiements.txId': txId });
+    const r = await this.collection.findOne({ id: { $eq: String(reservationId) }, 'client.email': { $eq: String(client.email) }, 'paiements.txId': { $eq: String(txId) } });
     if (!r) throw new ErreurPaiement('Paiement introuvable', 404);
     return this.marquerPaye(r.id, txId, { end2endId: `SIMULATION-${txId}` });
   }
@@ -324,7 +327,7 @@ class PaymentService {
   // État d'un paiement pour le client (vérifie au passage auprès de PI-SPI)
   async statutPourClient(reservationId, client, txId) {
     if (client.ref && client.ref !== String(reservationId)) throw new ErreurPaiement('Accès non autorisé', 403);
-    const r = await this.collection.findOne({ id: String(reservationId), 'client.email': client.email, 'paiements.txId': txId });
+    const r = await this.collection.findOne({ id: { $eq: String(reservationId) }, 'client.email': { $eq: String(client.email) }, 'paiements.txId': { $eq: String(txId) } });
     if (!r) throw new ErreurPaiement('Paiement introuvable', 404);
     const p = await this.verifier(txId);
     const maj = await this.collection.findOne({ id: r.id }, { projection: { _id: 0 } });

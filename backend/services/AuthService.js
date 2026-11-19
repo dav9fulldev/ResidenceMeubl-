@@ -27,6 +27,13 @@ const egal = (a, b) => {
   return crypto.timingSafeEqual(ha, hb);
 };
 
+// Identifiants : dérivation scrypt (lente et salée), puis comparaison en temps constant
+const SEL = crypto.randomBytes(16);
+const egalIdentifiant = (a, b) => crypto.timingSafeEqual(
+  crypto.scryptSync(String(a), SEL, 32),
+  crypto.scryptSync(String(b), SEL, 32)
+);
+
 class AuthService {
   estConfigure() {
     return Boolean(process.env.ADMIN_USERNAME && process.env.ADMIN_PASSWORD);
@@ -35,8 +42,8 @@ class AuthService {
   verifierIdentifiants(username, password) {
     if (!this.estConfigure()) return false;
     // Les deux comparaisons sont toujours faites pour ne rien révéler
-    const userOk = egal(username || '', process.env.ADMIN_USERNAME);
-    const passOk = egal(password || '', process.env.ADMIN_PASSWORD);
+    const userOk = egalIdentifiant(username || '', process.env.ADMIN_USERNAME);
+    const passOk = egalIdentifiant(password || '', process.env.ADMIN_PASSWORD);
     return userOk && passOk;
   }
 

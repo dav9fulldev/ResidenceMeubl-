@@ -193,7 +193,7 @@ class ReservationService {
 
   // Historique du client ; limité à une réservation si l'accès vient d'une référence
   async getReservationsClient({ email, ref }) {
-    const filtre = { 'client.email': email, masqueeParClient: { $ne: true }, ...(ref ? { id: ref } : {}) };
+    const filtre = { 'client.email': { $eq: String(email) }, masqueeParClient: { $ne: true }, ...(ref ? { id: { $eq: String(ref) } } : {}) };
     const docs = await this.collection.find(filtre, { projection: { _id: 0 } }).sort({ dateCreation: -1 }).toArray();
     return docs.map(vueClient);
   }
@@ -205,10 +205,10 @@ class ReservationService {
    */
   async masquerPourClient({ email, ref }, ids = null) {
     const filtre = {
-      'client.email': email,
+      'client.email': { $eq: String(email) },
       $or: [{ statut: 'annulee' }, { 'dates.depart': { $lte: aujourdhui() } }],
       ...(ids ? { id: { $in: ids.map(String) } } : {}),
-      ...(ref ? { id: ref } : {}),
+      ...(ref ? { id: { $eq: String(ref) } } : {}),
     };
     const res = await this.collection.updateMany(filtre, { $set: { masqueeParClient: true, masqueeLe: new Date() } });
     return res.modifiedCount;
@@ -243,7 +243,7 @@ class ReservationService {
     if (ref && ref !== String(id)) {
       throw new ErreurClient('Accès non autorisé à cette réservation', 403);
     }
-    const reservation = await this.collection.findOne({ id: String(id), 'client.email': email }, { projection: { _id: 0 } });
+    const reservation = await this.collection.findOne({ id: { $eq: String(id) }, 'client.email': { $eq: String(email) } }, { projection: { _id: 0 } });
     if (!reservation) throw new ErreurClient('Réservation introuvable', 404);
     if (reservation.statut === 'annulee') throw new ErreurClient('Cette réservation est déjà annulée');
     if (reservation.demandeAnnulation?.statut === 'en_attente') {
