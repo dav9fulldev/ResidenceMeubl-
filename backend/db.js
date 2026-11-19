@@ -1,4 +1,4 @@
-const { MongoClient } = require('mongodb');
+const { MongoClient, GridFSBucket } = require('mongodb');
 const catalogueInitial = require('./data/residences');
 
 /**
@@ -25,11 +25,14 @@ async function connect(uri = process.env.MONGODB_URI, dbName = process.env.MONGO
     db.collection('residence_embeddings').createIndex({ residenceId: 1 }, { unique: true }),
     db.collection('utilisateurs').createIndex({ email: 1 }, { unique: true }),
     db.collection('utilisateurs').createIndex({ entrepriseId: 1 }),
+    db.collection('verifications').createIndex({ statut: 1, soumiseLe: 1 }),
+    db.collection('signalements').createIndex({ traite: 1, creeLe: -1 }),
   ]);
 
   await seedResidences();
   // Multi-entreprises : entreprise principale et rattachement des données existantes
   await require('./services/EntrepriseService').initialiser();
+  await require('./services/VerificationService').initialiser();
   // Une référence de résidence est unique au sein de chaque entreprise (plus sur toute la plateforme)
   const residences = db.collection('residences');
   if (await residences.indexExists('reference_1').catch(() => false)) await residences.dropIndex('reference_1');
@@ -67,10 +70,16 @@ function collection(name) {
   return db.collection(name);
 }
 
+// Stockage de fichiers dans MongoDB (GridFS) : « photos » (publiques), « justificatifs » (privés)
+function bucket(name) {
+  if (!db) throw new Error('Base de données non connectée');
+  return new GridFSBucket(db, { bucketName: name });
+}
+
 async function close() {
   if (client) await client.close();
   client = null;
   db = null;
 }
 
-module.exports = { connect, close, collection, nextId };
+module.exports = { connect, close, collection, bucket, nextId };

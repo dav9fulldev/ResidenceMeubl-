@@ -32,6 +32,8 @@ class Residence {
       ...(data.disponibilite || {}),
     };
     this.actif = data.actif !== false; // Par défaut actif
+    // Vérification par la plateforme (voir VerificationService) : seule « verifiee » est publiée
+    this.statutVerification = data.statutVerification || 'brouillon';
   }
 
   // Valider les données saisies par l'administrateur
@@ -80,6 +82,7 @@ class Residence {
       equipements: this.equipements,
       disponibilite: this.disponibilite,
       actif: this.actif,
+      statutVerification: this.statutVerification,
     };
   }
 }

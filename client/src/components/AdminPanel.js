@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  FaPlus, FaTrash, FaSearch, FaTools, FaCheck, FaRegCalendarAlt, FaPen, FaUsers, FaBed, FaTimes, FaSave,
+  FaPlus, FaTrash, FaSearch, FaTools, FaCheck, FaRegCalendarAlt, FaPen, FaUsers, FaBed, FaTimes, FaSave, FaShieldAlt,
 } from 'react-icons/fa';
 import { useResidences } from '../context/ResidencesContext';
 import AddResidenceForm from './AddResidenceForm';
@@ -12,6 +12,17 @@ const STATUTS = {
   'réservé': { libelle: 'Dates prises', classe: 'attente' },
   'occupé': { libelle: 'Occupée', classe: 'demande' },
   maintenance: { libelle: 'Maintenance', classe: 'maintenance' },
+};
+
+// Vérification par la plateforme (une résidence n'est publiée qu'une fois vérifiée)
+export const VERIFICATION = {
+  brouillon: { libelle: 'À faire vérifier', classe: 'attente' },
+  en_attente: { libelle: 'Vérification en attente', classe: 'demande' },
+  en_verification: { libelle: 'En vérification', classe: 'demande' },
+  a_completer: { libelle: 'Dossier à compléter', classe: 'attente' },
+  verifiee: { libelle: 'Vérifiée', classe: 'confirmee' },
+  refusee: { libelle: 'Refusée', classe: 'annulee' },
+  suspendue: { libelle: 'Suspendue', classe: 'annulee' },
 };
 
 const formatDate = (d) => (d ? new Date(d).toLocaleDateString('fr-FR') : '—');
@@ -68,8 +79,19 @@ const AdminPanel = () => {
   };
 
   const handleAdd = async (newResidence) => {
-    const ok = await runAction(() => addResidence(newResidence), 'Résidence ajoutée.');
-    if (ok) setShowAddForm(false);
+    setSaving(true); setActionError(''); setNotice('');
+    try {
+      const creee = await addResidence(newResidence);
+      setShowAddForm(false);
+      setNotice(creee.statutVerification === 'verifiee'
+        ? 'Résidence ajoutée.'
+        : 'Résidence ajoutée. Complétez son dossier de vérification pour qu\'elle apparaisse sur le site.');
+    } catch (error) {
+      setActionError(error.message);
+      if (error.message.startsWith('Résidence créée')) setShowAddForm(false);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const basculerMaintenance = (residence) => {
@@ -147,6 +169,11 @@ const AdminPanel = () => {
                 <div className="res-photo">
                   {residence.images?.[0] && <img src={residence.images[0]} alt="" loading="lazy" />}
                   <span className={`adm-badge ${st.classe}`}>{st.libelle}</span>
+                  {residence.verificationStatus && residence.verificationStatus !== 'verifiee' && (
+                    <span className={`adm-badge res-badge-verif ${VERIFICATION[residence.verificationStatus]?.classe || 'neutre'}`}>
+                      <FaShieldAlt aria-hidden="true" /> {VERIFICATION[residence.verificationStatus]?.libelle || residence.verificationStatus}
+                    </span>
+                  )}
                   {maintenance && <span className="res-voile"><FaTools /> Non réservable</span>}
                 </div>
                 <div className="res-corps">
@@ -167,6 +194,9 @@ const AdminPanel = () => {
                   )}
                   <div className="res-actions">
                     <button type="button" className="adm-btn" onClick={() => handleEdit(residence)}><FaPen /> Modifier</button>
+                    <button type="button" className={`adm-btn ${residence.verificationStatus && !['verifiee', 'en_attente', 'en_verification'].includes(residence.verificationStatus) ? 'principal' : ''}`}
+                      onClick={() => navigate(`/admin/residences/${residence.id}/verification`)}
+                      title="Photos et vérification" aria-label={`Photos et vérification de ${residence.name}`}><FaShieldAlt /></button>
                     <button type="button" className="adm-btn" onClick={() => navigate('/admin/calendrier')} aria-label={`Calendrier de ${residence.name}`}><FaRegCalendarAlt /></button>
                     <button type="button" className={`adm-btn ${maintenance ? 'principal' : ''}`} onClick={() => basculerMaintenance(residence)} disabled={saving}
                       aria-label={maintenance ? `Remettre ${residence.name} en location` : `Passer ${residence.name} en maintenance`}

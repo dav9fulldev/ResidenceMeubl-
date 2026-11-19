@@ -24,6 +24,8 @@ export const fromApiResidence = (r) => ({
   active: r.actif !== false,
   // Entreprise qui propose la résidence ; sur la fiche, avec ses conditions (acompte, moyens de paiement)
   company: r.entreprise || null,
+  // Vérification par la plateforme : brouillon, en_attente, a_completer, en_verification, verifiee, refusee, suspendue
+  verificationStatus: r.statutVerification || null,
   available: r.disponibilite?.statut === 'disponible',
   availability: {
     status: r.disponibilite?.statut || 'disponible',

@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { API_ENDPOINTS, apiRequest, getAdminToken, setAdminToken } from '../config/api';
+import { compresserImage } from '../utils/fichiers';
 import { fromApiResidence, toApiResidence } from '../config/mappers';
 import { residences as fallbackResidences } from '../data/residences';
 
@@ -170,12 +171,38 @@ export const ResidencesProvider = ({ children }) => {
     replaceResidence(response.data);
   }, [adminRequest]);
 
-  const addResidence = useCallback(async (residence) => {
+  // Création, puis envoi des photos une par une (compressées dans le navigateur)
+  const addResidence = useCallback(async ({ fichiers = [], ...residence }) => {
     const response = await adminRequest(API_ENDPOINTS.admin.residences, {
       method: 'POST',
       body: toApiResidence(residence),
     });
-    setResidences(prev => [...prev, fromApiResidence(response.data)]);
+    let creee = response.data;
+    const erreurs = [];
+    for (const file of fichiers) {
+      try {
+        const r = await adminRequest(API_ENDPOINTS.admin.residencePhotos(creee.id), { method: 'POST', body: { contenu: await compresserImage(file) } });
+        creee = r.data.residence || creee;
+      } catch (e) {
+        erreurs.push(`${file.name} : ${e.message}`);
+      }
+    }
+    setResidences(prev => [...prev, fromApiResidence(creee)]);
+    if (erreurs.length) throw new Error(`Résidence créée, mais ${erreurs.length} photo(s) non envoyée(s) — ${erreurs.join(' ; ')}`);
+    return creee;
+  }, [adminRequest]);
+
+  // Photos d'une résidence existante
+  const addResidencePhoto = useCallback(async (residenceId, file) => {
+    const r = await adminRequest(API_ENDPOINTS.admin.residencePhotos(residenceId), { method: 'POST', body: { contenu: await compresserImage(file) } });
+    if (r.data.residence) replaceResidence(r.data.residence);
+    return r.data.residence;
+  }, [adminRequest]);
+
+  const removeResidencePhoto = useCallback(async (residenceId, url) => {
+    const r = await adminRequest(API_ENDPOINTS.admin.residencePhotos(residenceId), { method: 'DELETE', body: { url } });
+    if (r.data.residence) replaceResidence(r.data.residence);
+    return r.data.residence;
   }, [adminRequest]);
 
   const updateResidence = useCallback(async (residenceId, residence) => {
@@ -312,6 +339,8 @@ export const ResidencesProvider = ({ children }) => {
     setEspaceAdmin,
     updateResidenceStatus,
     addResidence,
+    addResidencePhoto,
+    removeResidencePhoto,
     updateResidence,
     deleteResidence,
     getReservations,
@@ -333,7 +362,7 @@ export const ResidencesProvider = ({ children }) => {
     downloadReservationsCsv,
   }), [
     residences, loading, offline, isAdmin, loadResidences, getResidenceById, searchResidences,
-    createReservation, smartSearch, getSimilarResidences, loginAdmin, connectWithToken, logoutAdmin, adminRequest, setEspaceAdmin, updateResidenceStatus, addResidence,
+    createReservation, smartSearch, getSimilarResidences, loginAdmin, connectWithToken, logoutAdmin, adminRequest, setEspaceAdmin, updateResidenceStatus, addResidence, addResidencePhoto, removeResidencePhoto,
     updateResidence, deleteResidence, getReservations, updateReservationStatus, decideCancellation, updateStayLimits, markRefunded, retryRefund, markBalancePaid, markBalanceRefunded, getStats, getSettings, updateSettings, getEstablishment, updateEstablishment, getPaymentConfig, getPaymentMethods, setPaymentMethodActive, downloadReservationsCsv,
   ]);
 

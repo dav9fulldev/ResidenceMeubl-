@@ -21,7 +21,7 @@ const choisirChamps = (data) => {
 const SANS_ID_MONGO = { projection: { _id: 0 } };
 const ACTIVES = { actif: { $ne: false } };
 // Site public : résidences actives des entreprises validées uniquement
-const PUBLIQUES = () => ({ ...ACTIVES, entrepriseId: { $in: EntrepriseService.validees() } });
+const PUBLIQUES = () => ({ ...ACTIVES, entrepriseId: { $in: EntrepriseService.validees() }, statutVerification: 'verifiee' });
 
 class ErreurValidation extends Error {}
 
@@ -177,7 +177,10 @@ class ResidenceService {
 
   async createResidence(data) {
     const entrepriseId = Tenant.courante();
-    const residence = new Residence({ ...choisirChamps(data), id: 0, entrepriseId });
+    const champs = choisirChamps(data);
+    // Une entreprise ajoute ses photos par téléversement (vérifiées), jamais par adresse libre
+    if (!Tenant.estPrincipale()) champs.photos = [];
+    const residence = new Residence({ ...champs, id: 0, entrepriseId, statutVerification: require('./VerificationService').statutInitial() });
 
     const validation = residence.valider();
     if (!validation.valide) {
@@ -198,6 +201,10 @@ class ResidenceService {
 
     const actuelle = new Residence(doc).toJSON();
     const changements = choisirChamps(data);
+    // Entreprise : les photos ne peuvent qu'être retirées ou réordonnées (ajout = téléversement vérifié)
+    if (changements.photos !== undefined && actuelle.entrepriseId !== Tenant.PRINCIPALE) {
+      changements.photos = Array.isArray(changements.photos) ? changements.photos.filter(p => actuelle.photos.includes(p)) : actuelle.photos;
+    }
     if (changements.disponibilite) {
       changements.disponibilite = { ...actuelle.disponibilite, ...changements.disponibilite };
     }
@@ -213,6 +220,14 @@ class ResidenceService {
     }
 
     await this.collection.replaceOne({ id: actuelle.id, entrepriseId: actuelle.entrepriseId }, residence.toJSON());
+    // Adresse ou photos modifiées : nouvelle vérification avant de réapparaître sur le site
+    const sensible = ['localisation', 'ville', 'quartier'].some(k => residence[k] !== actuelle[k])
+      || JSON.stringify(residence.photos) !== JSON.stringify(actuelle.photos);
+    if (sensible) {
+      const doc2 = residence.toJSON();
+      await require('./VerificationService').apresChangementSensible(doc2, 'Adresse ou photos modifiées');
+      residence.statutVerification = doc2.statutVerification;
+    }
     return (await this.avecStatutReel([residence.toJSON()]))[0];
   }
 
@@ -247,8 +262,10 @@ class ResidenceService {
   }
 
   async deleteResidence(id) {
-    const result = await this.collection.deleteOne({ id: parseInt(id), ...Tenant.filtre() });
-    return result.deletedCount === 1;
+    const doc = await this.collection.findOneAndDelete({ id: parseInt(id), ...Tenant.filtre() }, SANS_ID_MONGO);
+    if (!doc) return false;
+    await require('./VerificationService').nettoyer(doc).catch(e => console.error('⚠️ Nettoyage des fichiers :', e.message));
+    return true;
   }
 }
 

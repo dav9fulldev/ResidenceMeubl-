@@ -115,7 +115,9 @@ app.post(['/api/paiements/geniuspay/webhook', '/api/paiements/geniuspay/webhook/
   PaymentService.traiterEvenementGeniusPay(corps).catch(e => console.error('⚠️ Webhook GeniusPay :', e.message));
 }));
 
-// Taille maximale des requêtes : 100 ko pour le public, 2 Mo pour le back-office (fiches résidences)
+// Taille maximale des requêtes : 100 ko pour le public, 2 Mo pour le back-office (fiches résidences),
+// 8 Mo pour l'envoi d'un fichier (5 Mo encodés en base64)
+app.use(/^\/api\/admin\/residences\/\d+\/(verification\/(documents|preuves)|photos)$/, express.json({ limit: '8mb' }));
 app.use('/api/admin', express.json({ limit: '2mb' }));
 app.use(express.json({ limit: '100kb' }));
 app.use(express.urlencoded({ extended: false, limit: '100kb' }));
@@ -123,7 +125,7 @@ app.use(express.urlencoded({ extended: false, limit: '100kb' }));
 // ✅ Limiter les requêtes globales pour protéger contre le spam
 const globalLimiter = rateLimit({
   keyGenerator: cleLimite, // IP réelle du visiteur (voir middleware/clientIp.js)
-  skip: () => process.env.NODE_ENV === 'test', // pas de limite pendant les tests
+  skip: (req) => process.env.NODE_ENV === 'test' || req.path.startsWith('/photos/'), // photos : servies en cache, sans limite
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // max 100 requêtes par IP
   message: { 
@@ -153,6 +155,18 @@ app.get('/api/etablissement', (req, res) => {
       },
     },
   });
+});
+// Photos des annonces téléversées par les entreprises (publiques, identifiant non devinable)
+app.get('/api/photos/:id', async (req, res) => {
+  try {
+    const photo = await require('./services/VerificationService').lirePhoto(req.params.id);
+    if (!photo) return res.status(404).json({ success: false, message: 'Photo introuvable' });
+    res.set({ 'Content-Type': photo.mime, 'Cache-Control': 'public, max-age=31536000, immutable', 'Cross-Origin-Resource-Policy': 'cross-origin' });
+    photo.flux.on('error', () => res.destroy()).pipe(res);
+  } catch (error) {
+    console.error('Erreur photo :', error.message);
+    res.status(500).json({ success: false, message: 'Erreur' });
+  }
 });
 app.use('/api/residences', residencesRoutes);
 app.use('/api/reservations', reservationsRoutes);
