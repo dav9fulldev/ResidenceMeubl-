@@ -1,77 +1,88 @@
-# 🏠 Sankofart Résidence — Frontend
+# Sankofart Résidence — Site
 
-Site React de Sankofart Résidence : vitrine, recherche intelligente (texte et voix), réservation et espace d'administration. Charte graphique : blanc, noir et doré `#d4af37`.
+Site React : vitrine, recherche (dates, texte, voix), réservation, paiement en ligne, espace client et back-office installable.
 
 Déploiement : voir [../DEPLOIEMENT.md](../DEPLOIEMENT.md) (Vercel).
 
 ---
 
-## ⚙️ Configuration
-
-Copier [`.env.example`](.env.example) en `.env` :
+## Configuration
 
 ```env
 REACT_APP_API_URL=http://localhost:5001/api
 ```
 
-La variable est intégrée **au moment du build** par Webpack : après l'avoir modifiée sur Vercel, il faut redéployer.
+Intégrée **au moment du build** : après modification sur Vercel, redéployer.
 
 ```bash
 npm install
-npm start          # http://localhost:3001 (autre port : PORT=3002 npm start)
+npm start          # http://localhost:3001
 npm run build      # production → dist/
 ```
 
 ---
 
-## 🧭 Pages
+## Charte graphique
 
-| Route | Page |
+Définie par des variables CSS dans [`src/App.css`](src/App.css), en mode clair et sombre :
+
+| Rôle | Couleur |
 |---|---|
-| `/` | Accueil (vidéo d'ambiance, résidences mises en avant) |
-| `/residences` | Catalogue, filtres classiques et **recherche intelligente** (texte + micro) |
-| `/residence/:id` | Fiche : galerie, statut, équipements, « Vous aimerez aussi » |
-| `/reservation?residence=:id` | Formulaire de réservation |
-| `/favorites` | Favoris (enregistrés dans le navigateur) |
-| `/admin/login` → `/admin/dashboard` | Espace admin : réservations (confirmer / annuler) et gestion des résidences |
+| Fond ivoire | `#F7F5F0` |
+| Vert profond (boutons, menu du back-office) | `#243C35` |
+| Or doux (accents) | `#C49A62` |
+| Texte | `#343A40` |
+
+Polices : *Playfair Display* pour les titres du site, *Inter* pour le texte et tout le back-office.
 
 ---
 
-## 🧩 Fichiers clés
+## Pages
+
+| Route | Page |
+|---|---|
+| `/` | Accueil : recherche par dates / personnes / quartier, résidences disponibles |
+| `/residences` | Catalogue, filtres, recherche intelligente (texte + micro) ; filtré par disponibilité si des dates sont choisies |
+| `/residence/:id` | Fiche : mosaïque et visionneuse, équipements, réservation avec dates |
+| `/reservation?residence=:id` | Réservation en 3 étapes avec récapitulatif |
+| `/mes-reservations` | Espace client : suivi, paiement de l'acompte et du solde, annulation |
+| `/favorites` | Favoris (navigateur) |
+| `/admin/*` | Back-office : vue d'ensemble, réservations, calendrier, résidences, statistiques, paramètres |
+| autre | Page 404 |
+
+Les pages sont **chargées à la demande** : l'accueil ne télécharge ni le back-office ni le paiement.
+
+---
+
+## Fichiers clés
 
 ```text
 client/
-├── vercel.json                     # Build Vercel + redirection des routes vers index.html
-├── webpack.config.js               # Lit .env, injecte REACT_APP_API_URL, copie public/ au build
+├── vercel.json                   # Build, navigation et en-têtes de sécurité (CSP)
+├── webpack.config.js             # Injecte REACT_APP_API_URL, découpe le code par page
+├── public/
+│   ├── init.js                   # Thème et manifeste avant affichage (pas de script inline : CSP)
+│   ├── images/paiement/          # Logos PI-SPI et GeniusPay
+│   └── admin/                    # Manifeste et service worker de l'application Sankofart Admin
 └── src/
-    ├── config/
-    │   ├── api.js                  # Adresses de l'API, requêtes, jeton admin (sessionStorage)
-    │   └── mappers.js              # Conversion format API (français) ↔ composants
-    ├── context/
-    │   ├── ResidencesContext.js    # Données, réservation, recherche IA, actions admin
-    │   └── FavoritesContext.js
-    ├── hooks/useVoiceInput.js      # Dictée vocale (Web Speech API)
+    ├── App.js                    # Routes, chargement à la demande, Vercel Analytics (filtré)
+    ├── config/api.js             # Adresses de l'API et requêtes
+    ├── context/ResidencesContext.js
+    ├── hooks/                    # useEtablissement, useVoiceInput, useTheme, useAdminReservations…
     ├── components/
-    │   ├── SmartSearch.js          # Recherche intelligente + micro
-    │   ├── SimilarResidences.js    # « Vous aimerez aussi »
-    │   ├── AvailabilityStatus.js   # Statut d'une résidence (sans nom d'occupant)
-    │   ├── AdminReservations.js    # Réservations dans le tableau de bord
-    │   └── AdminPanel.js           # Gestion des résidences
-    ├── pages/                      # Home, Residences, ResidenceDetail, Reservation, Favorites, Admin…
-    └── data/residences.js          # Catalogue de secours si l'API est injoignable
+    │   ├── ResidenceCard.js      # Carte de résidence commune
+    │   ├── PaiementAcompte.js    # Paiement de l'acompte ou du solde (GeniusPay, PI-SPI)
+    │   ├── SmartSearch.js        # Recherche intelligente + micro
+    │   ├── ErrorBoundary.js      # Message au lieu d'une page blanche
+    │   └── admin/                # AdminLayout, MoyensPaiement, graphiques
+    └── pages/                    # Home, Residences, ResidenceDetail, Reservation, MesReservations, Admin…
 ```
 
 ---
 
-## 🔌 Comportement si l'API est injoignable
+## À savoir
 
-Le site affiche le catalogue de secours (`src/data/residences.js`) en lecture seule : la navigation reste possible, mais la réservation, la recherche intelligente et l'administration sont désactivées avec un message explicite. Sur Render (offre gratuite), cela peut arriver pendant les 30 à 60 secondes de réveil du serveur.
-
----
-
-## 🎙️ Recherche vocale
-
-Le bouton micro utilise la reconnaissance vocale du navigateur (gratuite, sans clé) :
-- disponible sur Chrome, Edge et Safari ; masqué automatiquement ailleurs (Firefox) ;
-- nécessite **HTTPS** en ligne (fourni par Vercel) ; `localhost` est autorisé en développement ;
-- sur Chrome, la voix est transcrite par les serveurs de Google (indiqué dans l'infobulle du bouton).
+- **Statistiques de visite** (Vercel Analytics) : le back-office n'est jamais compté et les paramètres d'adresse sont retirés (les liens « Mes réservations » contiennent la clé d'accès du client).
+- **API injoignable** : le site affiche un catalogue de secours en lecture seule ; réservation, paiement et back-office sont désactivés avec un message.
+- **Recherche vocale** : Chrome, Edge et Safari, en HTTPS ; masquée ailleurs.
+- **CSP** : tout script ou appel réseau vers une autre adresse est bloqué. Ajouter un service externe demande de mettre à jour `vercel.json`.

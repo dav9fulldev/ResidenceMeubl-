@@ -58,6 +58,12 @@ services:
         sync: false
       - key: PISPI_APP_URL
         sync: false
+      - key: GENIUSPAY_API_KEY
+        sync: false
+      - key: GENIUSPAY_API_SECRET
+        sync: false
+      - key: GENIUSPAY_WEBHOOK_SECRET
+        sync: false
       # Politique de remboursement de l'acompte (valeurs par défaut ;
       # le back-office, page Paramètres, les remplace dès qu'elles y sont enregistrées)
       - key: ACOMPTE_REMBOURSEMENT_POURCENTAGE

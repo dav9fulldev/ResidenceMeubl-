@@ -1,76 +1,96 @@
-# 🏠 Sankofart Résidence
+# Sankofart Résidence
 
-Plateforme de réservation de résidences meublées à Abidjan : site vitrine, réservation en ligne, espace d'administration et **recherche intelligente par IA, à l'écrit comme à la voix**.
+Plateforme de réservation de résidences meublées à Abidjan : site vitrine, réservation en ligne, paiement de l'acompte et du solde (PI-SPI, GeniusPay), back-office complet et recherche intelligente par IA, à l'écrit comme à la voix.
 
 | | |
 |---|---|
-| **Frontend** | React 19, Webpack, React Router, React Hook Form — déployé sur **Vercel** |
-| **Backend** | Node.js, Express, MongoDB (driver officiel), Nodemailer — déployé sur **Render** |
+| **Site** | React 19, React Router 7, Webpack 5 — déployé sur **Vercel** |
+| **API** | Node.js, Express 4, MongoDB (driver officiel) — déployée sur **Render** |
 | **Base de données** | MongoDB **Atlas** |
-| **IA** | Voyage AI `voyage-4-lite` (via Atlas AI Model APIs) + reconnaissance vocale du navigateur |
-| **Qualité** | Tests automatisés (`node:test` + MongoDB en mémoire), CI GitHub Actions, analyse CodeQL |
+| **Paiements** | **PI-SPI** (BCEAO) et **GeniusPay** (Wave, Orange Money, MTN, Moov, carte) |
+| **Emails** | API **Brevo** (SMTP Gmail en local) |
+| **IA** | Voyage AI `voyage-4-lite` + reconnaissance vocale du navigateur |
+| **Qualité et sécurité** | Tests automatisés, CodeQL, OWASP Dependency-Check, OWASP ZAP, Dependabot, Vercel Analytics |
 
-👉 **Mise en ligne : voir [DEPLOIEMENT.md](DEPLOIEMENT.md).**
+Mise en ligne : voir [DEPLOIEMENT.md](DEPLOIEMENT.md).
 
 ---
 
-## ✨ Fonctionnalités
+## Fonctionnalités
 
 ### Pour les clients
-- **Catalogue** de résidences avec photos, équipements, statut en temps réel (disponible, réservé, occupé, maintenance).
-- **Recherche intelligente** : « une villa avec jardin pour une famille de 6, moins de 90 000 FCFA ». Le site comprend les critères chiffrés (personnes, chambres, budget) et classe les résidences par pertinence. Fonctionne en français et en anglais.
-- **Recherche vocale** : bouton micro, le texte s'écrit en direct et la recherche se lance à la fin de la phrase (Chrome, Edge, Safari).
-- **« Vous aimerez aussi »** : 3 résidences comparables sur chaque fiche.
-- **Réservation en ligne** : contrôle des dates déjà prises, de la capacité et de la durée de séjour ; référence et montant affichés ; email d'accusé de réception.
-- **Mes réservations, sans compte** : avec l'email et la référence, ou via un lien reçu par email, le client voit l'historique de ses réservations et peut **demander une annulation**.
+- **Accueil** : recherche par dates, nombre de personnes et quartier ; résidences disponibles mises en avant.
+- **Catalogue** filtré par la disponibilité réelle sur les dates choisies.
+- **Recherche intelligente** : « une villa avec jardin pour une famille de 6, moins de 90 000 FCFA ». Les critères chiffrés sont compris, les résidences classées par pertinence (français et anglais). **Recherche vocale** par le bouton micro.
+- **Fiche résidence** : mosaïque de photos et visionneuse, équipements avec icônes, carte de réservation avec dates et total, « Vous aimerez aussi ».
+- **Réservation en 3 étapes** (séjour, coordonnées, vérification) avec récapitulatif : total, acompte, « 0 FCFA à payer maintenant ».
+- **Paiement de l'acompte** après confirmation par l'équipe, au choix :
+  - **Mobile Money ou carte** via GeniusPay (page de paiement sécurisée) ;
+  - **application bancaire** via PI-SPI (QR code ou demande de paiement).
+- **Solde du séjour** : en ligne depuis « Mes réservations » (mêmes moyens) ou sur place à l'arrivée ; rappel par email 3 jours avant l'arrivée.
+- **Mes réservations, sans compte** (email + référence, ou lien reçu par email) : suivi, paiement, **demande d'annulation**, nettoyage de l'historique.
+- **Remboursement de l'acompte par paliers** (réglables) : 100 % dans les 5 jours suivant le paiement, puis 50 %, rien à moins de 3 jours de l'arrivée.
 - **Favoris** enregistrés dans le navigateur.
 
 ### Pour l'administrateur (`/admin`)
-Le back-office n'est lié nulle part sur le site public : on y accède par l'adresse **`/admin`** (à mettre en favori) ou par l'application **Sankofart Admin** installée sur ordinateur / téléphone. Les pages `/admin` ne sont pas indexées par les moteurs de recherche.
+Le back-office n'est lié nulle part sur le site public : on y accède par **`/admin`** ou par l'application **Sankofart Admin** installable (ordinateur et téléphone). Il n'est pas indexé par les moteurs de recherche.
 
-- Connexion vérifiée par le serveur (jeton signé valable 8 h, tentatives limitées).
-- **Réservations** : liste filtrable, confirmation ou annulation → email automatique au client.
-- **Statistiques** : chiffre d'affaires de l'année et du mois (avec évolution), revenus par mois, chiffre d'affaires cumulé, réservations par mois, taux d'occupation, panier moyen, classement des résidences ; **export Excel (CSV)**.
-- **Demandes d'annulation** des clients : acceptation (dates libérées) ou refus avec message, email au client dans les deux cas.
-- **Résidences** : ajout, modification, suppression, mise en maintenance.
-- Le statut « Réservé » / « Occupé » se met à jour **automatiquement** à partir des réservations confirmées.
+| Page | Contenu |
+|---|---|
+| Vue d'ensemble | Revenus du mois, taux d'occupation, éléments à traiter, acomptes encaissés, activité récente, revenus par mois, résidences les plus rentables |
+| Réservations | Tableau filtrable, recherche, panneau de détail ; confirmer, refuser, traiter une annulation, relancer un remboursement, enregistrer un **solde reçu sur place** |
+| Calendrier | Disponibilités de toutes les résidences jour par jour ; maintenance et durées de séjour |
+| Résidences | Ajout, modification, suppression, maintenance en un clic |
+| Statistiques | Chiffre d'affaires, cumul, occupation, panier moyen, classement ; **export Excel (CSV)** |
+| Paramètres | Établissement, coordonnées et réseaux sociaux, règles d'acompte et de remboursement, email des alertes, **moyens de paiement** (activation de PI-SPI et GeniusPay) |
+
+Les statuts « Réservé » / « Occupé » des résidences se calculent automatiquement à partir des réservations confirmées.
 
 ### Sécurité et confidentialité
-- Le nom des clients n'est **jamais** visible côté public (filtré par le serveur).
-- Identifiants et clés uniquement dans les variables d'environnement, jamais dans le code.
-- Limitation des requêtes (anti-spam, anti force brute, protection du quota IA), CORS restreint, échappement HTML des emails.
+- Coordonnées des clients jamais exposées publiquement ; lecture d'une réservation réservée à l'admin.
+- Jetons signés distincts pour l'admin (8 h) et les clients ; limitation des tentatives (connexion, accès client, paiement, réservation).
+- Paiements validés uniquement après relecture auprès du prestataire ; webhooks signés (HMAC) et horodatés.
+- Validation stricte des entrées, taille des requêtes limitée, en-têtes de sécurité et politique de contenu (CSP) sur le site et l'API.
+- Statistiques de visite sans le back-office ni les paramètres d'adresse (les liens « Mes réservations » contiennent une clé d'accès personnelle).
+- Identifiants et clés uniquement dans les variables d'environnement.
 
 ---
 
-## 📁 Structure
+## Structure
 
 ```text
 RESIDENCE/
-├── .github/workflows/
-│   ├── ci.yml                  # Tests backend + build frontend à chaque push
-│   └── codeql-analysis.yml     # Analyse de sécurité
-├── render.yaml                 # Configuration Render (backend)
-├── DEPLOIEMENT.md              # Guide de mise en ligne Render + Vercel
-├── backend/                    # API Express → voir backend/README.md
-└── client/                     # Site React → voir client/README.md
+├── .github/
+│   ├── workflows/
+│   │   ├── ci.yml                    # Tests de l'API + compilation du site
+│   │   ├── codeql-analysis.yml       # Analyse du code (SAST)
+│   │   ├── dependency-check.yml      # OWASP Dependency-Check (failles des dépendances)
+│   │   └── zap-baseline.yml          # OWASP ZAP, analyse passive hebdomadaire de la production
+│   ├── dependabot.yml                # Mises à jour automatiques des dépendances
+│   └── dependency-check-suppressions.xml
+├── .zap/rules.tsv                    # Faux positifs acceptés par ZAP
+├── render.yaml                       # Configuration Render (API)
+├── DEPLOIEMENT.md                    # Mise en ligne Render + Vercel
+├── backend/                          # API Express → backend/README.md
+└── client/                           # Site React → client/README.md
 ```
 
 ---
 
-## 🚀 Lancer le projet en local
+## Lancer le projet en local
 
 Prérequis : **Node.js 20.19 ou plus récent**, un cluster MongoDB Atlas (gratuit) et votre IP autorisée dans *Atlas → Network Access*.
 
-**1. Backend** (terminal 1)
+**1. API** (terminal 1)
 ```bash
 cd backend
 npm install
 cp .env.example .env      # puis remplir les valeurs (voir backend/README.md)
 npm run dev               # http://localhost:5001
 ```
-Au premier démarrage, les 10 résidences du catalogue sont insérées dans la base.
+Au premier démarrage, les 10 résidences du catalogue sont insérées dans la base. Pour tester les paiements sans prestataire : `PAIEMENT_MODE=simulation`.
 
-**2. Frontend** (terminal 2)
+**2. Site** (terminal 2)
 ```bash
 cd client
 npm install
@@ -80,19 +100,28 @@ npm start                 # http://localhost:3001
 
 **3. Tests**
 ```bash
-cd backend && npm test
+cd backend && npm test    # MongoDB en mémoire, aucun appel aux prestataires
 ```
 
-> 💡 **macOS + iCloud** : si le projet est dans `Documents` synchronisé avec iCloud, iCloud peut vider des fichiers de `node_modules` et bloquer Node. Supprimez `node_modules` puis relancez `npm install`, ou déplacez le projet hors de `Documents`.
+> **macOS et iCloud** : si le projet est dans `Documents` synchronisé avec iCloud, iCloud peut vider des fichiers de `node_modules` et bloquer Node. Supprimez `node_modules` puis relancez `npm install`.
 
 ---
 
-## 📚 Documentation
+## Contribuer
 
-- [DEPLOIEMENT.md](DEPLOIEMENT.md) — mise en ligne Render + Vercel, conseils de démo, dépannage
-- [backend/README.md](backend/README.md) — variables d'environnement, routes de l'API, architecture
-- [client/README.md](client/README.md) — structure du frontend, configuration, composants clés
+1. Partir de `main` à jour : `git checkout main && git pull`, puis créer une branche.
+2. Ouvrir une PR vers `main` : les tests, la compilation, CodeQL et Dependency-Check s'exécutent.
+3. **Ne fusionner que si toutes les vérifications sont au vert.** Une croix rouge sur « Backend - tests » ou « Frontend - build » signifie que le site ne fonctionnera plus.
+4. PR de Dependabot : fusionner les mises à jour mineures au vert ; les versions majeures d'Express et de Babel sont ignorées (migrations à planifier).
 
 ---
 
-**Développé par David YAO.**
+## Documentation
+
+- [DEPLOIEMENT.md](DEPLOIEMENT.md) — mise en ligne, prestataires de paiement, sécurité continue, dépannage
+- [backend/README.md](backend/README.md) — variables d'environnement, routes de l'API, fonctionnement des paiements
+- [client/README.md](client/README.md) — pages, charte graphique, fichiers clés
+
+---
+
+Développé par David YAO.
