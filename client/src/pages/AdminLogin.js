@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { FaLock, FaUser, FaEye, FaEyeSlash } from 'react-icons/fa';
 import { useResidences } from '../context/ResidencesContext';
 import './AdminLogin.css';
-import LogoBabi from '../components/LogoBabi';
+import PanneauMarque from '../components/PanneauMarque';
 
 const AdminLogin = () => {
   const navigate = useNavigate();
@@ -52,14 +52,7 @@ const AdminLogin = () => {
   return (
     <div className="admin-login-page">
       <div className="admin-login-container">
-        <div className="admin-login-header">
-          <div className="admin-logo">
-            <LogoBabi className="admin-login-embleme" />
-            <span className="surtitre">Espace de gestion</span>
-            <h2>Administration</h2>
-            <p>BABI RESIDENCE</p>
-          </div>
-        </div>
+        <PanneauMarque />
 
         <div className="admin-login-form">
           <h3>Connexion</h3>
@@ -140,10 +133,6 @@ const AdminLogin = () => {
           <div className="info-card">
             <h4>🔒 Sécurité</h4>
             <p>Cette zone est protégée et accessible uniquement aux administrateurs autorisés.</p>
-          </div>
-          <div className="info-card">
-            <h4>📊 Gestion</h4>
-            <p>Gérez les résidences, les disponibilités et les réservations en temps réel.</p>
           </div>
         </div>
       </div>
