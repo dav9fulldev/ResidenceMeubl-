@@ -118,6 +118,7 @@ Règles :
 4. **Réserver avec l'email d'un compte ne connecte personne** : la réservation est rattachée au compte, dont les coordonnées ne changent pas ; la personne n'accède qu'à cette réservation.
 5. **Même réponse que le compte existe ou non** pour les demandes de lien ; tentatives limitées (10 par 15 minutes).
 6. **Changer de mot de passe ferme les sessions ouvertes avant.**
+7. **Rien de visible pour le public** : « Mes réservations » n'apparaît dans le menu et le pied de page que sur l'appareil d'un client qui a une session (après une réservation, une connexion ou le lien d'un email). La page reste accessible par ces liens.
 
 ### Service de notation (avis des voyageurs)
 
