@@ -2076,7 +2076,9 @@ test('Service client : compte créé à la réservation, mot de passe via l\'ema
   assert.equal(active.body.data.client.prenom, 'Mariam');
   assert.equal((await db.collection('clients').findOne({ email })).statut, 'actif');
   assert.equal((await definir(jetonDe(liens[0].url), randomBytes(9).toString('hex'))).status, 400, 'les liens précédents ne servent plus');
-  assert.doesNotMatch(await ClientService.lienEspace({ email }), /mdp=/, 'compte actif : lien vers la connexion');
+  const lienActif = await ClientService.lienEspace({ email });
+  assert.doesNotMatch(lienActif, /mdp=/, 'compte actif : lien vers la connexion');
+  assert.match(lienActif, /\/mes-reservations#email=mariam%40service-client\.ci$/, 'la page ne demande que le mot de passe');
 
   // 3. Connexion : session de compte, toutes les réservations, profil pour pré-remplir
   assert.equal((await api('/api/client/connexion', { method: 'POST', body: { email, motDePasse: MAUVAIS_MDP } })).status, 401);

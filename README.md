@@ -32,7 +32,7 @@ Mise en ligne : voir [DEPLOIEMENT.md](DEPLOIEMENT.md).
 - **Solde du séjour** : en ligne depuis « Mes réservations » (mêmes moyens) ou sur place à l'arrivée ; rappel par email 3 jours avant l'arrivée.
 - **Service client : un compte sans inscription.** La première réservation crée le compte du voyageur en arrière-plan. Le bouton « Suivre ma réservation » de ses emails lui fait choisir un mot de passe (nouveau + confirmation) ; ensuite il se connecte avec email + mot de passe, et la session reste ouverte 30 jours sur l'appareil (voir *Service client* plus bas).
 - **Réservation pour une autre personne** : connecté, le voyageur retrouve ses coordonnées pré-remplies ; la case « Je réserve pour une autre personne » ajoute le nom et le téléphone de la personne qui séjourne. La réservation reste dans son espace.
-- **Mes réservations** : suivi, paiement, **demande d'annulation**, nettoyage de l'historique. En secours, email + référence donnent accès à une seule réservation.
+- **Mes réservations** : suivi, paiement, **demande d'annulation**, nettoyage de l'historique. Aucun formulaire de connexion pour le public : le client y arrive par sa session ou par les liens de ses emails ; session expirée, il ne saisit que son mot de passe.
 - **Notation des séjours (avis vérifiés)** : après son départ, le voyageur note la résidence (1 à 5 étoiles, propreté, conformité à l'annonce, accueil, rapport qualité-prix, commentaire). La fiche affiche la vraie moyenne et les avis ; un email l'invite à noter le lendemain du départ.
 - **Remboursement de l'acompte par paliers** (réglables) : 100 % dans les 5 jours suivant le paiement, puis 50 %, rien à moins de 3 jours de l'arrivée.
 - **Favoris** enregistrés dans le navigateur.
@@ -107,7 +107,7 @@ revient      ──►  /mes-reservations                ──►   POST /api/c
 | `backend/routes/client.js` | `/connexion`, `/mot-de-passe`, `/mot-de-passe/lien`, `/moi`, réservations du client |
 | `backend/routes/reservations.js` | Réservation par le compte connecté ou création du compte ; voyageur différent |
 | `backend/middleware/requireClient.js` | Session de compte (fermée si le mot de passe change) ou accès à une réservation |
-| `client/src/pages/MesReservations.js` | Un seul formulaire de connexion ; liens « Recevoir un lien par email » (première visite, mot de passe oublié) et « Retrouver une réservation avec sa référence » ; choix du mot de passe |
+| `client/src/pages/MesReservations.js` | Aucun formulaire pour le public : réservations si session ; choix du mot de passe (lien `?mdp=`) ; mot de passe seul si l'email est connu (appareil ou lien `#email=`) ; sinon invitation à découvrir les résidences |
 | `client/src/pages/Reservation.js` | Pré-remplissage si connecté, « Je réserve pour une autre personne » |
 | `client/src/pages/AdminClientsPage.js` | Super admin : liste des clients, statut du compte, nombre de réservations |
 

@@ -83,7 +83,10 @@ const ClientService = {
    */
   async lienEspace(reservationClient) {
     const client = await this.assurerCompte(reservationClient || {});
-    if (!client || client.statut === STATUTS.ACTIF) return `${urlSite()}/mes-reservations`;
+    if (!client) return `${urlSite()}/mes-reservations`;
+    // Compte actif : la page demande seulement le mot de passe de cet email. Après « # » :
+    // jamais envoyé au serveur ni aux statistiques de visite.
+    if (client.statut === STATUTS.ACTIF) return `${urlSite()}/mes-reservations#email=${encodeURIComponent(client.email)}`;
     const jeton = AuthService.creerJetonMotDePasseClient(client, DUREE_LIEN_EMAIL_MS);
     return `${urlSite()}/mes-reservations?mdp=${encodeURIComponent(jeton)}`;
   },
