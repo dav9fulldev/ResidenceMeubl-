@@ -1613,6 +1613,16 @@ test('multi-entreprises : inscription, cloisonnement des données, validation et
   assert.equal((await api('/api/admin/login', { method: 'POST', body: { email: inscription.email, password: mdp } })).status, 403);
 });
 
+test('migration : les résidences de la plateforme restent vérifiées et publiées', async () => {
+  const Verification = require('../services/VerificationService');
+  // Cas de production : résidences de la plateforme passées en brouillon par l'ancienne migration
+  await db.collection('residences').updateMany({ entrepriseId: 'babi' }, { $set: { statutVerification: 'brouillon' } });
+  assert.equal((await api('/api/residences')).body.total, 0);
+  await Verification.initialiser();
+  const publiques = (await api('/api/residences')).body;
+  assert.ok(publiques.total >= 10, `résidences de la plateforme republiées (${publiques.total})`);
+});
+
 test('vérification des résidences : dossier, photos, décision de la plateforme, signalements', async (t) => {
   const Verification = require('../services/VerificationService');
   const emails = ReservationService.emailService;
