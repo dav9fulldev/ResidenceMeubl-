@@ -19,6 +19,7 @@ const Reservation = lazy(() => import(/* webpackChunkName: "reservation" */ './p
 const Favorites = lazy(() => import(/* webpackChunkName: "favorites" */ './pages/Favorites'));
 const DevenirPartenaire = lazy(() => import(/* webpackChunkName: "devenirpartenaire" */ './pages/DevenirPartenaire'));
 const MesReservations = lazy(() => import(/* webpackChunkName: "mesreservations" */ './pages/MesReservations'));
+const AdminMotDePasse = lazy(() => import(/* webpackChunkName: "adminmotdepasse" */ './pages/AdminMotDePasse'));
 const AdminLogin = lazy(() => import(/* webpackChunkName: "adminlogin" */ './pages/AdminLogin'));
 const AdminInscription = lazy(() => import(/* webpackChunkName: "admininscription" */ './pages/AdminInscription'));
 const AdminEntreprisesPage = lazy(() => import(/* webpackChunkName: "adminentreprises" */ './pages/AdminEntreprisesPage'));
@@ -93,6 +94,7 @@ function App() {
 
             {/* Back-office : application à part, sans les onglets du site public */}
             <Route path="/admin/login" element={<AdminLogin />} />
+            <Route path="/admin/mot-de-passe" element={<AdminMotDePasse />} />
             <Route path="/admin/inscription" element={<AdminInscription />} />
             <Route
               path="/admin"

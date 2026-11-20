@@ -1966,3 +1966,67 @@ test('super admin : supprimer une entreprise en confiant ses résidences à une 
   const c = await api('/api/reservations', { method: 'POST', body: nouvelleReservation({ residenceId: 1, email: 'apres-suppression@example.com', dateArrivee: jourDansNJours(450), dateDepart: jourDansNJours(453) }) });
   assert.equal((await db.collection('reservations').findOne({ id: c.body.data.id })).conditionsFinancieres.tauxCommissionPb, 800, 'commission normale désormais');
 });
+
+test('mot de passe oublié : lien unique, valable 1 h, sessions fermées, aucun compte révélé', async (t) => {
+  const emails = ReservationService.emailService;
+  const envois = [];
+  for (const nom of ['sendBienvenueEntreprise', 'sendNouvelleEntrepriseAdmin']) {
+    const original = emails[nom];
+    emails[nom] = async () => {};
+    t.after(() => { emails[nom] = original; });
+  }
+  const originalReinit = emails.sendReinitialisationMotDePasse;
+  emails.sendReinitialisationMotDePasse = async (u, jeton) => { envois.push({ email: u.email, jeton }); };
+  t.after(() => { emails.sendReinitialisationMotDePasse = originalReinit; });
+
+  const ancien = randomBytes(9).toString('hex');
+  const ins = await api('/api/entreprises/inscription', { method: 'POST', body: {
+    entreprise: 'Résidences Oubli', prenom: 'Awa', nom: 'Koné', email: 'awa@oubli.ci', telephone: '+225 07 00 00 00 09', motDePasse: ancien,
+  } });
+  assert.equal(ins.status, 201, JSON.stringify(ins.body));
+  const sessionAvant = { Authorization: `Bearer ${(await api('/api/admin/login', { method: 'POST', body: { email: 'awa@oubli.ci', password: ancien } })).body.data.token}` };
+  assert.equal((await api('/api/admin/moi', { headers: sessionAvant })).status, 200);
+
+  // Même réponse que le compte existe ou non ; un seul email, au bon compte
+  const inconnu = await api('/api/entreprises/mot-de-passe/oubli', { method: 'POST', body: { email: 'personne@nulle-part.ci' } });
+  const connu = await api('/api/entreprises/mot-de-passe/oubli', { method: 'POST', body: { email: 'AWA@oubli.ci' } });
+  assert.equal(inconnu.status, 200);
+  assert.deepEqual(connu.body, inconnu.body, 'ne révèle pas quels comptes existent');
+  await new Promise(r => setImmediate(r));
+  assert.equal(envois.length, 1);
+  assert.equal(envois[0].email, 'awa@oubli.ci');
+  const { jeton } = envois[0];
+
+  // Seule l'empreinte est en base, et jamais exposée
+  const enBase = await db.collection('utilisateurs').findOne({ email: 'awa@oubli.ci' });
+  assert.ok(enBase.reinitialisation.empreinte && enBase.reinitialisation.empreinte !== jeton);
+  assert.ok(!JSON.stringify(enBase).includes(jeton), 'le jeton en clair n\'est pas stocké');
+
+  // Validations
+  const nouveau = randomBytes(9).toString('hex');
+  const reinit = (body) => api('/api/entreprises/mot-de-passe/reinitialisation', { method: 'POST', body });
+  assert.equal((await reinit({ jeton, motDePasse: randomBytes(2).toString('hex') })).status, 400, 'trop court');
+  assert.equal((await reinit({ jeton: randomBytes(32).toString('base64url'), motDePasse: nouveau })).status, 400, 'jeton inventé');
+  assert.equal((await reinit({ jeton: { $ne: null }, motDePasse: nouveau })).status, 400, 'injection');
+
+  // Réinitialisation : nouveau mot de passe actif, ancien refusé, anciennes sessions fermées
+  assert.equal((await reinit({ jeton, motDePasse: nouveau })).status, 200);
+  assert.equal((await api('/api/admin/login', { method: 'POST', body: { email: 'awa@oubli.ci', password: ancien } })).status, 401);
+  const login = await api('/api/admin/login', { method: 'POST', body: { email: 'awa@oubli.ci', password: nouveau } });
+  assert.equal(login.status, 200);
+  assert.equal((await api('/api/admin/moi', { headers: sessionAvant })).status, 401, 'session ouverte avant la réinitialisation');
+  assert.equal((await api('/api/admin/moi', { headers: { Authorization: `Bearer ${login.body.data.token}` } })).status, 200);
+
+  // Usage unique
+  assert.equal((await reinit({ jeton, motDePasse: randomBytes(9).toString('hex') })).status, 400);
+
+  // Lien expiré
+  await api('/api/entreprises/mot-de-passe/oubli', { method: 'POST', body: { email: 'awa@oubli.ci' } });
+  await new Promise(r => setImmediate(r));
+  await db.collection('utilisateurs').updateOne({ email: 'awa@oubli.ci' }, { $set: { 'reinitialisation.expireLe': new Date(Date.now() - 1000) } });
+  assert.equal((await reinit({ jeton: envois[1].jeton, motDePasse: randomBytes(9).toString('hex') })).status, 400);
+
+  const ent = await db.collection('utilisateurs').findOne({ email: 'awa@oubli.ci' });
+  await db.collection('utilisateurs').deleteOne({ _id: ent._id });
+  await db.collection('entreprises').deleteOne({ _id: ent.entrepriseId });
+});

@@ -317,6 +317,21 @@ class EmailService {
     }));
   }
 
+  async sendReinitialisationMotDePasse(utilisateur, jeton) {
+    await require('./Tenant').run(require('./Tenant').PRINCIPALE, () => this.envoyer({
+      to: utilisateur.email,
+      subject: 'Réinitialisation de votre mot de passe - BABI RESIDENCE',
+      html: this.gabarit({
+        titre: 'Choisissez un nouveau mot de passe',
+        prevue: 'Votre lien de réinitialisation, valable 1 heure.',
+        contenu: `<p style="margin:0 0 12px;">Bonjour ${esc(utilisateur.prenom)},</p>
+          <p style="margin:0;">Vous avez demandé à réinitialiser le mot de passe de votre espace partenaire. Le bouton ci-dessous vous permet d'en choisir un nouveau.</p>`,
+        bouton: { texte: 'Choisir un nouveau mot de passe', url: `${urlSite()}/admin/mot-de-passe?jeton=${encodeURIComponent(jeton)}` },
+        note: 'Ce lien est valable 1 heure et ne sert qu\'une fois. Si vous n\'êtes pas à l\'origine de cette demande, ignorez cet email : votre mot de passe reste inchangé.',
+      }),
+    }));
+  }
+
   async sendNouvelleEntrepriseAdmin(entreprise, utilisateur) {
     await require('./Tenant').run(require('./Tenant').PRINCIPALE, () => this.envoyer({
       to: this.destinataireAdmin,

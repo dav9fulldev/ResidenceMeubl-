@@ -46,6 +46,9 @@ function verifierHash(motDePasse, stocke) {
 // Hash factice : même durée de calcul quand l'email n'existe pas (ne révèle pas les comptes)
 const HASH_FACTICE = hacher(crypto.randomBytes(16).toString('hex'));
 
+const DUREE_REINITIALISATION_MS = 60 * 60 * 1000;
+const empreinte = (jeton) => crypto.createHash('sha256').update(String(jeton)).digest('hex');
+
 const texte = (v, max) => String(v ?? '').trim().slice(0, max);
 
 const nouvelId = () => `ent_${crypto.randomBytes(6).toString('hex')}`;
@@ -168,6 +171,43 @@ class EntrepriseService {
     await this.utilisateurs.updateOne({ _id: u._id }, { $set: { motDePasse: hacher(nouveau), motDePasseLe: new Date() } });
   }
 
+  // ---------- Mot de passe oublié ----------
+  // Lien envoyé par email, valable 1 heure et utilisable une seule fois. Seule l'empreinte
+  // SHA-256 du jeton est enregistrée : une fuite de la base ne permet pas de s'en servir.
+
+  /**
+   * Prépare une réinitialisation. Retourne { utilisateur, jeton } ou null si l'email est inconnu
+   * (la route répond la même chose dans les deux cas : on ne révèle pas quels comptes existent).
+   */
+  async demanderReinitialisation(email) {
+    const u = await this.utilisateurs.findOne({ email: { $eq: texte(email, 254).toLowerCase() } });
+    if (!u) return null;
+    const jeton = crypto.randomBytes(32).toString('base64url');
+    await this.utilisateurs.updateOne({ _id: u._id }, {
+      $set: { reinitialisation: { empreinte: empreinte(jeton), expireLe: new Date(Date.now() + DUREE_REINITIALISATION_MS) } },
+    });
+    return { utilisateur: u, jeton };
+  }
+
+  /** Change le mot de passe avec le jeton reçu par email, puis ferme toutes les sessions ouvertes. */
+  async reinitialiserMotDePasse(jeton, nouveau) {
+    const j = String(jeton ?? '');
+    if (String(nouveau ?? '').length < MOT_DE_PASSE_MIN || String(nouveau).length > 200) {
+      throw new ErreurEntreprise(`Le mot de passe doit contenir au moins ${MOT_DE_PASSE_MIN} caractères`);
+    }
+    const invalide = new ErreurEntreprise('Ce lien n\'est plus valable. Demandez-en un nouveau.', 400);
+    if (!/^[\w-]{20,100}$/.test(j)) throw invalide;
+    const maintenant = new Date();
+    // Usage unique : le jeton est retiré dans la même opération que le changement de mot de passe
+    const r = await this.utilisateurs.findOneAndUpdate(
+      { 'reinitialisation.empreinte': { $eq: empreinte(j) }, 'reinitialisation.expireLe': { $gt: maintenant } },
+      { $set: { motDePasse: hacher(nouveau), motDePasseLe: maintenant, sessionsInvalideesLe: maintenant }, $unset: { reinitialisation: '' } },
+      { returnDocument: 'after' }
+    );
+    if (!r) throw invalide;
+    return r;
+  }
+
   publicUtilisateur(u) {
     return u ? { id: u._id, prenom: u.prenom, nom: u.nom, email: u.email, telephone: u.telephone, role: u.role } : null;
   }
@@ -180,7 +220,7 @@ class EntrepriseService {
       this.entreprises.find({}).sort({ creeLe: -1 }).toArray(),
       db.collection('residences').aggregate([{ $group: { _id: '$entrepriseId', total: { $sum: 1 } } }]).toArray(),
       db.collection('reservations').aggregate([{ $group: { _id: '$entrepriseId', total: { $sum: 1 } } }]).toArray(),
-      this.utilisateurs.find({}, { projection: { motDePasse: 0 } }).toArray(),
+      this.utilisateurs.find({}, { projection: { motDePasse: 0, reinitialisation: 0 } }).toArray(),
     ]);
     const compte = (liste, id) => liste.find(x => x._id === id)?.total || 0;
     return entreprises.map(e => ({
@@ -298,7 +338,7 @@ class EntrepriseService {
   }
 
   async gestionnaires(entrepriseId) {
-    return this.utilisateurs.find({ entrepriseId: { $eq: String(entrepriseId) } }, { projection: { motDePasse: 0 } }).toArray();
+    return this.utilisateurs.find({ entrepriseId: { $eq: String(entrepriseId) } }, { projection: { motDePasse: 0, reinitialisation: 0 } }).toArray();
   }
 }
 

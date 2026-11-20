@@ -109,6 +109,8 @@ const AdminLogin = () => {
               </div>
             </div>
 
+            <p className="admin-login-oubli"><Link to="/admin/mot-de-passe" className="admin-login-lien">Mot de passe oublié ?</Link></p>
+
             <button
               type="submit"
               className="btn btn-primary btn-login"

@@ -333,3 +333,8 @@
 @media (max-width: 480px) { .form-ligne-2 { grid-template-columns: 1fr; gap: 0; } }
 :root:not([data-theme="dark"]) .admin-login-form h3 { color: #12284C; }
 :root[data-theme="dark"] .admin-login-info .info-card h4 { color: #12284C; }
+
+/* Mot de passe oublié */
+.admin-login-oubli { margin: -12px 0 20px; text-align: right; font-size: 0.875rem; }
+.admin-login-lien { color: var(--gold-ink); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+.succes-message { background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; padding: 16px; border-radius: 12px; margin-bottom: 24px; text-align: center; font-weight: 500; line-height: 1.5; }

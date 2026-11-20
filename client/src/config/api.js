@@ -34,6 +34,8 @@ export const API_ENDPOINTS = {
   },
   companies: {
     signup: `${API_BASE_URL}/entreprises/inscription`,
+    forgotPassword: `${API_BASE_URL}/entreprises/mot-de-passe/oubli`,
+    resetPassword: `${API_BASE_URL}/entreprises/mot-de-passe/reinitialisation`,
   },
   admin: {
     login: `${API_BASE_URL}/admin/login`,
