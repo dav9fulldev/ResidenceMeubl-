@@ -161,6 +161,21 @@ router.post('/reservations/:id/annulation', requireClient, async (req, res) => {
 });
 
 /**
+ * @route   POST /api/client/reservations/:id/avis   { note, criteres: { proprete, conformite, accueil, qualitePrix }, commentaire? }
+ * @desc    Service de notation : le voyageur note son séjour terminé (une fois)
+ */
+router.post('/reservations/:id/avis', accesLimiter, requireClient, async (req, res) => {
+  const Avis = require('../services/AvisService');
+  try {
+    const avis = await Avis.deposer(req.params.id, req.client, req.body || {});
+    res.status(201).json({ success: true, message: 'Merci ! Votre avis aide les prochains voyageurs.', data: { note: avis.note } });
+  } catch (error) {
+    if (error instanceof Avis.ErreurAvis) return res.status(error.status).json({ success: false, message: error.message });
+    gererErreur(res, error, 'lors de l\'envoi de l\'avis');
+  }
+});
+
+/**
  * @route   POST /api/client/reservations/masquer
  * @desc    Retire de l'historique des réservations annulées ou terminées : { ids? } (sans ids : toutes)
  */

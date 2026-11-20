@@ -209,7 +209,10 @@ class ReservationService {
   async getReservationsClient({ email, ref }) {
     const filtre = { 'client.email': { $eq: String(email) }, masqueeParClient: { $ne: true }, ...(ref ? { id: { $eq: String(ref) } } : {}) };
     const docs = await this.collection.find(filtre, { projection: { _id: 0 } }).sort({ dateCreation: -1 }).toArray();
-    return docs.map(vueClient);
+    // Service de notation : note déjà donnée, ou possibilité de noter un séjour terminé
+    const Avis = require('./AvisService');
+    const notes = await Avis.pourReservations(docs.map(d => d.id));
+    return docs.map(d => ({ ...vueClient(d), maNote: notes.get(d.id) ?? null, peutNoter: !notes.has(d.id) && Avis.notable(d) }));
   }
 
   /**
@@ -481,7 +484,10 @@ class ReservationService {
 
   demarrerRappelsSolde(intervalleMs = 60 * 60 * 1000) {
     if (this.minuterieRappels) return;
-    const lancer = () => this.envoyerRappelsSolde().catch(e => console.error('⚠️ Rappels de solde :', e.message));
+    const lancer = () => {
+      this.envoyerRappelsSolde().catch(e => console.error('⚠️ Rappels de solde :', e.message));
+      require('./AvisService').envoyerInvitations(this.emailService).catch(e => console.error('⚠️ Invitations à noter :', e.message));
+    };
     lancer();
     this.minuterieRappels = setInterval(lancer, intervalleMs);
     this.minuterieRappels.unref?.();

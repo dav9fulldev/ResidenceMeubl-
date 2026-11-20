@@ -174,6 +174,41 @@ router.get('/plateforme/entreprises', superAdmin, async (req, res) => {
 });
 
 /**
+ * @route   GET /api/admin/avis
+ * @route   PUT /api/admin/avis/:id/reponse    { texte }            partenaire : réponse publique
+ * @route   PUT /api/admin/avis/:id/masquage   { masque, motif }    plateforme : avis abusif
+ * @desc    Service de notation (back-office)
+ */
+const erreurAvis = (res, error, contexte) => {
+  const Avis = require('../services/AvisService');
+  if (error instanceof Avis.ErreurAvis) return res.status(error.status).json({ success: false, message: error.message });
+  return gererErreur(res, error, contexte);
+};
+const auteurAdmin = (req) => (req.admin.uid ? `utilisateur:${req.admin.uid}` : `plateforme:${req.admin.sub}`);
+
+router.get('/avis', async (req, res) => {
+  try {
+    res.json({ success: true, data: await require('../services/AvisService').listerAdmin({ superAdmin: Boolean(req.admin.sa) }) });
+  } catch (error) { erreurAvis(res, error, 'lors de la lecture des avis'); }
+});
+
+router.put('/avis/:id/reponse', async (req, res) => {
+  if (req.admin.sa) return res.status(403).json({ success: false, message: 'La réponse appartient au partenaire qui gère la résidence' });
+  try {
+    if (req.body?.texte !== undefined && typeof req.body.texte !== 'string') return res.status(400).json({ success: false, message: 'Réponse invalide' });
+    await require('../services/AvisService').repondre(req.params.id, req.body?.texte, auteurAdmin(req));
+    res.json({ success: true });
+  } catch (error) { erreurAvis(res, error, 'lors de la réponse'); }
+});
+
+router.put('/avis/:id/masquage', superAdmin, async (req, res) => {
+  try {
+    await require('../services/AvisService').masquer(req.params.id, { masque: Boolean(req.body?.masque), motif: req.body?.motif }, auteurAdmin(req));
+    res.json({ success: true });
+  } catch (error) { erreurAvis(res, error, 'lors du masquage'); }
+});
+
+/**
  * @route   GET /api/admin/plateforme/clients?q=
  * @desc    Service client : comptes des voyageurs (créés en arrière-plan à la réservation)
  */

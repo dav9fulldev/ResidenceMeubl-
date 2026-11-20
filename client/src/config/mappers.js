@@ -18,7 +18,9 @@ export const fromApiResidence = (r) => ({
   bedrooms: r.nombreChambres,
   bathrooms: r.nombreSallesDeBain,
   maxGuests: r.capacite,
+  // Service de notation : moyenne des avis vérifiés (aucune note sans avis)
   rating: r.note,
+  reviews: r.nombreAvis || 0,
   images: r.photos || [],
   amenities: r.equipements || [],
   active: r.actif !== false,

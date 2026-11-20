@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-do
 import { FaSearch, FaEnvelope, FaSignOutAlt, FaLock, FaEye, FaEyeSlash } from 'react-icons/fa';
 import { API_ENDPOINTS, apiRequest, getClientToken, setClientToken } from '../config/api';
 import PaiementAcompte, { preparerPaiementDirect } from '../components/PaiementAcompte';
+import { Etoiles, FormulaireAvis } from '../components/Avis';
 import './MesReservations.css';
 
 const fcfa = (n) => `${Number(n).toLocaleString('fr-FR')} FCFA`;
@@ -48,6 +49,7 @@ const MesReservations = () => {
   const [motDePasse, setMotDePasse] = useState('');
   const [confirmationMdp, setConfirmationMdp] = useState('');
   const [voirMdp, setVoirMdp] = useState(false);
+  const [noterId, setNoterId] = useState(null); // réservation en cours de notation
   const [jetonMdp, setJetonMdp] = useState(null); // lien « choisir mon mot de passe » reçu par email
   const [compte, setCompte] = useState(null); // compte connecté ; null pour un accès à une seule réservation
   const [limitee, setLimitee] = useState(false); // accès à une seule réservation (référence ou juste après réservation)
@@ -426,6 +428,22 @@ const MesReservations = () => {
                   <p><strong>Du {formatDate(r.dates.arrivee)} au {formatDate(r.dates.depart)}</strong> · {r.nombrePersonnes} pers.</p>
                   {r.voyageur && <p className="client-reservation-voyageur">Pour {r.voyageur.prenom} {r.voyageur.nom}</p>}
                   <p>{Number(r.prixTotal).toLocaleString('fr-FR')} FCFA · Réf. {r.id}</p>
+
+                  {r.maNote && <p className="demande-info acceptee">Votre note : <Etoiles note={r.maNote} taille="petite" /> Merci pour votre avis.</p>}
+                  {r.peutNoter && noterId !== r.id && (
+                    <div className="acompte-bloc">
+                      <p>Comment s'est passé votre séjour ? Votre avis aide les prochains voyageurs.</p>
+                      <button type="button" className="btn btn-primary btn-sm" onClick={() => setNoterId(r.id)}>Noter mon séjour</button>
+                    </div>
+                  )}
+                  {r.peutNoter && noterId === r.id && (
+                    <FormulaireAvis reservationId={r.id} token={token} onAnnuler={() => setNoterId(null)}
+                      onEnvoye={(note, message) => {
+                        setNoterId(null);
+                        setInfo(message);
+                        setReservations(prev => prev.map(x => (x.id === r.id ? { ...x, maNote: note, peutNoter: false } : x)));
+                      }} />
+                  )}
 
                   {['a_rembourser', 'echec', 'en_cours'].includes(r.acompte?.remboursement?.statut) && (
                     <p className="demande-info attente">↩️ Remboursement de {Number(r.acompte.remboursement.montant ?? r.acompte.montant).toLocaleString('fr-FR')} FCFA en cours.</p>

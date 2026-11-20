@@ -35,6 +35,12 @@ const publique = (residence) => {
   };
 };
 
+/** Note affichée = moyenne des avis des voyageurs (service de notation) ; aucune note sans avis. */
+async function avecNotes(residences) {
+  const resumes = await require('./AvisService').resumes(residences.map(r => r.id));
+  return residences.map(r => ({ ...r, note: resumes.get(r.id)?.moyenne ?? null, nombreAvis: resumes.get(r.id)?.nombre || 0 }));
+}
+
 /** Conditions de réservation propres à l'entreprise d'une résidence (acompte, moyens de paiement). */
 const conditionsEntreprise = (entrepriseId) => Tenant.run(entrepriseId, () => {
   const Settings = require('./SettingsService');
@@ -110,7 +116,7 @@ class ResidenceService {
   // Résidences visibles sur le site public
   async getAllResidences() {
     const docs = await this.collection.find(PUBLIQUES(), SANS_ID_MONGO).sort({ id: 1 }).toArray();
-    return (await this.avecStatutReel(docs)).map(publique);
+    return avecNotes((await this.avecStatutReel(docs)).map(publique));
   }
 
   // Toutes les résidences de l'entreprise, y compris inactives (admin)
@@ -122,7 +128,7 @@ class ResidenceService {
   // Obtenir une résidence active par ID (version publique)
   async getResidenceById(id) {
     const doc = await this.collection.findOne({ id: parseInt(id), ...PUBLIQUES() }, SANS_ID_MONGO);
-    return doc ? publique((await this.avecStatutReel([doc]))[0]) : null;
+    return doc ? (await avecNotes([publique((await this.avecStatutReel([doc]))[0])]))[0] : null;
   }
 
   // Fiche publique complète : résidence + conditions de l'entreprise qui la propose
