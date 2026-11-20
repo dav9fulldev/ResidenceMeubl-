@@ -2005,8 +2005,8 @@ test('mot de passe oublié : lien unique, valable 1 h, sessions fermées, aucun 
   // Validations
   const nouveau = randomBytes(9).toString('hex');
   const reinit = (body) => api('/api/entreprises/mot-de-passe/reinitialisation', { method: 'POST', body });
-  assert.equal((await reinit({ jeton, motDePasse: 'court' })).status, 400);
-  assert.equal((await reinit({ jeton: 'x'.repeat(43), motDePasse: nouveau })).status, 400, 'jeton inventé');
+  assert.equal((await reinit({ jeton, motDePasse: randomBytes(2).toString('hex') })).status, 400, 'trop court');
+  assert.equal((await reinit({ jeton: randomBytes(32).toString('base64url'), motDePasse: nouveau })).status, 400, 'jeton inventé');
   assert.equal((await reinit({ jeton: { $ne: null }, motDePasse: nouveau })).status, 400, 'injection');
 
   // Réinitialisation : nouveau mot de passe actif, ancien refusé, anciennes sessions fermées
