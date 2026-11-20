@@ -38,6 +38,7 @@ Mise en ligne : voir [DEPLOIEMENT.md](DEPLOIEMENT.md).
 - **Inscription** sur `/admin/inscription` (lien « Vous gérez des résidences ? Publiez-les » en pied de page) : nom de l'entreprise, gestionnaire, email, mot de passe.
 - L'entreprise est **vérifiée par la plateforme** : en attendant, le gestionnaire prépare ses résidences, ses règles d'acompte et ses moyens de paiement ; rien n'est visible sur le site.
 - Chaque entreprise ne voit **que ses données** : résidences, réservations, calendrier, statistiques, paramètres.
+- **Mot de passe oublié** : lien « Mot de passe oublié ? » sur la page de connexion, lien de réinitialisation envoyé par email (voir *Mot de passe oublié* plus bas).
 - **Paiements encaissés par la plateforme** : la part de l'entreprise (montant moins la commission de 8 %) lui est reversée 24 h après l'arrivée du client, sur le compte qu'elle déclare dans *Revenus* (vérifié par la plateforme).
 - Emails aux clients au nom de l'entreprise (les réponses lui parviennent) ; alertes à son adresse.
 - Sur le site, chaque fiche indique « Proposé par … » et applique les règles d'acompte de l'entreprise.
@@ -79,6 +80,45 @@ Les statuts « Réservé » / « Occupé » des résidences se calculent automat
 - Validation stricte des entrées, taille des requêtes limitée, en-têtes de sécurité et politique de contenu (CSP) sur le site et l'API.
 - Statistiques de visite sans le back-office ni les paramètres d'adresse (les liens « Mes réservations » contiennent une clé d'accès personnelle).
 - Identifiants et clés uniquement dans les variables d'environnement.
+
+### Mot de passe oublié (partenaires)
+
+```
+Partenaire             Site (React)                       API (Express)                               MongoDB
+──────────             ────────────                       ─────────────                               ───────
+« Mot de passe   ──►  /admin/mot-de-passe          ──►  POST /api/entreprises/mot-de-passe/oubli  ──►  utilisateurs.reinitialisation
+  oublié ? »          (saisie de l'email)               jeton aléatoire 32 octets                      { empreinte SHA-256, expireLe +1 h }
+                                                         réponse identique, compte connu ou non
+                                                                │
+Email reçu  ◄──────────────────────────────────────────  EmailService.sendReinitialisationMotDePasse
+(lien ?jeton=…)
+
+Clique le lien   ──►  /admin/mot-de-passe?jeton=…  ──►  POST /api/entreprises/                  ──►  en une seule opération :
+                      (nouveau mot de passe)            mot-de-passe/reinitialisation                 nouveau mot de passe (scrypt),
+                                                                                                      sessionsInvalideesLe = maintenant,
+                                                                                                      jeton supprimé
+
+Ancienne session ──►  page du back-office      ──►  requireAdmin : iat du jeton < sessionsInvalideesLe → 401
+```
+
+| Couche | Fichier | Rôle |
+|---|---|---|
+| Page | `client/src/pages/AdminMotDePasse.js` | Sans jeton : demande de l'email ; avec `?jeton=` : choix du nouveau mot de passe |
+| Page | `client/src/pages/AdminLogin.js` | Lien « Mot de passe oublié ? » |
+| Routes | `backend/routes/entreprises.js` | `/mot-de-passe/oubli` et `/mot-de-passe/reinitialisation` (publiques, 5 demandes / 15 min) |
+| Logique | `backend/services/EntrepriseService.js` | `demanderReinitialisation()` et `reinitialiserMotDePasse()` |
+| Email | `backend/services/EmailService.js` | `sendReinitialisationMotDePasse()` au nom de BABI RESIDENCE |
+| Sessions | `backend/services/AuthService.js`, `backend/middleware/requireAdmin.js` | Date de création (`iat`) dans le jeton ; sessions ouvertes avant la réinitialisation refusées |
+
+Protections :
+1. **Aucun compte révélé** : même réponse que l'email existe ou non.
+2. **Jeton jamais stocké en clair** : seule son empreinte SHA-256 est en base ; une fuite de la base est inutile.
+3. **Valable 1 heure.**
+4. **Usage unique** : le jeton est supprimé dans la même opération que le changement de mot de passe.
+5. **Sessions fermées** : les sessions ouvertes avant la réinitialisation ne valent plus rien (un voleur d'accès est déconnecté).
+6. **Demandes limitées** : 5 par 15 minutes et par visiteur (pas d'envoi d'emails en masse ni d'essais de jetons).
+
+Le super-administrateur n'est pas concerné : son mot de passe est la variable `ADMIN_PASSWORD` sur Render.
 
 ---
 
