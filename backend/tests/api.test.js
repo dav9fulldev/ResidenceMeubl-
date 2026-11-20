@@ -1945,3 +1945,24 @@ test('super admin : vue d\'ensemble de la plateforme, transfert des résidences 
   assert.equal(apres.residencesPlateforme, 0);
   assert.equal(apres.transfertFait, true);
 });
+
+test('super admin : supprimer une entreprise en confiant ses résidences à une autre', async () => {
+  const headersAdmin = await connexionAdmin();
+  const mdp = randomBytes(9).toString('hex');
+  const ins = await api('/api/entreprises/inscription', { method: 'POST', body: { entreprise: 'Ryder Test', prenom: 'Franck', nom: 'Test', email: 'ryder@test-transfert.ci', telephone: '+225 07 00 00 00 66', motDePasse: mdp } });
+  const idRyder = ins.body.data.entreprise.id;
+  assert.equal((await api('/api/admin/plateforme/entreprises/ent_babi_gestion/suppression', { method: 'POST', headers: headersAdmin, body: { vers: idRyder } })).status, 409, 'cible non validée');
+  await api(`/api/admin/plateforme/entreprises/${idRyder}/statut`, { method: 'PUT', headers: headersAdmin, body: { statut: 'validee' } });
+  assert.equal((await api('/api/admin/plateforme/entreprises/babi/suppression', { method: 'POST', headers: headersAdmin, body: { vers: idRyder } })).status, 409, 'jamais la plateforme');
+  const avant = await db.collection('residences').countDocuments({ entrepriseId: 'ent_babi_gestion' });
+  const r = await api('/api/admin/plateforme/entreprises/ent_babi_gestion/suppression', { method: 'POST', headers: headersAdmin, body: { vers: idRyder } });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  assert.equal(r.body.data.residences, avant);
+  assert.equal(await db.collection('entreprises').countDocuments({ _id: 'ent_babi_gestion' }), 0);
+  assert.equal((await api('/api/admin/login', { method: 'POST', body: { email: 'gestion@babi-residence.test', password: 'x'.repeat(12) } })).status, 401, 'compte supprimé');
+  const g = { Authorization: `Bearer ${(await api('/api/admin/login', { method: 'POST', body: { email: 'ryder@test-transfert.ci', password: mdp } })).body.data.token}` };
+  assert.equal((await api('/api/admin/residences', { headers: g })).body.data.length, avant, 'Ryder gère les résidences');
+  assert.ok((await api('/api/residences/1')).status === 200, 'toujours publiées');
+  const c = await api('/api/reservations', { method: 'POST', body: nouvelleReservation({ residenceId: 1, email: 'apres-suppression@example.com', dateArrivee: jourDansNJours(450), dateDepart: jourDansNJours(453) }) });
+  assert.equal((await db.collection('reservations').findOne({ id: c.body.data.id })).conditionsFinancieres.tauxCommissionPb, 800, 'commission normale désormais');
+});

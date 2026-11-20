@@ -32,3 +32,4 @@
 .admin-modal label { display: block; margin: 12px 0 6px; font-weight: 600; font-size: 0.9rem; }
 .admin-modal textarea { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border); font: inherit; margin-bottom: 14px; }
 @media (max-width: 480px) { .ent-liste { grid-template-columns: 1fr; } }
+.admin-modal select, .admin-modal input { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border); font: inherit; margin-bottom: 8px; }

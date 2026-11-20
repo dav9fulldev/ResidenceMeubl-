@@ -258,6 +258,45 @@ class EntrepriseService {
     return { entrepriseId: id, residences: residences.modifiedCount, reservations: reservations.modifiedCount };
   }
 
+  /**
+   * Supprime une entreprise en confiant ses résidences, réservations et dossiers à une autre entreprise
+   * validée. Ses comptes responsables et ses paramètres sont supprimés ; le registre financier
+   * (historique immuable) n'est pas modifié. Refusé s'il reste de l'argent dû ou un reversement en cours.
+   */
+  async supprimerEnTransferant(id, versId) {
+    const source = await this.trouver(id);
+    const cible = await this.trouver(versId);
+    if (!source) throw new ErreurEntreprise('Entreprise introuvable', 404);
+    if (source.principale) throw new ErreurEntreprise('Le compte de la plateforme ne peut pas être supprimé', 409);
+    if (!cible || cible.principale || cible._id === source._id) throw new ErreurEntreprise('Choisissez une autre entreprise pour reprendre les résidences');
+    if (cible.statut !== 'validee') throw new ErreurEntreprise('L\'entreprise qui reprend les résidences doit être validée', 409);
+    const [reste] = await db.collection('owner_payables').aggregate([{ $match: { entrepriseId: source._id } }, { $group: { _id: null, reste: { $sum: { $subtract: ['$du', '$verse'] } } } }]).toArray();
+    if (reste && reste.reste !== 0) throw new ErreurEntreprise('Cette entreprise a encore de l\'argent dû ou une commission à déduire : soldez-le d\'abord (Finances)', 409);
+    if (await db.collection('payouts').findOne({ entrepriseId: source._id, statut: { $in: ['EN_ATTENTE_APPROBATION', 'APPROUVE', 'EXECUTE'] } })) {
+      throw new ErreurEntreprise('Un reversement est en cours pour cette entreprise : terminez-le d\'abord', 409);
+    }
+    const filtre = { entrepriseId: source._id };
+    const vers = { $set: { entrepriseId: cible._id } };
+    const [residences, reservations] = await Promise.all([
+      db.collection('residences').updateMany(filtre, vers),
+      db.collection('reservations').updateMany(filtre, vers),
+      db.collection('verifications').updateMany(filtre, vers),
+      db.collection('signalements').updateMany(filtre, vers),
+      db.collection('owner_payables').updateMany(filtre, vers),
+      db.collection('commissions').updateMany(filtre, vers),
+    ]);
+    await Promise.all([
+      this.utilisateurs.deleteMany(filtre),
+      db.collection('parametres').deleteMany({ _id: { $in: ['acompte', 'etablissement', 'paiement'].map(t => `${t}:${source._id}`) } }),
+      db.collection('owner_payout_methods').deleteOne({ _id: source._id }),
+      this.entreprises.deleteOne({ _id: source._id }),
+    ]);
+    await this.recharger();
+    await require('./SettingsService').charger();
+    require('./SmartSearchService').synchroniserEnFond();
+    return { supprimee: source.nom, vers: cible.nom, residences: residences.modifiedCount, reservations: reservations.modifiedCount };
+  }
+
   async gestionnaires(entrepriseId) {
     return this.utilisateurs.find({ entrepriseId: { $eq: String(entrepriseId) } }, { projection: { motDePasse: 0 } }).toArray();
   }
