@@ -2,6 +2,8 @@ const crypto = require('crypto');
 const { buildPayloadString, generateQrCodeSvg } = require('@pi-spi/qrcode');
 const db = require('../../db');
 const Tenant = require('../Tenant');
+// Module financier : chargé à la demande (évite une dépendance circulaire)
+const finance = () => require('../finance');
 const PiSpi = require('./PiSpiClient');
 const GeniusPay = require('./GeniusPayClient');
 const acompte = require('./acompte');
@@ -250,35 +252,46 @@ class PaymentService {
     const maintenant = new Date();
     // Acompte déjà réglé par un autre paiement : doublon à rembourser, signalé à l'admin
     if (avant.acompte?.paye && avant.acompte.txId !== txId) {
-      await this.collection.updateOne(
-        { id: { $eq: String(reservationId) }, 'paiements.txId': txId },
-        { $set: { 'paiements.$.statut': 'doublon', 'paiements.$.payeLe': maintenant, 'paiements.$.end2endId': end2endId, 'paiements.$.raison': 'Acompte déjà réglé : à rembourser' } }
-      );
+      await db.transaction(async (session) => {
+        const res = await this.collection.updateOne(
+          { id: { $eq: String(reservationId) }, paiements: { $elemMatch: { txId, statut: { $ne: 'doublon' } } } },
+          { $set: { 'paiements.$.statut': 'doublon', 'paiements.$.payeLe': maintenant, 'paiements.$.end2endId': end2endId, 'paiements.$.raison': 'Acompte déjà réglé : à rembourser' } },
+          { session }
+        );
+        // L'argent est bien arrivé : comptabilisé comme trop-perçu à rendre au client
+        if (res.modifiedCount === 1) await finance().paiementEnDouble(avant, { ...p, end2endId }, session);
+      });
       console.error('⚠️ Paiement en double sur %s (%s) : à rembourser', String(reservationId).replace(/\n|\r/g, ''), String(txId).replace(/\n|\r/g, ''));
       const maj = await this.collection.findOne({ id: { $eq: String(reservationId) } }, { projection: { _id: 0 } });
       return maj.paiements.find(x => x.txId === txId);
     }
-    const resultat = await this.collection.updateOne(
-      { id: { $eq: String(reservationId) }, 'acompte.paye': { $ne: true }, paiements: { $elemMatch: { txId, statut: { $in: ['en_attente', 'expire'] } } } },
-      {
-        $set: {
-          'paiements.$.statut': 'paye',
-          'paiements.$.payeLe': maintenant,
-          'paiements.$.end2endId': end2endId,
-          acompte: {
-            paye: true,
-            montant: p.montant,
-            pourcentage: acompte.pourcentage(),
-            payeLe: maintenant,
-            txId,
-            methode: p.methode,
-            end2endId,
-            payeurNom,
-            payeurAlias: payeurAlias || p.payeurAlias || null,
+    // Paiement et écriture comptable : tout ou rien (transaction MongoDB)
+    const resultat = await db.transaction(async (session) => {
+      const res = await this.collection.updateOne(
+        { id: { $eq: String(reservationId) }, 'acompte.paye': { $ne: true }, paiements: { $elemMatch: { txId, statut: { $in: ['en_attente', 'expire'] } } } },
+        {
+          $set: {
+            'paiements.$.statut': 'paye',
+            'paiements.$.payeLe': maintenant,
+            'paiements.$.end2endId': end2endId,
+            acompte: {
+              paye: true,
+              montant: p.montant,
+              pourcentage: acompte.pourcentage(),
+              payeLe: maintenant,
+              txId,
+              methode: p.methode,
+              end2endId,
+              payeurNom,
+              payeurAlias: payeurAlias || p.payeurAlias || null,
+            },
           },
         },
-      }
-    );
+        { session }
+      );
+      if (res.modifiedCount === 1) await finance().paiementConfirme(avant, { ...p, objet: 'acompte', end2endId }, session);
+      return res;
+    });
     const r = await this.collection.findOne({ id: { $eq: String(reservationId) } }, { projection: { _id: 0 } });
 
     if (resultat.modifiedCount === 1 && this.emailService) {
@@ -295,23 +308,32 @@ class PaymentService {
   async marquerSoldePaye(avant, p, { end2endId = null, payeurNom = null } = {}) {
     const maintenant = new Date();
     if (avant.solde?.paye && avant.solde.txId !== p.txId) {
-      await this.collection.updateOne(
-        { id: avant.id, 'paiements.txId': p.txId },
-        { $set: { 'paiements.$.statut': 'doublon', 'paiements.$.payeLe': maintenant, 'paiements.$.end2endId': end2endId, 'paiements.$.raison': 'Solde déjà réglé : à rembourser' } }
-      );
+      await db.transaction(async (session) => {
+        const res = await this.collection.updateOne(
+          { id: avant.id, paiements: { $elemMatch: { txId: p.txId, statut: { $ne: 'doublon' } } } },
+          { $set: { 'paiements.$.statut': 'doublon', 'paiements.$.payeLe': maintenant, 'paiements.$.end2endId': end2endId, 'paiements.$.raison': 'Solde déjà réglé : à rembourser' } },
+          { session }
+        );
+        if (res.modifiedCount === 1) await finance().paiementEnDouble(avant, { ...p, end2endId }, session);
+      });
       console.error('⚠️ Solde payé en double sur %s (%s) : à rembourser', String(avant.id).replace(/\n|\r/g, ''), String(p.txId).replace(/\n|\r/g, ''));
     } else {
-      const resultat = await this.collection.updateOne(
-        { id: avant.id, 'solde.paye': { $ne: true }, paiements: { $elemMatch: { txId: p.txId, statut: { $in: ['en_attente', 'expire'] } } } },
-        {
-          $set: {
-            'paiements.$.statut': 'paye',
-            'paiements.$.payeLe': maintenant,
-            'paiements.$.end2endId': end2endId,
-            solde: { paye: true, enLigne: true, montant: p.montant, payeLe: maintenant, txId: p.txId, methode: p.methode, reference: end2endId || p.txId, payeurNom },
+      const resultat = await db.transaction(async (session) => {
+        const res = await this.collection.updateOne(
+          { id: avant.id, 'solde.paye': { $ne: true }, paiements: { $elemMatch: { txId: p.txId, statut: { $in: ['en_attente', 'expire'] } } } },
+          {
+            $set: {
+              'paiements.$.statut': 'paye',
+              'paiements.$.payeLe': maintenant,
+              'paiements.$.end2endId': end2endId,
+              solde: { paye: true, enLigne: true, montant: p.montant, payeLe: maintenant, txId: p.txId, methode: p.methode, reference: end2endId || p.txId, payeurNom },
+            },
           },
-        }
-      );
+          { session }
+        );
+        if (res.modifiedCount === 1) await finance().paiementConfirme(avant, { ...p, objet: 'solde', end2endId }, session);
+        return res;
+      });
       if (resultat.modifiedCount === 1 && this.emailService) {
         const r = await this.collection.findOne({ id: avant.id }, { projection: { _id: 0 } });
         Promise.allSettled([this.emailService.sendSoldeRecu(r), this.emailService.sendSoldeRecuAdmin(r)])

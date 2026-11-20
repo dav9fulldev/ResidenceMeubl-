@@ -1,0 +1,53 @@
+/* Finances (plateforme) et Revenus (entreprise) */
+.finances-page { max-width: 1200px; }
+.fin-onglets { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 20px; }
+.fin-onglets button { padding: 8px 14px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font: inherit; font-size: 0.9rem; cursor: pointer; }
+.fin-onglets button.actif { background: var(--green-deep); border-color: var(--green-deep); color: #fff; }
+
+.fin-kpis { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 14px; margin-bottom: 18px; }
+.fin-kpi { display: flex; flex-direction: column; gap: 6px; padding: 18px; }
+.fin-kpi p { margin: 0; font-size: 0.85rem; color: var(--text-muted); font-weight: 600; }
+.fin-kpi strong { font-size: 1.55rem; color: var(--text); font-variant-numeric: tabular-nums; }
+.fin-kpi small { font-size: 0.8rem; color: var(--text-muted); line-height: 1.4; }
+.fin-kpi.or strong { color: var(--gold-ink); }
+.fin-kpi.vert strong { color: #15803d; }
+:root[data-theme="dark"] .fin-kpi.vert strong { color: #4ade80; }
+
+.fin-bloc { padding: 20px; margin-bottom: 18px; }
+.fin-bloc h2, .fin-tableau h2 { margin: 0 0 10px; font-size: 1.1rem; }
+.fin-fonds { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-wrap: wrap; gap: 10px; }
+.fin-fonds li { display: flex; flex-direction: column; gap: 2px; padding: 10px 14px; border-radius: 10px; background: var(--surface-2); min-width: 160px; }
+.fin-fonds span { font-size: 0.8rem; color: var(--text-muted); text-transform: capitalize; }
+.fin-ok, .fin-alerte { display: flex; align-items: center; gap: 8px; margin: 0; font-weight: 600; font-size: 0.9rem; }
+.fin-ok { color: #15803d; }
+.fin-alerte { color: #b91c1c; }
+
+.fin-tableau { padding: 18px 20px; margin-bottom: 18px; overflow-x: auto; }
+.fin-tableau table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+.fin-tableau th { text-align: left; padding: 8px 10px; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); border-bottom: 1px solid var(--border); white-space: nowrap; }
+.fin-tableau td { padding: 10px; border-bottom: 1px solid var(--border); vertical-align: top; font-variant-numeric: tabular-nums; }
+.fin-tableau td small { display: block; color: var(--text-muted); font-size: 0.78rem; margin-top: 2px; }
+.fin-tableau code { font-size: 0.82rem; }
+.fin-tableau .ent-vide { color: var(--text-muted); padding: 16px 10px; }
+.fin-tete-tableau { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+.fin-actions, .fin-actions-ligne { display: flex; flex-wrap: wrap; gap: 6px; }
+.fin-actions-ligne { margin-top: 6px; }
+.fin-actions .adm-btn, .fin-actions-ligne .adm-btn { padding: 6px 10px; font-size: 0.82rem; cursor: pointer; }
+.fin-ecritures { list-style: none; margin: 0; padding: 0; font-size: 0.78rem; color: var(--text-muted); }
+.fin-ecritures span { display: inline-block; width: 16px; font-weight: 700; color: var(--text); }
+.fin-ecritures b { color: var(--text); }
+
+.fin-option { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; font-size: 0.9rem; }
+.fin-rappro { margin-top: 16px; }
+.fin-anomalies { margin: 10px 0 0; padding-left: 18px; font-size: 0.86rem; display: flex; flex-direction: column; gap: 4px; }
+.fin-taux { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+.fin-taux input { width: 90px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--border); font: inherit; }
+.fin-historique { margin: 0; padding-left: 18px; font-size: 0.86rem; color: var(--text-muted); }
+
+.fin-benef { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; align-items: end; }
+.fin-benef label { display: flex; flex-direction: column; gap: 6px; font-size: 0.85rem; font-weight: 600; }
+.fin-benef input, .fin-benef select { padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border); font: inherit; font-weight: 400; }
+.fin-motif { color: #b91c1c; }
+.fin-modal label { display: block; margin: 12px 0 6px; font-weight: 600; font-size: 0.9rem; }
+.fin-modal input, .fin-modal select { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border); font: inherit; margin-bottom: 4px; }
+.fin-modal .ent-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }

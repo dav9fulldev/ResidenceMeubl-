@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import {
   FaChartPie, FaChartLine, FaCalendarAlt, FaHome, FaSignOutAlt, FaExternalLinkAlt,
-  FaMoon, FaSun, FaDownload, FaTimes, FaCog, FaRegCalendarCheck, FaBuilding, FaHourglassHalf, FaShieldAlt,
+  FaMoon, FaSun, FaDownload, FaTimes, FaCog, FaRegCalendarCheck, FaBuilding, FaHourglassHalf, FaShieldAlt, FaCoins,
 } from 'react-icons/fa';
 import { API_ENDPOINTS } from '../../config/api';
 import { CompteContext } from '../../context/CompteContext';
@@ -23,6 +23,8 @@ const TITRES = {
   '/admin/parametres': 'Paramètres',
   '/admin/entreprises': 'Entreprises',
   '/admin/verifications': 'Vérifications',
+  '/admin/finances': 'Finances',
+  '/admin/revenus': 'Revenus',
 };
 
 /**
@@ -93,10 +95,12 @@ const AdminLayout = () => {
     { to: '/admin/calendrier', icone: <FaRegCalendarCheck />, texte: 'Calendrier', section: 'Gestion' },
     { to: '/admin/residences', icone: <FaHome />, texte: 'Résidences', section: 'Gestion' },
     { to: '/admin/statistiques', icone: <FaChartLine />, texte: 'Statistiques', section: 'Pilotage', mobile: false },
+    ...(compte && !compte.entreprise?.principale ? [{ to: '/admin/revenus', icone: <FaCoins />, texte: 'Revenus', section: 'Pilotage', mobile: false }] : []),
     { to: '/admin/parametres', icone: <FaCog />, texte: 'Paramètres', section: 'Pilotage' },
     ...(compte?.superAdmin ? [
       { to: '/admin/entreprises', icone: <FaBuilding />, texte: 'Entreprises', court: 'Entreprises', badge: enAttente, section: 'Plateforme' },
       { to: '/admin/verifications', icone: <FaShieldAlt />, texte: 'Vérifications', court: 'Vérif.', badge: aVerifier, section: 'Plateforme' },
+      { to: '/admin/finances', icone: <FaCoins />, texte: 'Finances', section: 'Plateforme', mobile: false },
     ] : []),
   ];
   const nomEntreprise = compte?.entreprise?.nom || 'BABI RESIDENCE';

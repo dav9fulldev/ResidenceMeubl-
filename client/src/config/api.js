@@ -41,6 +41,9 @@ export const API_ENDPOINTS = {
     password: `${API_BASE_URL}/admin/moi/mot-de-passe`,
     companies: `${API_BASE_URL}/admin/plateforme/entreprises`,
     companyStatus: (id) => `${API_BASE_URL}/admin/plateforme/entreprises/${encodeURIComponent(id)}/statut`,
+    // Module financier : plateforme (/finance…) et entreprise (/revenus…)
+    finance: (chemin = '') => `${API_BASE_URL}/admin/finance${chemin}`,
+    revenus: (chemin = '') => `${API_BASE_URL}/admin/revenus${chemin}`,
     paymentKeys: (id) => `${API_BASE_URL}/admin/paiements/cles/${encodeURIComponent(id)}`,
     residences: `${API_BASE_URL}/admin/residences`,
     residence: (id) => `${API_BASE_URL}/admin/residences/${id}`,

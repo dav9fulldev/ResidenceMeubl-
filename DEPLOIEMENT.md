@@ -53,9 +53,7 @@ Render gratuit **bloque le SMTP** : les emails passent par l'API [Brevo](https:/
    | `PISPI_*` | voir étape 5 |
    | `GENIUSPAY_*` | voir étape 6 |
 
-   `ADMIN_TOKEN_SECRET` et `CLES_CHIFFREMENT` sont générés par Render ; `CLIENT_IP_HEADER=cf-connecting-ip` est déjà défini (limites anti-spam par visiteur).
-
-   > **Service déjà en ligne** : ajoutez à la main `CLES_CHIFFREMENT` (*Environment → Add*, valeur `openssl rand -hex 32`) **avant** que la première entreprise saisisse ses clés de paiement, puis ne la changez plus.
+   `ADMIN_TOKEN_SECRET` est généré par Render ; `CLIENT_IP_HEADER=cf-connecting-ip` est déjà défini (limites anti-spam par visiteur).
 3. Vérifiez `https://<service>.onrender.com/health` → `"success": true`. Dans **Logs** : `Connecté à MongoDB`, `Emails : API Brevo`, et la ligne `Paiement de l'acompte : …` qui liste les moyens actifs.
 
 ---
@@ -113,7 +111,8 @@ GeniusPay n'offre pas d'API de remboursement : un acompte ou un solde GeniusPay 
 
 - Les gestionnaires s'inscrivent sur `https://<site>/admin/inscription`. Vous recevez un email « Nouvelle entreprise à valider » (adresse des alertes de la plateforme).
 - Back-office (identifiants `ADMIN_*`) → **Entreprises** : **Valider** rend leurs résidences visibles ; **Suspendre** les masque et ferme leur espace.
-- Chaque entreprise saisit ses propres clés GeniusPay / PI-SPI dans *Paramètres → Moyens de paiement* et déclare **ses** adresses de webhook (affichées sur la même page, de la forme `…/api/paiements/geniuspay/webhook/<entreprise>`). L'argent arrive sur son compte.
+- **La plateforme encaisse tous les paiements** (ses clés GeniusPay / PI-SPI, une seule adresse de webhook par prestataire). Chaque entreprise déclare dans *Revenus* le compte où recevoir sa part ; vous le vérifiez puis effectuez les reversements dans *Finances* (voir [docs/finance](docs/finance/README.md)).
+- **MongoDB Atlas** fonctionne en replica set : indispensable aux transactions du module financier (rien à faire).
 - Au premier démarrage, les résidences et réservations existantes sont rattachées à l'entreprise principale **BABI RESIDENCE** : rien ne change pour elles.
 
 ---

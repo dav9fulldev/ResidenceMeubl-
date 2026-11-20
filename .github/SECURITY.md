@@ -58,7 +58,7 @@ Les recherches menées de bonne foi dans ce cadre ne feront l'objet d'aucune pou
 
 ## Mesures en place
 
-Analyse du code (CodeQL), des dépendances (OWASP Dependency-Check, Dependabot), détection de secrets (GitGuardian), analyse passive hebdomadaire de la production (OWASP ZAP), en-têtes de sécurité et CSP, mots de passe hachés (scrypt), clés de paiement des entreprises chiffrées (AES-256-GCM), cloisonnement des données entre entreprises.
+Analyse du code (CodeQL), des dépendances (OWASP Dependency-Check, Dependabot), détection de secrets (GitGuardian), analyse passive hebdomadaire de la production (OWASP ZAP), en-têtes de sécurité et CSP, mots de passe hachés (scrypt), registre financier immuable et reversements validés avec preuve, cloisonnement des données entre entreprises.
 
 ---
 

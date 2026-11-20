@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { FaCopy, FaExclamationTriangle, FaCheckCircle, FaChevronDown, FaPlus } from 'react-icons/fa';
 import { useResidences } from '../../context/ResidencesContext';
-import { API_ENDPOINTS } from '../../config/api';
 import './MoyensPaiement.css';
 
 const CAPACITES = {
@@ -15,52 +14,6 @@ function etatMoyen(m) {
   if (!m.configure) return { libelle: 'Configuration incomplète', classe: 'attente' };
   return m.actif ? { libelle: 'Actif', classe: 'confirmee' } : { libelle: 'Désactivé', classe: 'annulee' };
 }
-
-/**
- * Clés d'un prestataire propres à l'entreprise (l'argent arrive sur son compte).
- * Les secrets ne sont jamais renvoyés : laisser vide = garder la valeur enregistrée.
- */
-const ClesForm = ({ moyen, onEnregistre }) => {
-  const { adminRequest } = useResidences();
-  const [valeurs, setValeurs] = useState(() => Object.fromEntries(moyen.cles.map(c => [c.nom, c.secret ? '' : c.valeur || ''])));
-  const [etat, setEtat] = useState({ enCours: false, ok: '', erreur: '' });
-
-  const enregistrer = async (ev) => {
-    ev.preventDefault();
-    setEtat({ enCours: true, ok: '', erreur: '' });
-    try {
-      const r = await adminRequest(API_ENDPOINTS.admin.paymentKeys(moyen.id), { method: 'PUT', body: valeurs });
-      setValeurs(v => Object.fromEntries(Object.entries(v).map(([k, x]) => [k, moyen.cles.find(c => c.nom === k)?.secret ? '' : x])));
-      setEtat({ enCours: false, ok: r.data.moyen?.configure ? 'Clés enregistrées. Vous pouvez activer ce moyen de paiement.' : 'Clés enregistrées. Complétez les champs manquants pour l\'activer.', erreur: '' });
-      onEnregistre();
-    } catch (e) {
-      setEtat({ enCours: false, ok: '', erreur: e.message });
-    }
-  };
-
-  return (
-    <form className="mp-cles" onSubmit={enregistrer} autoComplete="off">
-      <p className="params-note">Vos propres identifiants {moyen.nom} : les paiements de vos clients arrivent directement sur votre compte. Ils sont chiffrés et ne sont jamais réaffichés.</p>
-      {moyen.cles.map(c => (
-        <div className="params-champ" key={c.nom}>
-          <label htmlFor={`cle-${c.nom}`}>{c.libelle}{c.facultatif ? '' : ' *'}</label>
-          <input
-            id={`cle-${c.nom}`}
-            type={c.secret ? 'password' : 'text'}
-            value={valeurs[c.nom]}
-            onChange={(ev) => setValeurs(v => ({ ...v, [c.nom]: ev.target.value }))}
-            placeholder={c.secret && c.defini ? `Enregistré (${c.apercu}) : laisser vide pour garder` : ''}
-            autoComplete="off"
-            spellCheck={false}
-          />
-        </div>
-      ))}
-      {etat.ok && <p className="params-msg ok" role="status"><FaCheckCircle /> {etat.ok}</p>}
-      {etat.erreur && <p className="params-msg erreur" role="alert"><FaExclamationTriangle /> {etat.erreur}</p>}
-      <button type="submit" className="btn btn-primary" disabled={etat.enCours}>{etat.enCours ? 'Enregistrement…' : `Enregistrer mes clés ${moyen.nom}`}</button>
-    </form>
-  );
-};
 
 /**
  * Paramètres > Moyens de paiement : chaque moyen intégré, son état et son activation.
@@ -125,12 +78,12 @@ const MoyensPaiement = () => {
                 </div>
                 {m.environnement === 'sandbox' && <span className="adm-badge attente">Test (sandbox)</span>}
                 <span className={`adm-badge ${e.classe}`}>{e.libelle}</span>
-                <label className={`mp-interrupteur ${!m.activable ? 'bloque' : ''}`} title={m.activable ? '' : (m.aVenir ? 'Intégration à venir' : (donnees.clesParEntreprise ? 'Saisissez d\'abord vos clés (Détails)' : 'À configurer sur le serveur'))}>
+                <label className={`mp-interrupteur ${!m.activable ? 'bloque' : ''}`} title={m.activable ? '' : (m.aVenir ? 'Intégration à venir' : (donnees.encaissementPlateforme ? 'Géré par BABI RESIDENCE' : 'À configurer sur le serveur'))}>
                   <input
                     type="checkbox"
                     role="switch"
                     checked={m.actif}
-                    disabled={!m.activable || enCours === m.id}
+                    disabled={!m.activable || enCours === m.id || donnees.encaissementPlateforme}
                     onChange={() => basculer(m)}
                     aria-label={`${m.actif ? 'Désactiver' : 'Activer'} ${m.nom}`}
                   />
@@ -151,16 +104,11 @@ const MoyensPaiement = () => {
                     ))}
                   </ul>
                   {m.aVenir && <p className="params-note">L'intégration de {m.nom} est prévue. Une fois développée et ses identifiants ajoutés sur Render, il pourra être activé ici.</p>}
-                  {!m.aVenir && !donnees.clesParEntreprise && m.problemes?.length > 0 && (
+                  {!m.aVenir && !donnees.encaissementPlateforme && m.problemes?.length > 0 && (
                     <ul className="params-problemes">{m.problemes.map(p => <li key={p}><FaExclamationTriangle /> {p}</li>)}</ul>
                   )}
-                  {!m.aVenir && !donnees.clesParEntreprise && m.variables?.length > 0 && (
+                  {!m.aVenir && !donnees.encaissementPlateforme && m.variables?.length > 0 && (
                     <p className="params-note">Identifiants sur le serveur (Render) : {m.variables.join(', ')}.</p>
-                  )}
-                  {!m.aVenir && donnees.clesParEntreprise && m.cles && (
-                    donnees.chiffrementDisponible
-                      ? <ClesForm moyen={m} onEnregistre={charger} />
-                      : <p className="params-note">L'enregistrement des clés n'est pas encore disponible sur ce serveur. Contactez BABI RESIDENCE.</p>
                   )}
                   {m.id === 'geniuspay' && donnees.webhooks?.geniuspay && (
                     <div className="params-champ">
@@ -190,8 +138,8 @@ const MoyensPaiement = () => {
 
       <div className="mp-ajout">
         <FaPlus aria-hidden="true" />
-        {donnees.clesParEntreprise
-          ? <p><b>Comment ça marche</b>Ouvrez « Détails », saisissez les identifiants de votre compte {donnees.moyens.filter(m => !m.aVenir).map(m => m.nom).join(' ou ')}, déclarez l'adresse du webhook chez le prestataire, puis activez le moyen. Sans moyen actif, vos clients règlent sur place.</p>
+        {donnees.encaissementPlateforme
+          ? <p><b>Encaissement par BABI RESIDENCE</b>Vos clients paient sur la plateforme, avec les moyens ci-dessus. Votre part (le montant moins la commission) vous est reversée 24 h après l'arrivée du client : suivez-la dans « Revenus ».</p>
           : <p><b>Ajouter un moyen de paiement</b>Chaque moyen (GeniusPay, Mobile Money, carte…) s'intègre côté serveur, puis apparaît dans cette liste pour être activé. Les identifiants restent sur Render par sécurité.</p>}
       </div>
     </div>

@@ -31,8 +31,17 @@ class RefundService {
   async majRemboursement(id, champs) {
     const set = {};
     for (const [k, v] of Object.entries(champs)) set[`acompte.remboursement.${k}`] = v;
-    await this.collection.updateOne({ id }, { $set: set });
-    return this.collection.findOne({ id }, { projection: { _id: 0 } });
+    if (champs.statut !== 'rembourse') {
+      await this.collection.updateOne({ id }, { $set: set });
+      return this.collection.findOne({ id }, { projection: { _id: 0 } });
+    }
+    // Remboursement effectué : statut et écriture comptable dans la même transaction (idempotent)
+    return db.transaction(async (session) => {
+      await this.collection.updateOne({ id }, { $set: set }, { session });
+      const maj = await this.collection.findOne({ id }, { projection: { _id: 0 }, session });
+      await require('../finance').remboursementEffectue(maj, 'acompte', maj.acompte.remboursement.montant ?? maj.acompte.montant, {}, session);
+      return maj;
+    });
   }
 
   /**

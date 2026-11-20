@@ -19,9 +19,6 @@ services:
         value: cf-connecting-ip
       - key: ADMIN_TOKEN_SECRET
         generateValue: true
-      # Chiffrement des clés de paiement saisies par les entreprises (ne plus jamais le changer ensuite)
-      - key: CLES_CHIFFREMENT
-        generateValue: true
       # Valeurs à saisir dans le tableau de bord Render (jamais dans Git)
       - key: MONGODB_URI
         sync: false

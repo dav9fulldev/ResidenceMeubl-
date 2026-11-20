@@ -33,6 +33,8 @@ async function connect(uri = process.env.MONGODB_URI, dbName = process.env.MONGO
   // Multi-entreprises : entreprise principale et rattachement des données existantes
   await require('./services/EntrepriseService').initialiser();
   await require('./services/VerificationService').initialiser();
+  // Module financier : index, règle de commission initiale, reprise des paiements déjà encaissés
+  await require('./services/finance').initialiser();
   // Une référence de résidence est unique au sein de chaque entreprise (plus sur toute la plateforme)
   const residences = db.collection('residences');
   if (await residences.indexExists('reference_1').catch(() => false)) await residences.dropIndex('reference_1');
@@ -70,6 +72,22 @@ function collection(name) {
   return db.collection(name);
 }
 
+/**
+ * Exécute fn(session) dans une transaction multi-documents (tout ou rien).
+ * Exige un replica set : c'est le cas de MongoDB Atlas (et des tests, MongoMemoryReplSet).
+ */
+async function transaction(fn) {
+  if (!client) throw new Error('Base de données non connectée');
+  const session = client.startSession();
+  try {
+    let resultat;
+    await session.withTransaction(async () => { resultat = await fn(session); });
+    return resultat;
+  } finally {
+    await session.endSession();
+  }
+}
+
 // Stockage de fichiers dans MongoDB (GridFS) : « photos » (publiques), « justificatifs » (privés)
 function bucket(name) {
   if (!db) throw new Error('Base de données non connectée');
@@ -82,4 +100,4 @@ async function close() {
   db = null;
 }
 
-module.exports = { connect, close, collection, bucket, nextId };
+module.exports = { connect, close, collection, bucket, nextId, transaction };

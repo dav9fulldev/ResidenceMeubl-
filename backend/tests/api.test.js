@@ -13,9 +13,8 @@ const MAUVAIS_MDP = randomBytes(12).toString('hex');
 process.env.NODE_ENV = 'test';
 process.env.ADMIN_USERNAME = ADMIN_TEST.username;
 process.env.ADMIN_PASSWORD = ADMIN_TEST.password;
-process.env.CLES_CHIFFREMENT = randomBytes(32).toString('hex'); // clés de paiement des entreprises
 
-const { MongoMemoryServer } = require('mongodb-memory-server');
+const { MongoMemoryReplSet } = require('mongodb-memory-server');
 const db = require('../db');
 const app = require('../server');
 const ReservationService = require('../services/ReservationService');
@@ -34,7 +33,8 @@ let mongo;
 
 before(async () => {
   // Vraie base MongoDB lancée en mémoire pour les tests
-  mongo = await MongoMemoryServer.create();
+  // Replica set : indispensable aux transactions du module financier (comme MongoDB Atlas)
+  mongo = await MongoMemoryReplSet.create({ replSet: { count: 1, storageEngine: 'wiredTiger' } });
   await db.connect(mongo.getUri(), 'sankofart-test');
 
   server = app.listen(0);
@@ -1580,26 +1580,13 @@ test('multi-entreprises : inscription, cloisonnement des données, validation et
   assert.ok(!(await api('/api/reservations', { headers: headersAdmin })).body.data.some(r => r.id === idResa), 'pas chez la plateforme');
   assert.equal((await api(`/api/reservations/${idResa}/status`, { method: 'PUT', headers: g, body: { statut: 'confirmee' } })).status, 200);
 
-  // Clés de paiement propres à l'entreprise (chiffrées), webhooks à son adresse
-  assert.equal((await api('/api/admin/paiements/cles/geniuspay', { method: 'PUT', headers: headersAdmin, body: { GENIUSPAY_API_KEY: 'pk_sandbox_x' } })).status, 409, 'plateforme : variables du serveur');
-  assert.equal((await api('/api/admin/paiements/cles/geniuspay', { method: 'PUT', headers: g, body: { GENIUSPAY_API_KEY: 'pas-une-cle' } })).status, 400);
-  const cles = await api('/api/admin/paiements/cles/geniuspay', { method: 'PUT', headers: g, body: { GENIUSPAY_API_KEY: 'pk_sandbox_abc123', GENIUSPAY_API_SECRET: 'sk_sandbox_secret9876' } });
-  assert.equal(cles.status, 200, JSON.stringify(cles.body));
-  const secret = cles.body.data.cles.find(c => c.nom === 'GENIUSPAY_API_SECRET');
-  assert.equal(secret.valeur, '', 'secret jamais renvoyé');
-  assert.equal(secret.apercu, '••••9876');
-  const stocke = await db.collection('cles_paiement').findOne({ _id: entId });
-  assert.ok(!JSON.stringify(stocke).includes('sk_sandbox_secret9876'), 'chiffré en base');
+  // Encaissement centralisé : les entreprises ne saisissent plus de clés et ne règlent pas les moyens de paiement
+  assert.equal((await api('/api/admin/paiements/cles/geniuspay', { method: 'PUT', headers: g, body: { GENIUSPAY_API_KEY: 'pk_sandbox_abc123' } })).status, 409);
+  assert.equal((await api('/api/admin/paiements/moyens/geniuspay', { method: 'PUT', headers: g, body: { actif: true } })).status, 403, 'réservé à la plateforme');
   const moyensG = (await api('/api/admin/paiements/moyens', { headers: g })).body.data;
-  assert.equal(moyensG.moyens.find(m => m.id === 'geniuspay').configure, true);
-  assert.ok(moyensG.webhooks.geniuspay.endsWith(`/api/paiements/geniuspay/webhook/${entId}`));
-  const moyensP = (await api('/api/admin/paiements/moyens', { headers: headersAdmin })).body.data;
-  assert.ok(moyensP.webhooks.geniuspay.endsWith('/api/paiements/geniuspay/webhook'));
-  assert.equal(moyensP.moyens.find(m => m.id === 'geniuspay').configure, Boolean(process.env.GENIUSPAY_API_KEY && process.env.GENIUSPAY_API_SECRET), 'la plateforme n\'hérite pas des clés de l\'entreprise');
-  // Secret vide = inchangé ; activation possible
-  assert.equal((await api('/api/admin/paiements/cles/geniuspay', { method: 'PUT', headers: g, body: { GENIUSPAY_API_SECRET: '' } })).status, 200);
-  assert.equal((await api('/api/admin/paiements/moyens/geniuspay', { method: 'PUT', headers: g, body: { actif: true } })).status, 200);
-  assert.deepEqual((await api(`/api/residences/${idVilla}`)).body.data.entreprise.moyensPaiement.map(m => m.id), ['geniuspay']);
+  assert.equal(moyensG.encaissementPlateforme, true);
+  assert.ok(moyensG.webhooks.geniuspay.endsWith('/api/paiements/geniuspay/webhook'), 'une seule adresse : celle de la plateforme');
+  assert.ok(!('variables' in moyensG.moyens[0]), 'pas de détail technique pour les entreprises');
   // Webhook d'une entreprise inconnue
   assert.equal((await fetch(`${baseUrl}/api/paiements/geniuspay/webhook/ent_inconnue`, { method: 'POST', body: '{}' })).status, 404);
 
@@ -1611,6 +1598,16 @@ test('multi-entreprises : inscription, cloisonnement des données, validation et
   assert.equal((await api(`/api/residences/${idVilla}`)).status, 404);
   assert.equal((await api('/api/admin/residences', { headers: g })).status, 403);
   assert.equal((await api('/api/admin/login', { method: 'POST', body: { email: inscription.email, password: mdp } })).status, 403);
+});
+
+test('migration : les résidences de la plateforme restent vérifiées et publiées', async () => {
+  const Verification = require('../services/VerificationService');
+  // Cas de production : résidences de la plateforme passées en brouillon par l'ancienne migration
+  await db.collection('residences').updateMany({ entrepriseId: 'babi' }, { $set: { statutVerification: 'brouillon' } });
+  assert.equal((await api('/api/residences')).body.total, 0);
+  await Verification.initialiser();
+  const publiques = (await api('/api/residences')).body;
+  assert.ok(publiques.total >= 10, `résidences de la plateforme republiées (${publiques.total})`);
 });
 
 test('vérification des résidences : dossier, photos, décision de la plateforme, signalements', async (t) => {
@@ -1742,4 +1739,162 @@ test('vérification des résidences : dossier, photos, décision de la plateform
   assert.equal(await db.collection('verifications').countDocuments({ _id: id }), 0);
   assert.equal(await db.collection('justificatifs.files').countDocuments({ 'metadata.residenceId': id }), 0);
   assert.equal(await db.collection('photos.files').countDocuments({ 'metadata.residenceId': id }), 0);
+});
+
+// ---------- Module financier ----------
+
+test('module financier : commission, registre en partie double, sommes dues, reversement manuel, remboursement, rapprochement', async (t) => {
+  configurerPiSpi(t, { PAIEMENT_MODE: 'simulation', ACOMPTE_POURCENTAGE: '30' });
+  const Finance = require('../services/finance');
+  const Ledger = Finance.Ledger;
+  const emails = ReservationService.emailService;
+  for (const nom of ['sendBienvenueEntreprise', 'sendNouvelleEntrepriseAdmin', 'sendStatutEntreprise', 'sendAcompteRecu', 'sendAcompteRecuAdmin', 'sendAlerteFinance', 'sendDemandeAnnulationAdmin', 'sendRemboursementEffectue']) {
+    const original = emails[nom];
+    emails[nom] = async () => {};
+    t.after(() => { emails[nom] = original; });
+  }
+  const headersAdmin = await connexionAdmin();
+
+  // Entreprise validée et résidence vérifiée
+  const mdp = randomBytes(9).toString('hex');
+  const ins = await api('/api/entreprises/inscription', { method: 'POST', body: { entreprise: 'Finance Lagune', prenom: 'Ama', nom: 'Test', email: 'finance@lagune-test.ci', telephone: '+225 07 00 00 00 77', motDePasse: mdp } });
+  const entId = ins.body.data.entreprise.id;
+  const g = { Authorization: `Bearer ${ins.body.data.token}` };
+  await api(`/api/admin/plateforme/entreprises/${entId}/statut`, { method: 'PUT', headers: headersAdmin, body: { statut: 'validee' } });
+  const res = await api('/api/admin/residences', { method: 'POST', headers: g, body: { nom: 'Villa Finance', reference: 'VF-1', typeAppartement: 'Villa', localisation: 'Rue A', ville: 'Abidjan', quartier: 'Cocody', prix: 50000, nombreChambres: 2, capacite: 4 } });
+  const idRes = res.body.data.id;
+  await db.collection('residences').updateOne({ id: idRes }, { $set: { statutVerification: 'verifiee' } });
+
+  const payerAcompte = async (email, j1, j2) => {
+    const c = await api('/api/reservations', { method: 'POST', body: nouvelleReservation({ residenceId: idRes, email, dateArrivee: jourDansNJours(j1), dateDepart: jourDansNJours(j2), nombrePersonnes: 2 }) });
+    assert.equal(c.status, 201, JSON.stringify(c.body));
+    const id = c.body.data.id;
+    assert.equal((await api(`/api/reservations/${id}/status`, { method: 'PUT', headers: g, body: { statut: 'confirmee' } })).status, 200);
+    const acces = await api('/api/client/acces', { method: 'POST', body: { email, reference: id } });
+    const hc = { Authorization: `Bearer ${acces.body.data.token}` };
+    const qr = await api(`/api/client/reservations/${id}/acompte`, { method: 'POST', headers: hc, body: { methode: 'qr' } });
+    const { txId, montant } = qr.body.data;
+    assert.equal((await api(`/api/client/reservations/${id}/acompte/${txId}/simuler`, { method: 'POST', headers: hc })).status, 200);
+    return { id, txId, montant, hc };
+  };
+
+  // 1. Paiement de l'acompte : 3 nuits × 50 000 = 150 000 ; acompte 30 % = 45 000 ; commission 8 % = 3 600
+  const r1 = await payerAcompte('client1@finance.ci', 300, 303);
+  assert.equal(r1.montant, 45000);
+  const doc1 = await db.collection('reservations').findOne({ id: r1.id });
+  assert.equal(doc1.conditionsFinancieres.tauxCommissionPb, 800, 'taux figé à la création');
+  const tx1 = await Ledger.transactions.findOne({ cle: `PAIEMENT:${r1.txId}` });
+  assert.equal(tx1.type, 'PAIEMENT_CLIENT');
+  const e1 = await Ledger.ecritures.find({ transactionId: tx1._id }).toArray();
+  const ligne = (compte) => e1.find(e => e.compte === compte);
+  assert.deepEqual([ligne('FONDS_PRESTATAIRE').sens, ligne('FONDS_PRESTATAIRE').montant, ligne('FONDS_PRESTATAIRE').fournisseur], ['DEBIT', 45000, 'simulation']);
+  assert.equal(ligne('COMMISSION_BABI').montant, 3600);
+  assert.equal(ligne('DETTE_PROPRIETAIRE').montant, 41400);
+  assert.ok(e1.every(e => Number.isSafeInteger(e.montant)), 'montants entiers');
+
+  // Idempotence : un second traitement du même paiement n'écrit rien
+  assert.equal((await Finance.paiementConfirme(doc1, { txId: r1.txId, montant: 45000, objet: 'acompte' })).cree, false);
+  assert.equal(await Ledger.transactions.countDocuments({ cle: `PAIEMENT:${r1.txId}` }), 1);
+  let dette1 = await Finance.dettes.findOne({ _id: r1.id });
+  assert.deepEqual([dette1.brut, dette1.commission, dette1.du, dette1.verse], [45000, 3600, 41400, 0]);
+  assert.equal((await Finance.listerDettes({ entrepriseId: entId }))[0].statut, 'EN_ATTENTE', 'pas avant 24 h après l\'arrivée');
+  assert.equal(Finance.eligibleLe('2031-06-10').toISOString(), '2031-06-11T14:00:00.000Z');
+
+  // 2. Nouveau taux : n'affecte pas l'ancienne réservation
+  assert.equal((await api('/api/admin/finance/commission', { method: 'PUT', headers: g, body: { tauxPourcent: 10 } })).status, 403, 'réservé à la plateforme');
+  assert.equal((await api('/api/admin/finance/commission', { method: 'PUT', headers: headersAdmin, body: { tauxPourcent: 60 } })).status, 400);
+  assert.equal((await api('/api/admin/finance/commission', { method: 'PUT', headers: headersAdmin, body: { tauxPourcent: 10 } })).status, 200);
+  t.after(async () => { await db.collection('commission_rules').deleteMany({ tauxPb: 1000 }); });
+  const r2 = await payerAcompte('client2@finance.ci', 320, 322); // 2 nuits = 100 000 ; acompte 30 000 ; 10 % = 3 000
+  assert.equal((await db.collection('reservations').findOne({ id: r2.id })).conditionsFinancieres.tauxCommissionPb, 1000);
+  assert.equal((await Finance.dettes.findOne({ _id: r2.id })).commission, 3000);
+
+  // 3. Solde reçu sur place : la commission (au taux figé de 8 %) est déduite des sommes dues
+  assert.equal((await api(`/api/reservations/${r1.id}/solde`, { method: 'PUT', headers: g, body: { moyen: 'especes' } })).status, 200);
+  dette1 = await Finance.dettes.findOne({ _id: r1.id });
+  assert.equal(dette1.commission, 3600 + 8400, 'commission 8 % de 105 000');
+  assert.equal(dette1.du, 41400 - 8400);
+  assert.ok(await Ledger.transactions.findOne({ cle: `SURPLACE:${r1.id}`, type: 'COMMISSION_SUR_PLACE' }));
+
+  // 4. Remboursement : annulation dans les 5 jours, acompte rendu en entier, commission rendue
+  const r3 = await payerAcompte('client3@finance.ci', 340, 342);
+  await api(`/api/client/reservations/${r3.id}/annulation`, { method: 'POST', headers: r3.hc, body: { motif: 'Empêchement' } });
+  assert.equal((await api(`/api/reservations/${r3.id}/annulation`, { method: 'PUT', headers: g, body: { decision: 'accepter' } })).status, 200);
+  const remb = await Ledger.transactions.findOne({ cle: `REMBOURSEMENT:acompte:${r3.id}` });
+  assert.equal(remb?.type, 'REMBOURSEMENT_CLIENT', 'remboursement comptabilisé');
+  const d3 = await Finance.dettes.findOne({ _id: r3.id });
+  assert.equal(d3.du, 0, 'plus rien dû au propriétaire');
+  assert.equal(d3.commission, 0, 'commission rendue');
+
+  // 5. Coordonnées de versement : obligatoires et vérifiées par la plateforme
+  await Finance.dettes.updateMany({ entrepriseId: entId }, { $set: { eligibleLe: new Date(Date.now() - 1000) } }); // arrivée passée
+  assert.equal((await api('/api/admin/finance/reversements', { method: 'POST', headers: headersAdmin, body: { entrepriseId: entId } })).status, 409, 'coordonnées non vérifiées');
+  assert.equal((await api('/api/admin/revenus/beneficiaire', { method: 'PUT', headers: g, body: { type: 'mobile_money', beneficiaire: 'Ama Test', destination: 'abc' } })).status, 400);
+  const benef = await api('/api/admin/revenus/beneficiaire', { method: 'PUT', headers: g, body: { type: 'mobile_money', operateur: 'Wave', beneficiaire: 'Ama Test', destination: '+225 07 00 00 00 77' } });
+  assert.equal(benef.status, 200, JSON.stringify(benef.body));
+  assert.equal(benef.body.data.beneficiaire.statut, 'a_verifier');
+  assert.equal((await api(`/api/admin/finance/beneficiaires/${entId}`, { method: 'PUT', headers: headersAdmin, body: { valide: true } })).status, 200);
+
+  // 6. Reversement manuel : demande → approbation → exécution → preuve → confirmation
+  const versable = 33000 + 27000; // r1 (41 400 − 8 400) + r2 (30 000 − 3 000)
+  const revenus = (await api('/api/admin/revenus', { headers: g })).body.data;
+  assert.equal(revenus.versable, versable);
+  assert.equal((await api('/api/admin/finance/apercu', { headers: g })).status, 403, 'finances de la plateforme réservées');
+  assert.equal((await api('/api/admin/finance/reversements', { method: 'POST', headers: headersAdmin, body: { entrepriseId: entId, montant: versable + 1 } })).status, 409, 'pas plus que le dû');
+  const po = await api('/api/admin/finance/reversements', { method: 'POST', headers: headersAdmin, body: { entrepriseId: entId } });
+  assert.equal(po.status, 201, JSON.stringify(po.body));
+  assert.equal(po.body.data.montant, versable);
+  assert.match(po.body.data.reference, /^PO-\d{4}-\d{6}$/);
+  const idPo = po.body.data.id;
+  assert.equal((await api('/api/admin/finance/reversements', { method: 'POST', headers: headersAdmin, body: { entrepriseId: entId } })).status, 409, 'un seul reversement en cours');
+  const agir = (body) => api(`/api/admin/finance/reversements/${idPo}`, { method: 'PUT', headers: headersAdmin, body });
+  assert.equal((await agir({ action: 'executer', referenceExterne: 'WAVE-1', source: 'geniuspay' })).status, 409, 'approbation d\'abord');
+  assert.equal((await agir({ action: 'approuver' })).status, 200);
+  assert.equal((await agir({ action: 'executer', source: 'geniuspay' })).status, 400, 'référence obligatoire');
+  const exe = await agir({ action: 'executer', referenceExterne: 'WAVE-123456', source: 'geniuspay' });
+  assert.equal(exe.status, 200, JSON.stringify(exe.body));
+  assert.equal((await agir({ action: 'confirmer' })).status, 409, 'preuve obligatoire');
+  const preuve = Buffer.concat([Buffer.from('%PDF-1.4\n'), randomBytes(100)]).toString('base64');
+  assert.equal((await api(`/api/admin/finance/reversements/${idPo}/preuve`, { method: 'POST', headers: headersAdmin, body: { contenu: preuve, nom: 'recu-wave.pdf' } })).status, 200);
+  assert.equal((await fetch(`${baseUrl}/api/admin/finance/reversements/${idPo}/preuve`, { headers: headersAdmin })).status, 200);
+  const conf = await agir({ action: 'confirmer' });
+  assert.equal(conf.body.data.statut, 'CONFIRME');
+  assert.deepEqual(conf.body.data.historique.map(h => h.statut), ['EN_ATTENTE_APPROBATION', 'APPROUVE', 'EXECUTE', 'CONFIRME']);
+  assert.equal(await Ledger.solde('DETTE_PROPRIETAIRE', { entrepriseId: entId }), 0, 'plus rien dû');
+  assert.ok((await Finance.listerDettes({ entrepriseId: entId })).every(d => ['VERSEE', 'SOLDEE'].includes(d.statut)));
+  assert.equal((await api('/api/admin/revenus', { headers: g })).body.data.versable, 0);
+
+  // 7. Registre : équilibré, contre-passation seulement, rapprochement
+  const balance = await Ledger.balance();
+  assert.equal(balance.equilibree, true);
+  assert.throws(() => Ledger.valider([{ compte: 'COMMISSION_BABI', sens: 'DEBIT', montant: 10 }, { compte: 'DETTE_PROPRIETAIRE', sens: 'CREDIT', montant: 9 }]), /déséquilibrée/);
+  assert.throws(() => Ledger.valider([{ compte: 'COMMISSION_BABI', sens: 'DEBIT', montant: 10.5 }, { compte: 'DETTE_PROPRIETAIRE', sens: 'CREDIT', montant: 10.5 }]), /entier/);
+  const rappro = await api('/api/admin/finance/rapprochements', { method: 'POST', headers: headersAdmin, body: {} });
+  assert.equal(rappro.status, 201);
+  // Seule anomalie admise : le paiement en double d'un test précédent (trop-perçu réel, à rendre au client)
+  assert.deepEqual(rappro.body.data.anomalies.filter(a => a.type !== 'TROP_PERCU'), [], JSON.stringify(rappro.body.data.anomalies));
+  const surPlace = await Ledger.transactions.findOne({ cle: `SURPLACE:${r1.id}` });
+  const contre = await api(`/api/admin/finance/registre/${surPlace._id}/contrepassation`, { method: 'POST', headers: headersAdmin, body: { motif: 'Erreur de saisie du solde' } });
+  assert.equal(contre.status, 201);
+  const contreTx = await Ledger.transactions.findOne({ cle: `CONTRE:${surPlace._id}` });
+  assert.equal((await api(`/api/admin/finance/registre/${contreTx._id}/contrepassation`, { method: 'POST', headers: headersAdmin, body: { motif: 'pas possible' } })).status, 409);
+  assert.ok(await Ledger.transactions.findOne({ _id: surPlace._id, statut: 'POSTED' }), 'l\'original reste inchangé');
+  const rappro2 = (await api('/api/admin/finance/rapprochements', { method: 'POST', headers: headersAdmin, body: {} })).body.data;
+  assert.ok(rappro2.anomalies.some(a => a.type === 'ECART_DETTE' && a.entrepriseId === entId), 'écart détecté');
+
+  // 8. Webhooks tracés, rejoués comptés une fois
+  const corps = JSON.stringify({ event: 'payment.success', data: { reference: 'X-INCONNU' } });
+  for (let i = 0; i < 2; i++) assert.equal((await fetch(`${baseUrl}/api/paiements/geniuspay/webhook`, { method: 'POST', body: corps })).status, 401);
+  await new Promise(r => setTimeout(r, 50));
+  const w = await Finance.webhooks.findOne({ fournisseur: 'geniuspay', reference: 'X-INCONNU' });
+  assert.equal(w.statut, 'REJETE');
+  assert.equal(w.receptions, 2);
+
+  // 9. Vue d'ensemble
+  const apercu = (await api('/api/admin/finance/apercu', { headers: headersAdmin })).body.data;
+  assert.ok(apercu.encaisse >= 45000 + 30000);
+  assert.ok(apercu.reverse >= versable);
+  assert.equal(typeof apercu.balanceEquilibree, 'boolean');
+  const csv = await fetch(`${baseUrl}/api/admin/finance/registre.csv`, { headers: headersAdmin });
+  assert.match(await csv.text(), /PAIEMENT_CLIENT/);
 });
