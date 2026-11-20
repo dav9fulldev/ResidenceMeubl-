@@ -1,6 +1,5 @@
 const Settings = require('./SettingsService');
 const nodemailer = require('nodemailer');
-const AuthService = require('./AuthService');
 
 // Adresse publique du site (première valeur de FRONTEND_URL), pour les liens et images des emails
 const urlSite = () => (process.env.FRONTEND_URL || '').split(',')[0].trim().replace(/\/$/, '');
@@ -229,15 +228,16 @@ class EmailService {
       ['Référence', esc(r.id)],
       ['Résidence', `${esc(res.nom)}${res.localisation ? `<br><span style="color:#8A8F93;font-size:13px;">${esc(res.localisation)}</span>` : ''}`],
       ['Séjour', `du ${date(r.dates.arrivee)} au ${date(r.dates.depart)}`],
+      r.voyageur ? ['Voyageur', `${esc(r.voyageur.prenom)} ${esc(r.voyageur.nom)}${r.voyageur.telephone ? `<br>${esc(r.voyageur.telephone)}` : ''}`] : null,
       r.details?.nombrePersonnes ? ['Personnes', esc(r.details.nombrePersonnes)] : null,
       montant ? ['Montant du séjour', fcfa(r.prixTotal)] : null,
     ];
   }
 
-  // Lien « Gérer mes réservations » (accès sans compte, valable 30 jours)
-  lienGestion(email) {
-    const jeton = AuthService.creerJetonClient(email, { dureeMs: 30 * 24 * 60 * 60 * 1000 });
-    return `${urlSite()}/mes-reservations?acces=${encodeURIComponent(jeton)}`;
+  // Bouton « Gérer ma réservation » (Service client) : choix du mot de passe tant que le compte
+  // n'en a pas, page de connexion ensuite. Le compte est créé s'il n'existe pas encore.
+  async lienGestion(client) {
+    return require('./ClientService').lienEspace(client);
   }
 
   // ---------- Nouvelle réservation ----------
@@ -273,7 +273,7 @@ class EmailService {
             <p style="margin:0 0 12px;">Merci pour votre demande. Nous vérifions la disponibilité et revenons vers vous rapidement par email. Aucun paiement n'a été effectué.</p>
             ${this.details(this.lignesSejour(avecResidence))}
             <p style="margin:0;">Une fois votre séjour confirmé, vous pourrez régler l'acompte en ligne depuis « Mes réservations ».</p>`,
-          bouton: { texte: 'Suivre ma réservation', url: this.lienGestion(r.client.email) },
+          bouton: { texte: 'Suivre ma réservation', url: await this.lienGestion(r.client) },
           note: `Vous pouvez aussi retrouver votre réservation sur le site avec votre email et la référence ${esc(r.id)}.`,
         }),
       }),
@@ -283,20 +283,23 @@ class EmailService {
 
   // ---------- Accès client ----------
 
-  async sendLienAcces(email) {
-    const jeton = AuthService.creerJetonClient(email, { dureeMs: 24 * 60 * 60 * 1000 });
-    await this.envoyer({
-      to: email,
-      subject: `Accès à vos réservations - ${this.nomEtablissement}`,
+  // « Première connexion ou mot de passe oublié » (Service client)
+  async sendLienMotDePasseClient(client, url) {
+    const premiere = client.statut !== 'actif';
+    await require('./Tenant').run(require('./Tenant').PRINCIPALE, () => this.envoyer({
+      to: client.email,
+      subject: `${premiere ? 'Choisissez votre mot de passe' : 'Nouveau mot de passe'} - ${this.nomEtablissement}`,
       html: this.gabarit({
-        titre: 'Accédez à vos réservations',
-        prevue: 'Votre lien d\'accès personnel, valable 24 heures.',
-        contenu: `<p style="margin:0 0 12px;">Bonjour,</p>
-          <p style="margin:0;">Vous avez demandé à consulter vos réservations. Le bouton ci-dessous vous y donne accès : suivi, paiement et demande d'annulation.</p>`,
-        bouton: { texte: 'Voir mes réservations', url: `${urlSite()}/mes-reservations?acces=${encodeURIComponent(jeton)}` },
-        note: 'Ce lien est valable 24 heures. Si vous n\'êtes pas à l\'origine de cette demande, ignorez cet email.',
+        titre: premiere ? 'Accédez à vos réservations' : 'Choisissez un nouveau mot de passe',
+        prevue: 'Votre lien personnel, valable 1 heure.',
+        contenu: `<p style="margin:0 0 12px;">Bonjour${client.prenom ? ` ${esc(client.prenom)}` : ''},</p>
+          <p style="margin:0;">${premiere
+            ? 'Votre espace client est prêt. Choisissez votre mot de passe : vous retrouverez ensuite toutes vos réservations, le paiement en ligne et les demandes d\'annulation.'
+            : 'Vous avez demandé à changer le mot de passe de votre espace client. Le bouton ci-dessous vous permet d\'en choisir un nouveau.'}</p>`,
+        bouton: { texte: 'Choisir mon mot de passe', url },
+        note: 'Ce lien est valable 1 heure. Si vous n\'êtes pas à l\'origine de cette demande, ignorez cet email : rien ne change.',
       }),
-    });
+    }));
   }
 
   // ---------- Entreprises (plateforme) ----------
@@ -445,11 +448,11 @@ class EmailService {
       to: reservation.client.email,
       replyTo: this.adresseReponse,
       subject: confirmee ? `Réservation confirmée - ${nomResidence}` : `Réservation annulée - ${nomResidence}`,
-      html: this.generateStatusEmailHTML(reservation, message),
+      html: this.generateStatusEmailHTML(reservation, message, await this.lienGestion(reservation.client)),
     });
   }
 
-  generateStatusEmailHTML(r, message = null) {
+  generateStatusEmailHTML(r, message = null, lien = `${urlSite()}/mes-reservations`) {
     const confirmee = r.statut === 'confirmee';
     const acompte = require('./paiement/acompte');
     const etat = acompte.etatAcompte(r);
@@ -478,7 +481,7 @@ class EmailService {
         ${this.details(this.lignesSejour(r))}
         ${blocs.join('')}`,
       bouton: confirmee
-        ? { texte: etat.possible ? 'Payer l\'acompte' : 'Gérer ma réservation', url: this.lienGestion(r.client.email) }
+        ? { texte: etat.possible ? 'Payer l\'acompte' : 'Gérer ma réservation', url: lien }
         : { texte: 'Voir nos résidences', url: `${urlSite()}/residences` },
     });
   }
@@ -520,7 +523,7 @@ class EmailService {
           ${r.demandeAnnulation?.reponse ? `<p style="margin:0 0 12px;"><strong>Message de notre équipe :</strong> ${esc(r.demandeAnnulation.reponse)}</p>` : ''}
           ${this.details(this.lignesSejour(r))}
           <p style="margin:0;">Pour en discuter, répondez simplement à cet email.</p>`,
-        bouton: { texte: 'Gérer ma réservation', url: this.lienGestion(r.client.email) },
+        bouton: { texte: 'Gérer ma réservation', url: await this.lienGestion(r.client) },
       }),
     });
   }
@@ -548,7 +551,7 @@ class EmailService {
             ['Reste à régler', `<strong>${fcfa(reste)}</strong>`],
           ])}
           <p style="margin:0;">Le solde de ${fcfa(reste)} se règle en ligne depuis « Mes réservations » ou à votre arrivée, comme vous le préférez.</p>`,
-        bouton: { texte: 'Gérer ma réservation', url: this.lienGestion(r.client.email) },
+        bouton: { texte: 'Gérer ma réservation', url: await this.lienGestion(r.client) },
         note: esc(acompteConditions()),
       }),
     });
@@ -621,7 +624,7 @@ class EmailService {
             ['Date du paiement', date(s.payeLe)],
             ['Référence du paiement', esc(s.reference || s.txId)],
           ])}`,
-        bouton: { texte: 'Gérer ma réservation', url: this.lienGestion(r.client.email) },
+        bouton: { texte: 'Gérer ma réservation', url: await this.lienGestion(r.client) },
       }),
     });
   }
@@ -663,7 +666,7 @@ class EmailService {
           <p style="margin:0;">${etat.moyens?.length
             ? `Vous pouvez le régler dès maintenant en ligne ${phraseMoyensDisponibles(etat.moyens)}, ou à votre arrivée.`
             : 'Il se règle à votre arrivée.'}</p>`,
-        bouton: etat.moyens?.length ? { texte: 'Payer le solde en ligne', url: this.lienGestion(r.client.email) } : null,
+        bouton: etat.moyens?.length ? { texte: 'Payer le solde en ligne', url: await this.lienGestion(r.client) } : null,
       }),
     });
   }

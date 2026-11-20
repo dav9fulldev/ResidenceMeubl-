@@ -12,6 +12,9 @@ class Reservation {
       email: data.email,
       telephone: data.telephone
     };
+    // Compte du Service client qui a réservé ; voyageur : la personne qui séjourne, si ce n'est pas lui
+    this.clientId = data.clientId || null;
+    this.voyageur = data.voyageur || null;
     this.dates = {
       arrivee: data.dateArrivee,
       depart: data.dateDepart
@@ -94,6 +97,7 @@ class Reservation {
       id: this.id,
       residence: this.residenceInfo,
       client: this.client,
+      voyageur: this.voyageur,
       dates: this.dates,
       details: this.details,
       prixTotal: this.prixTotal,

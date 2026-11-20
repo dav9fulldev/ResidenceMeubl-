@@ -338,3 +338,16 @@
 }
 
 .reservation-page .resa-recap-prix dd, .reservation-page .resa-recap-prix p span:last-child { white-space: nowrap; }
+
+/* Service client : compte connecté, réservation pour une autre personne */
+.reservation-page [hidden] { display: none !important; }
+.reservation-page .resa-compte { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 14px 16px; margin-bottom: 18px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+.reservation-page .resa-compte p { margin: 0; line-height: 1.5; }
+.reservation-page .resa-compte span { color: var(--text-muted); font-size: 0.875rem; }
+.reservation-page .btn-lien { background: none; border: 0; padding: 4px 0; color: var(--gold-ink); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.reservation-page .resa-autrui { display: flex; align-items: center; gap: 10px; margin: 4px 0 16px; font-weight: 600; cursor: pointer; }
+.reservation-page .resa-autrui input { width: 18px; height: 18px; accent-color: var(--gold); }
+.reservation-page .resa-voyageur { padding: 14px 16px 2px; margin-bottom: 18px; border-left: 3px solid var(--gold); background: var(--surface); border-radius: 0 12px 12px 0; }
+.reservation-page .resa-voyageur .champ-aide { display: block; margin: 0 0 12px; }
+.reservation-page .resa-merci-compte { margin: 0 0 20px; padding: 14px 16px; border-radius: 12px; background: var(--surface); border: 1px solid var(--border); line-height: 1.6; color: var(--text-muted); }
+.reservation-page .resa-merci-compte b { color: var(--text); }

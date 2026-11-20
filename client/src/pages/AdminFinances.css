@@ -60,3 +60,7 @@
 .plat-lien { margin-top: auto; display: inline-flex; align-items: center; gap: 6px; font-size: 0.82rem; font-weight: 700; color: var(--gold-ink); }
 .plat-transfert { border: 1px solid rgba(224, 165, 38, 0.5); }
 .plat-transfert h2 { display: flex; align-items: center; gap: 10px; }
+
+/* Clients (Service client) */
+.clients-recherche { display: flex; gap: 10px; flex-wrap: wrap; margin: 0 0 18px; }
+.clients-recherche input { flex: 1 1 240px; padding: 10px 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--text); font: inherit; }

@@ -6,11 +6,12 @@ import {
 } from 'react-icons/fa';
 import { useResidences } from '../context/ResidencesContext';
 import useEtablissement from '../hooks/useEtablissement';
-import { API_ENDPOINTS, apiRequest } from '../config/api';
+import { API_ENDPOINTS, apiRequest, getClientToken, setClientToken } from '../config/api';
 import './Reservation.css';
 
 const ETAPES = ['Votre séjour', 'Vos coordonnées', 'Vérification'];
 const CHAMPS_ETAPE = [['arrivalDate', 'departureDate', 'guests'], ['firstName', 'lastName', 'email', 'phone'], []];
+const CHAMPS_VOYAGEUR = ['voyageurPrenom', 'voyageurNom', 'voyageurTelephone'];
 const fcfa = (n) => `${Math.round(Number(n) || 0).toLocaleString('fr-FR')} FCFA`;
 const dateLongue = (d) => (d ? new Date(`${d}T00:00:00`).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' }) : '—');
 
@@ -64,6 +65,29 @@ const Reservation = () => {
     if (p) setValue('guests', p);
   }, [searchParams, setValue, getResidenceById, today]);
 
+  // Client connecté (Service client) : ses coordonnées sont reprises, il peut réserver pour un autre
+  const [compte, setCompte] = useState(null);
+  useEffect(() => {
+    const token = getClientToken();
+    if (!token) return undefined;
+    let actif = true;
+    apiRequest(API_ENDPOINTS.client.me, { token })
+      .then((r) => {
+        if (!actif || !r.data) return;
+        setCompte(r.data);
+        setValue('firstName', r.data.prenom); setValue('lastName', r.data.nom);
+        setValue('email', r.data.email); setValue('phone', r.data.telephone);
+      })
+      .catch(() => {}); // session expirée : formulaire normal
+    return () => { actif = false; };
+  }, [setValue]);
+  const seDeconnecter = () => {
+    setClientToken(null);
+    setCompte(null);
+    for (const k of ['firstName', 'lastName', 'email', 'phone']) setValue(k, '');
+  };
+  const pourAutrui = watch('pourAutrui');
+
   // Coordonnées mémorisées sur cet appareil pour la prochaine réservation
   useEffect(() => {
     try {
@@ -80,6 +104,8 @@ const Reservation = () => {
     setSubmitError('');
     try {
       const result = await createReservation(residence.id, data);
+      // Sans compte connecté : accès immédiat à cette réservation dans « Mes réservations »
+      if (!compte && result.acces) setClientToken(result.acces);
       try {
         const { firstName, lastName, email, phone } = data;
         localStorage.setItem('coordonneesClient', JSON.stringify({ firstName, lastName, email, phone }));
@@ -96,7 +122,7 @@ const Reservation = () => {
   };
 
   const suivant = async () => {
-    if (await trigger(CHAMPS_ETAPE[etape])) {
+    if (await trigger(etape === 1 && pourAutrui ? [...CHAMPS_ETAPE[1], ...CHAMPS_VOYAGEUR] : CHAMPS_ETAPE[etape])) {
       setEtape(e => Math.min(2, e + 1));
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
@@ -141,6 +167,13 @@ const Reservation = () => {
               <li><span>3</span><div><b>Acompte de {fcfa(Math.ceil(Number(confirmation.prixTotal) * pctAcompte / 100))}</b><p>{moyensTexte ? `À régler en ligne (${moyensTexte}) depuis « Mes réservations », une fois le séjour confirmé.` : 'Modalités communiquées à la confirmation du séjour.'}</p></div></li>
               <li><span>4</span><div><b>Votre séjour</b><p>Le solde de {fcfa(Number(confirmation.prixTotal) - Math.ceil(Number(confirmation.prixTotal) * pctAcompte / 100))} est réglé selon les modalités indiquées à la confirmation.</p></div></li>
             </ol>
+
+            {!compte && (
+              <p className="resa-merci-compte">
+                Votre espace client est créé avec l'adresse <b>{confirmation.email}</b>. Pour retrouver toutes vos réservations,
+                ouvrez l'email reçu et cliquez sur « Suivre ma réservation » : vous choisirez simplement votre mot de passe.
+              </p>
+            )}
 
             <div className="resa-merci-actions">
               <button type="button" className="btn btn-primary" onClick={() => navigate('/mes-reservations', { state: { email: confirmation.email, reference: confirmation.reference } })}>
@@ -239,7 +272,13 @@ const Reservation = () => {
             {/* Étape 2 : coordonnées */}
             <fieldset hidden={etape !== 1}>
               <legend>Vos coordonnées</legend>
-              <div className="form-row">
+              {compte && (
+                <div className="resa-compte">
+                  <p>Vous réservez en tant que <b>{compte.prenom} {compte.nom}</b><br /><span>{compte.email} · {compte.telephone}</span></p>
+                  <button type="button" className="btn-lien" onClick={seDeconnecter}>Ce n'est pas moi</button>
+                </div>
+              )}
+              <div className="form-row" hidden={Boolean(compte)}>
                 <div className="form-group">
                   <label htmlFor="firstName"><FaUser aria-hidden="true" /> Prénom</label>
                   <input type="text" id="firstName" autoComplete="given-name" aria-invalid={Boolean(errors.firstName)}
@@ -255,7 +294,7 @@ const Reservation = () => {
                   {errors.lastName && <span className="error-message" role="alert">{errors.lastName.message}</span>}
                 </div>
               </div>
-              <div className="form-row">
+              <div className="form-row" hidden={Boolean(compte)}>
                 <div className="form-group">
                   <label htmlFor="email"><FaEnvelope aria-hidden="true" /> Email</label>
                   <input type="email" id="email" autoComplete="email" inputMode="email" aria-describedby="email-aide" aria-invalid={Boolean(errors.email)}
@@ -272,6 +311,38 @@ const Reservation = () => {
                   {errors.phone && <span className="error-message" role="alert">{errors.phone.message}</span>}
                 </div>
               </div>
+              <label className="resa-autrui">
+                <input type="checkbox" {...register('pourAutrui')} />
+                Je réserve pour une autre personne
+              </label>
+              {pourAutrui && (
+                <div className="resa-voyageur">
+                  <p className="champ-aide">La réservation reste dans votre espace ; indiquez la personne qui séjourne.</p>
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label htmlFor="voyageurPrenom"><FaUser aria-hidden="true" /> Prénom du voyageur</label>
+                      <input type="text" id="voyageurPrenom" aria-invalid={Boolean(errors.voyageurPrenom)}
+                        {...register('voyageurPrenom', { required: pourAutrui && 'Le prénom du voyageur est obligatoire', minLength: { value: 2, message: 'Au moins 2 caractères' } })}
+                        className={errors.voyageurPrenom ? 'error' : ''} />
+                      {errors.voyageurPrenom && <span className="error-message" role="alert">{errors.voyageurPrenom.message}</span>}
+                    </div>
+                    <div className="form-group">
+                      <label htmlFor="voyageurNom"><FaUser aria-hidden="true" /> Nom du voyageur</label>
+                      <input type="text" id="voyageurNom" aria-invalid={Boolean(errors.voyageurNom)}
+                        {...register('voyageurNom', { required: pourAutrui && 'Le nom du voyageur est obligatoire', minLength: { value: 2, message: 'Au moins 2 caractères' } })}
+                        className={errors.voyageurNom ? 'error' : ''} />
+                      {errors.voyageurNom && <span className="error-message" role="alert">{errors.voyageurNom.message}</span>}
+                    </div>
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="voyageurTelephone"><FaPhone aria-hidden="true" /> Téléphone du voyageur</label>
+                    <input type="tel" id="voyageurTelephone" inputMode="tel" placeholder="07 00 00 00 00" aria-invalid={Boolean(errors.voyageurTelephone)}
+                      {...register('voyageurTelephone', { required: pourAutrui && 'Le téléphone du voyageur est obligatoire', pattern: { value: /^[+]?[0-9\s\-()]{8,}$/, message: 'Veuillez entrer un numéro valide' } })}
+                      className={errors.voyageurTelephone ? 'error' : ''} />
+                    {errors.voyageurTelephone && <span className="error-message" role="alert">{errors.voyageurTelephone.message}</span>}
+                  </div>
+                </div>
+              )}
               <div className="form-group">
                 <label htmlFor="specialRequests">Demandes particulières <span className="facultatif">(facultatif)</span></label>
                 <textarea id="specialRequests" rows="3" placeholder="Heure d'arrivée, lit bébé, préférences…" {...register('specialRequests')} />
@@ -285,7 +356,8 @@ const Reservation = () => {
                 <dl className="resa-verif">
                   <div><dt>Séjour</dt><dd>{dateLongue(arrivee)} → {dateLongue(depart)}<button type="button" onClick={() => setEtape(0)}>Modifier</button></dd></div>
                   <div><dt>Personnes</dt><dd>{personnes}<button type="button" onClick={() => setEtape(0)}>Modifier</button></dd></div>
-                  <div><dt>Contact</dt><dd>{getValues('firstName')} {getValues('lastName')} · {getValues('email')} · {getValues('phone')}<button type="button" onClick={() => setEtape(1)}>Modifier</button></dd></div>
+                  <div><dt>{pourAutrui ? 'Réservé par' : 'Contact'}</dt><dd>{getValues('firstName')} {getValues('lastName')} · {getValues('email')} · {getValues('phone')}<button type="button" onClick={() => setEtape(1)}>Modifier</button></dd></div>
+                  {pourAutrui && <div><dt>Voyageur</dt><dd>{getValues('voyageurPrenom')} {getValues('voyageurNom')} · {getValues('voyageurTelephone')}<button type="button" onClick={() => setEtape(1)}>Modifier</button></dd></div>}
                   {getValues('specialRequests') && <div><dt>Demandes</dt><dd>« {getValues('specialRequests')} »</dd></div>}
                 </dl>
                 <div className="resa-garanties">

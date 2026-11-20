@@ -4,13 +4,16 @@ const router = express.Router();
 const AuthService = require('../services/AuthService');
 const ReservationService = require('../services/ReservationService');
 const requireClient = require('../middleware/requireClient');
+const ClientService = require('../services/ClientService');
 const PaymentService = require('../services/paiement/PaymentService');
 const PiSpi = require('../services/paiement/PiSpiClient');
 const GeniusPay = require('../services/paiement/GeniusPayClient');
 const { cleLimite } = require('../middleware/clientIp');
 
 /**
- * Espace client sans compte : « Mes réservations ».
+ * Espace client « Mes réservations » (Service client).
+ * Le compte est créé en arrière-plan à la réservation ; le voyageur choisit son mot de passe depuis
+ * le lien reçu par email, puis se connecte avec email + mot de passe (voir services/ClientService.js).
  */
 
 // Limite les essais (deviner une référence, spammer une boîte mail)
@@ -30,7 +33,7 @@ const emailValide = (email) => {
 };
 
 const gererErreur = (res, error, contexte) => {
-  if (error instanceof ReservationService.ErreurClient || error instanceof PaymentService.ErreurPaiement) {
+  if (error instanceof ReservationService.ErreurClient || error instanceof PaymentService.ErreurPaiement || error instanceof ClientService.ErreurClient) {
     return res.status(error.status).json({ success: false, message: error.message });
   }
   console.error(`Erreur ${contexte}:`, error);
@@ -59,26 +62,71 @@ router.post('/acces', accesLimiter, async (req, res) => {
 });
 
 /**
- * @route   POST /api/client/lien
- * @desc    Envoie par email un lien vers tout l'historique.
- *          Réponse identique que l'email ait des réservations ou non (confidentialité).
+ * @route   POST /api/client/lien   (alias : /mot-de-passe/lien)
+ * @desc    « Première connexion ou mot de passe oublié » : envoie un lien pour choisir son mot de passe.
+ *          Réponse identique que l'adresse ait un compte, des réservations ou rien (confidentialité).
  */
-router.post('/lien', accesLimiter, async (req, res) => {
+router.post(['/lien', '/mot-de-passe/lien'], accesLimiter, async (req, res) => {
   const { email } = req.body || {};
   if (!emailValide(email)) {
     return res.status(400).json({ success: false, message: 'Adresse email invalide' });
   }
   try {
-    if (await ReservationService.compterPourEmail(email) > 0) {
-      await ReservationService.emailService.sendLienAcces(String(email).trim().toLowerCase());
+    const demande = await ClientService.demanderLien(email);
+    if (demande) {
+      ReservationService.emailService.sendLienMotDePasseClient(demande.client, demande.url)
+        .catch(e => console.error('⚠️ Lien client non envoyé :', String(e?.message).replace(/\n|\r/g, '')));
     }
   } catch (error) {
-    console.error('⚠️ Lien d\'accès client non envoyé:', error.message);
+    console.error('⚠️ Lien client non préparé :', String(error.message).replace(/\n|\r/g, ''));
   }
   res.json({
     success: true,
-    message: 'Si des réservations sont associées à cette adresse, vous allez recevoir un lien pour y accéder.',
+    message: 'Si des réservations sont associées à cette adresse, vous allez recevoir un lien pour choisir votre mot de passe.',
   });
+});
+
+/**
+ * @route   POST /api/client/mot-de-passe   { jeton, motDePasse }
+ * @desc    Choix du mot de passe depuis le lien reçu par email ; connecte le client.
+ */
+router.post('/mot-de-passe', accesLimiter, async (req, res) => {
+  try {
+    const client = await ClientService.definirMotDePasse(req.body?.jeton, req.body?.motDePasse);
+    res.json({ success: true, data: { token: AuthService.creerSessionClient(client), client: ClientService.public(client) } });
+  } catch (error) {
+    gererErreur(res, error, 'lors de l\'enregistrement du mot de passe');
+  }
+});
+
+/**
+ * @route   POST /api/client/connexion   { email, motDePasse }
+ * @desc    Connexion au compte client (session de 30 jours)
+ */
+router.post('/connexion', accesLimiter, async (req, res) => {
+  try {
+    const { email, motDePasse } = req.body || {};
+    const client = emailValide(email) ? await ClientService.connexion(email, motDePasse) : null;
+    if (!client) {
+      return res.status(401).json({ success: false, message: 'Email ou mot de passe incorrect. Première visite ? Recevez un lien pour choisir votre mot de passe.' });
+    }
+    res.json({ success: true, data: { token: AuthService.creerSessionClient(client), client: ClientService.public(client) } });
+  } catch (error) {
+    gererErreur(res, error, 'lors de la connexion');
+  }
+});
+
+/**
+ * @route   GET /api/client/moi
+ * @desc    Compte connecté (pré-remplissage de la réservation) ; null pour un accès limité à une réservation
+ */
+router.get('/moi', requireClient, async (req, res) => {
+  try {
+    const client = req.client.id ? await ClientService.trouver(req.client.id) : null;
+    res.json({ success: true, data: ClientService.public(client), email: req.client.email, limiteA: req.client.ref });
+  } catch (error) {
+    gererErreur(res, error, 'lors de la lecture du compte');
+  }
 });
 
 /**

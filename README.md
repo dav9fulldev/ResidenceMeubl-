@@ -30,7 +30,9 @@ Mise en ligne : voir [DEPLOIEMENT.md](DEPLOIEMENT.md).
   - **Mobile Money ou carte** via GeniusPay (page de paiement sécurisée) ;
   - **application bancaire** via PI-SPI (QR code ou demande de paiement).
 - **Solde du séjour** : en ligne depuis « Mes réservations » (mêmes moyens) ou sur place à l'arrivée ; rappel par email 3 jours avant l'arrivée.
-- **Mes réservations, sans compte** (email + référence, ou lien reçu par email) : suivi, paiement, **demande d'annulation**, nettoyage de l'historique.
+- **Service client : un compte sans inscription.** La première réservation crée le compte du voyageur en arrière-plan. Le bouton « Suivre ma réservation » de ses emails lui fait choisir un mot de passe (nouveau + confirmation) ; ensuite il se connecte avec email + mot de passe, et la session reste ouverte 30 jours sur l'appareil (voir *Service client* plus bas).
+- **Réservation pour une autre personne** : connecté, le voyageur retrouve ses coordonnées pré-remplies ; la case « Je réserve pour une autre personne » ajoute le nom et le téléphone de la personne qui séjourne. La réservation reste dans son espace.
+- **Mes réservations** : suivi, paiement, **demande d'annulation**, nettoyage de l'historique. En secours, email + référence donnent accès à une seule réservation.
 - **Remboursement de l'acompte par paliers** (réglables) : 100 % dans les 5 jours suivant le paiement, puis 50 %, rien à moins de 3 jours de l'arrivée.
 - **Favoris** enregistrés dans le navigateur.
 
@@ -80,6 +82,41 @@ Les statuts « Réservé » / « Occupé » des résidences se calculent automat
 - Validation stricte des entrées, taille des requêtes limitée, en-têtes de sécurité et politique de contenu (CSP) sur le site et l'API.
 - Statistiques de visite sans le back-office ni les paramètres d'adresse (les liens « Mes réservations » contiennent une clé d'accès personnelle).
 - Identifiants et clés uniquement dans les variables d'environnement.
+
+### Service client (comptes des voyageurs)
+
+```
+Visiteur          Site                                   API                                       MongoDB
+────────          ────                                   ───                                       ───────
+navigue      ──►  pages publiques (aucune connexion)
+réserve      ──►  /reservation                     ──►   POST /api/reservations             ──►   clients : compte créé
+                                                         compte connecté ? il réserve               « sans_mot_de_passe »
+                                                         sinon coordonnées saisies                 reservations : clientId,
+                                                         ◄── accès à cette seule réservation         voyageur (si autrui)
+email        ◄──  « Suivre ma réservation »              lien ?mdp=… (jeton signé, 7 jours)
+clique       ──►  /mes-reservations?mdp=…          ──►   POST /api/client/mot-de-passe      ──►   statut « actif »,
+                  nouveau + confirmation                 ◄── session 30 jours                       motDePasseLe = maintenant
+revient      ──►  /mes-reservations                ──►   POST /api/client/connexion
+                  ou /reservation (pré-rempli)           GET  /api/client/moi
+```
+
+| Fichier | Rôle |
+|---|---|
+| `backend/services/ClientService.js` | Comptes : création en arrière-plan, liens, mot de passe, connexion, liste pour la plateforme |
+| `backend/routes/client.js` | `/connexion`, `/mot-de-passe`, `/mot-de-passe/lien`, `/moi`, réservations du client |
+| `backend/routes/reservations.js` | Réservation par le compte connecté ou création du compte ; voyageur différent |
+| `backend/middleware/requireClient.js` | Session de compte (fermée si le mot de passe change) ou accès à une réservation |
+| `client/src/pages/MesReservations.js` | Connexion, « Première visite » (lien par email), choix du mot de passe |
+| `client/src/pages/Reservation.js` | Pré-remplissage si connecté, « Je réserve pour une autre personne » |
+| `client/src/pages/AdminClientsPage.js` | Super admin : liste des clients, statut du compte, nombre de réservations |
+
+Règles :
+1. **Le mot de passe ne se choisit que depuis un lien reçu par email** : connaître l'email de quelqu'un ne suffit pas pour s'approprier son compte.
+2. **Un lien ne sert plus dès que le mot de passe a changé** : le jeton porte sa date de création, rien n'est stocké.
+3. **Aucun pré-remplissage à partir d'un email** : seulement pour le compte connecté sur l'appareil.
+4. **Réserver avec l'email d'un compte ne connecte personne** : la réservation est rattachée au compte, dont les coordonnées ne changent pas ; la personne n'accède qu'à cette réservation.
+5. **Même réponse que le compte existe ou non** pour les demandes de lien ; tentatives limitées (10 par 15 minutes).
+6. **Changer de mot de passe ferme les sessions ouvertes avant.**
 
 ### Mot de passe oublié (partenaires)
 

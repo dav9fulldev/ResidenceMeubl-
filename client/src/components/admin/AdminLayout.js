@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import {
   FaChartPie, FaChartLine, FaCalendarAlt, FaHome, FaSignOutAlt, FaExternalLinkAlt,
-  FaMoon, FaSun, FaDownload, FaTimes, FaCog, FaRegCalendarCheck, FaBuilding, FaHourglassHalf, FaShieldAlt, FaCoins,
+  FaMoon, FaSun, FaDownload, FaTimes, FaCog, FaRegCalendarCheck, FaBuilding, FaHourglassHalf, FaShieldAlt, FaCoins, FaUsers,
 } from 'react-icons/fa';
 import { API_ENDPOINTS } from '../../config/api';
 import { CompteContext } from '../../context/CompteContext';
@@ -26,6 +26,7 @@ const TITRES = {
   '/admin/finances': 'Finances',
   '/admin/plateforme': 'Vue d\'ensemble',
   '/admin/revenus': 'Revenus',
+  '/admin/clients': 'Clients',
 };
 
 /**
@@ -69,7 +70,7 @@ const AdminLayout = () => {
   useEffect(() => {
     const GESTION = ['/admin/dashboard', '/admin/reservations', '/admin/calendrier', '/admin/residences', '/admin/statistiques', '/admin/revenus'];
     if (compte?.superAdmin && GESTION.includes(location.pathname)) navigate('/admin/plateforme', { replace: true });
-    if (compte && !compte.superAdmin && ['/admin/plateforme', '/admin/entreprises', '/admin/verifications', '/admin/finances'].includes(location.pathname)) navigate('/admin/dashboard', { replace: true });
+    if (compte && !compte.superAdmin && ['/admin/plateforme', '/admin/entreprises', '/admin/clients', '/admin/verifications', '/admin/finances'].includes(location.pathname)) navigate('/admin/dashboard', { replace: true });
   }, [compte, location.pathname, navigate]);
   const { theme, toggleTheme } = useTheme();
   const { installee, peutInstaller, ios, installer } = useInstallPrompt();
@@ -102,6 +103,7 @@ const AdminLayout = () => {
   const liens = compte?.superAdmin ? [
     { to: '/admin/plateforme', icone: <FaChartPie />, texte: 'Vue d\'ensemble', court: 'Aperçu', section: 'Plateforme' },
     { to: '/admin/entreprises', icone: <FaBuilding />, texte: 'Entreprises', court: 'Entreprises', badge: enAttente, section: 'Plateforme' },
+    { to: '/admin/clients', icone: <FaUsers />, texte: 'Clients', section: 'Plateforme' },
     { to: '/admin/verifications', icone: <FaShieldAlt />, texte: 'Vérifications', court: 'Vérif.', badge: aVerifier, section: 'Plateforme' },
     { to: '/admin/finances', icone: <FaCoins />, texte: 'Finances', section: 'Plateforme' },
     { to: '/admin/parametres', icone: <FaCog />, texte: 'Paramètres', section: 'Réglages' },

@@ -174,6 +174,19 @@ router.get('/plateforme/entreprises', superAdmin, async (req, res) => {
 });
 
 /**
+ * @route   GET /api/admin/plateforme/clients?q=
+ * @desc    Service client : comptes des voyageurs (créés en arrière-plan à la réservation)
+ */
+router.get('/plateforme/clients', superAdmin, async (req, res) => {
+  try {
+    const q = typeof req.query.q === 'string' ? req.query.q : '';
+    res.json({ success: true, data: await require('../services/ClientService').lister({ recherche: q }) });
+  } catch (error) {
+    gererErreur(res, error, 'lors de la récupération des clients');
+  }
+});
+
+/**
  * @route   POST /api/admin/plateforme/entreprises/:id/suppression   { vers }
  * @desc    Supprime une entreprise ; ses résidences et réservations passent à l'entreprise « vers »
  */
