@@ -17,7 +17,7 @@ const Residences = lazy(() => import(/* webpackChunkName: "residences" */ './pag
 const ResidenceDetail = lazy(() => import(/* webpackChunkName: "residencedetail" */ './pages/ResidenceDetail'));
 const Reservation = lazy(() => import(/* webpackChunkName: "reservation" */ './pages/Reservation'));
 const Favorites = lazy(() => import(/* webpackChunkName: "favorites" */ './pages/Favorites'));
-const DevenirHote = lazy(() => import(/* webpackChunkName: "devenirhote" */ './pages/DevenirHote'));
+const DevenirPartenaire = lazy(() => import(/* webpackChunkName: "devenirpartenaire" */ './pages/DevenirPartenaire'));
 const MesReservations = lazy(() => import(/* webpackChunkName: "mesreservations" */ './pages/MesReservations'));
 const AdminLogin = lazy(() => import(/* webpackChunkName: "adminlogin" */ './pages/AdminLogin'));
 const AdminInscription = lazy(() => import(/* webpackChunkName: "admininscription" */ './pages/AdminInscription'));
@@ -86,7 +86,8 @@ function App() {
               <Route path="/reservation" element={<Reservation />} />
               <Route path="/favorites" element={<Favorites />} />
               <Route path="/mes-reservations" element={<MesReservations />} />
-              <Route path="/devenir-hote" element={<DevenirHote />} />
+              <Route path="/devenir-partenaire" element={<DevenirPartenaire />} />
+              <Route path="/devenir-hote" element={<Navigate to="/devenir-partenaire" replace />} />
               <Route path="*" element={<NotFound />} />
             </Route>
 

@@ -56,7 +56,7 @@ const AdminLogin = () => {
 
         <div className="admin-login-form">
           <h3>Connexion</h3>
-          <p className="admin-login-sous-titre">Gestionnaires de résidences et administrateur de la plateforme</p>
+          <p className="admin-login-sous-titre">Partenaires BABI RESIDENCE et administration</p>
           
           {error && (
             <div className="error-message">
@@ -119,7 +119,7 @@ const AdminLogin = () => {
           </form>
 
           <div className="admin-login-footer">
-            <p className="admin-login-inscription">Vous gérez des résidences meublées ?<br /><Link to="/admin/inscription">Créer le compte de votre entreprise</Link></p>
+            <p className="admin-login-inscription">Vous gérez des résidences meublées ?<br /><Link to="/devenir-partenaire">Devenir partenaire</Link></p>
             <button
               className="btn btn-outline btn-back"
               onClick={() => navigate('/')}
