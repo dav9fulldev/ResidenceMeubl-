@@ -11,6 +11,7 @@ import { useFavorites } from '../context/FavoritesContext';
 import AvailabilityStatus from '../components/AvailabilityStatus';
 import SimilarResidences from '../components/SimilarResidences';
 import SignalerAnnonce from '../components/SignalerAnnonce';
+import { AvisResidence } from '../components/Avis';
 import NotFound from './NotFound';
 import './ResidenceDetail.css';
 
@@ -111,7 +112,7 @@ const ResidenceDetail = () => {
             <h1>{residence.name}</h1>
             <p className="rd-sous-titre">
               {residence.rating ? (
-                <span className="rd-note"><FaStar aria-hidden="true" /> {residence.rating}{residence.reviews ? ` · ${residence.reviews} avis` : ''}</span>
+                <a className="rd-note" href="#avis"><FaStar aria-hidden="true" /> {Number(residence.rating).toLocaleString('fr-FR')}{residence.reviews ? ` · ${residence.reviews} avis` : ''}</a>
               ) : null}
               <span><FaMapMarkerAlt aria-hidden="true" /> {residence.location}{residence.neighborhood ? `, ${residence.neighborhood}` : ''}</span>
               {residence.reference && <span className="rd-ref">Réf. {residence.reference}</span>}
@@ -193,6 +194,8 @@ const ResidenceDetail = () => {
                 <span>{[residence.neighborhood, residence.city].filter(Boolean).join(', ')}</span>
               </p>
             </section>
+
+            <AvisResidence residenceId={residence.id} />
           </div>
 
           {/* Réservation (colonne qui reste visible sur ordinateur) */}

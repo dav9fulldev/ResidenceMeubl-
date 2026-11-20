@@ -32,7 +32,8 @@ Mise en ligne : voir [DEPLOIEMENT.md](DEPLOIEMENT.md).
 - **Solde du séjour** : en ligne depuis « Mes réservations » (mêmes moyens) ou sur place à l'arrivée ; rappel par email 3 jours avant l'arrivée.
 - **Service client : un compte sans inscription.** La première réservation crée le compte du voyageur en arrière-plan. Le bouton « Suivre ma réservation » de ses emails lui fait choisir un mot de passe (nouveau + confirmation) ; ensuite il se connecte avec email + mot de passe, et la session reste ouverte 30 jours sur l'appareil (voir *Service client* plus bas).
 - **Réservation pour une autre personne** : connecté, le voyageur retrouve ses coordonnées pré-remplies ; la case « Je réserve pour une autre personne » ajoute le nom et le téléphone de la personne qui séjourne. La réservation reste dans son espace.
-- **Mes réservations** : suivi, paiement, **demande d'annulation**, nettoyage de l'historique. En secours, email + référence donnent accès à une seule réservation.
+- **Mes réservations** : suivi, paiement, **demande d'annulation**, nettoyage de l'historique. Aucun formulaire de connexion pour le public : le client y arrive par sa session ou par les liens de ses emails ; session expirée, il ne saisit que son mot de passe.
+- **Notation des séjours (avis vérifiés)** : après son départ, le voyageur note la résidence (1 à 5 étoiles, propreté, conformité à l'annonce, accueil, rapport qualité-prix, commentaire). La fiche affiche la vraie moyenne et les avis ; un email l'invite à noter le lendemain du départ.
 - **Remboursement de l'acompte par paliers** (réglables) : 100 % dans les 5 jours suivant le paiement, puis 50 %, rien à moins de 3 jours de l'arrivée.
 - **Favoris** enregistrés dans le navigateur.
 
@@ -106,7 +107,7 @@ revient      ──►  /mes-reservations                ──►   POST /api/c
 | `backend/routes/client.js` | `/connexion`, `/mot-de-passe`, `/mot-de-passe/lien`, `/moi`, réservations du client |
 | `backend/routes/reservations.js` | Réservation par le compte connecté ou création du compte ; voyageur différent |
 | `backend/middleware/requireClient.js` | Session de compte (fermée si le mot de passe change) ou accès à une réservation |
-| `client/src/pages/MesReservations.js` | Connexion, « Première visite » (lien par email), choix du mot de passe |
+| `client/src/pages/MesReservations.js` | Aucun formulaire pour le public : réservations si session ; choix du mot de passe (lien `?mdp=`) ; mot de passe seul si l'email est connu (appareil ou lien `#email=`) ; sinon invitation à découvrir les résidences |
 | `client/src/pages/Reservation.js` | Pré-remplissage si connecté, « Je réserve pour une autre personne » |
 | `client/src/pages/AdminClientsPage.js` | Super admin : liste des clients, statut du compte, nombre de réservations |
 
@@ -117,6 +118,29 @@ Règles :
 4. **Réserver avec l'email d'un compte ne connecte personne** : la réservation est rattachée au compte, dont les coordonnées ne changent pas ; la personne n'accède qu'à cette réservation.
 5. **Même réponse que le compte existe ou non** pour les demandes de lien ; tentatives limitées (10 par 15 minutes).
 6. **Changer de mot de passe ferme les sessions ouvertes avant.**
+7. **Rien de visible pour le public** : « Mes réservations » n'apparaît dans le menu et le pied de page que sur l'appareil d'un client qui a une session (après une réservation, une connexion ou le lien d'un email). La page reste accessible par ces liens.
+
+### Service de notation (avis des voyageurs)
+
+```
+Séjour terminé ──► email « Comment s'est passé votre séjour ? » (tâche horaire, une fois, jusqu'à 7 jours après le départ)
+               ──► Mes réservations : « Noter mon séjour » ──► POST /api/client/reservations/:id/avis ──► collection avis
+Fiche résidence ◄── GET /api/residences/:id/avis (moyenne, critères, avis visibles, réponses)
+Partenaire     ──► Avis : réponse publique      PUT /api/admin/avis/:id/reponse
+Super admin    ──► Avis : masquer (motif)       PUT /api/admin/avis/:id/masquage
+```
+
+| Règle | Détail |
+|---|---|
+| Avis vérifiés | Seule une réservation **confirmée**, au **séjour terminé**, peut être notée, par la personne qui y a accès (compte ou référence) |
+| Une fois | Un avis par réservation (index unique), non modifiable |
+| Délai | Jusqu'à 90 jours après le départ |
+| Contenu | Note globale et 4 critères de 1 à 5 ; commentaire facultatif (1000 caractères) |
+| Confidentialité | Affiché sous « Prénom I. » ; jamais l'email ni le nom complet |
+| Moyenne | Calculée sur les avis visibles ; une résidence sans avis n'affiche pas de note |
+| Modération | Le partenaire répond (réponse publique, modifiable) ; le super admin masque un avis abusif avec un motif, l'avis reste en base |
+
+Fichiers : `backend/services/AvisService.js`, `client/src/components/Avis.js`, `client/src/pages/AdminAvisPage.js`.
 
 ### Mot de passe oublié (partenaires)
 

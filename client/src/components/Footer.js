@@ -1,8 +1,9 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { FaFacebook, FaInstagram, FaTiktok, FaPhone, FaEnvelope, FaMapMarkerAlt, FaWhatsapp } from 'react-icons/fa';
 import { FaXTwitter } from 'react-icons/fa6';
 import useEtablissement from '../hooks/useEtablissement';
+import { getClientToken } from '../config/api';
 import './Footer.css';
 
 const sansEspaces = (t) => String(t || '').replace(/[^\d+]/g, '');
@@ -10,6 +11,8 @@ const sansEspaces = (t) => String(t || '').replace(/[^\d+]/g, '');
 /** Pied de page : coordonnées et réseaux réglés dans le back-office (Paramètres). */
 const Footer = () => {
   const etab = useEtablissement();
+  useLocation(); // relu à chaque page : le lien suit la session du client
+  const clientConnu = Boolean(getClientToken());
   const reseaux = [
     ['Facebook', etab.facebook, <FaFacebook />],
     ['Instagram', etab.instagram, <FaInstagram />],
@@ -65,7 +68,7 @@ const Footer = () => {
               <li><Link to="/">Accueil</Link></li>
               <li><Link to="/residences">Nos résidences</Link></li>
               <li><Link to="/favorites">Favoris</Link></li>
-              <li><Link to="/mes-reservations">Mes réservations</Link></li>
+              {clientConnu && <li><Link to="/mes-reservations">Mes réservations</Link></li>}
               <li><Link to="/devenir-partenaire">Devenir partenaire</Link></li>
             </ul>
           </div>

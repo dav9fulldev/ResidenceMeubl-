@@ -650,6 +650,25 @@ class EmailService {
     });
   }
 
+  // Service de notation : invitation après le départ
+  async sendInvitationAvis(r) {
+    const nomResidence = r.residenceInfo?.nom || 'votre résidence';
+    await this.envoyer({
+      to: r.client.email,
+      replyTo: this.adresseReponse,
+      subject: `Comment s'est passé votre séjour ? - ${nomResidence}`,
+      html: this.gabarit({
+        titre: 'Comment s\'est passé votre séjour ?',
+        prevue: `Notez ${nomResidence} en une minute.`,
+        contenu: `<p style="margin:0 0 12px;">Bonjour ${esc(r.client.prenom)},</p>
+          <p style="margin:0 0 12px;">Merci d'avoir séjourné à <strong>${esc(nomResidence)}</strong>. Votre avis aide les prochains voyageurs à choisir, et le partenaire à s'améliorer.</p>
+          <p style="margin:0;">Une note de 1 à 5 étoiles, quatre critères (propreté, conformité à l'annonce, accueil, rapport qualité-prix) et, si vous le souhaitez, un commentaire.</p>`,
+        bouton: { texte: 'Noter mon séjour', url: await this.lienGestion(r.client) },
+        note: `Vous pouvez noter ce séjour pendant ${require('./AvisService').DELAI_JOURS} jours après votre départ.`,
+      }),
+    });
+  }
+
   async sendRappelSolde(r) {
     const reste = Math.max(0, (Number(r.prixTotal) || 0) - (Number(r.acompte?.montant) || 0));
     const etat = require('./paiement/acompte').etatSolde(r);

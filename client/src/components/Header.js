@@ -4,6 +4,7 @@ import { useFavorites } from '../context/FavoritesContext';
 import { FaHeart, FaBars, FaTimes, FaSearch, FaMoon, FaSun } from 'react-icons/fa';
 import useTheme from '../hooks/useTheme';
 import LogoBabi from './LogoBabi';
+import { getClientToken } from '../config/api';
 import './Header.css';
 
 const Header = () => {
@@ -12,6 +13,9 @@ const Header = () => {
   const { favorites } = useFavorites();
   const location = useLocation();
   const { theme, toggleTheme } = useTheme();
+  // « Mes réservations » n'est pas proposé au public : seulement au client qui a une session sur
+  // cet appareil (après une réservation, une connexion ou le lien d'un email). Relu à chaque page.
+  const clientConnu = Boolean(getClientToken()) || location.pathname === '/mes-reservations';
 
   // Fermer le menu à chaque changement de page, et bloquer le défilement derrière le menu ouvert
   useEffect(() => {
@@ -85,15 +89,17 @@ const Header = () => {
                 )}
               </Link>
             </li>
-            <li className="nav-item">
-              <Link
-                to="/mes-reservations"
-                className={`nav-link ${isActive('/mes-reservations') ? 'active' : ''}`}
-                onClick={closeMenu}
-              >
-                Mes réservations
-              </Link>
-            </li>
+            {clientConnu && (
+              <li className="nav-item">
+                <Link
+                  to="/mes-reservations"
+                  className={`nav-link ${isActive('/mes-reservations') ? 'active' : ''}`}
+                  onClick={closeMenu}
+                >
+                  Mes réservations
+                </Link>
+              </li>
+            )}
             <li className="nav-item nav-item-hote">
               <Link to="/devenir-partenaire" className={`nav-link ${isActive('/devenir-partenaire') ? 'active' : ''}`} onClick={closeMenu}>
                 Devenir partenaire

@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import {
   FaChartPie, FaChartLine, FaCalendarAlt, FaHome, FaSignOutAlt, FaExternalLinkAlt,
-  FaMoon, FaSun, FaDownload, FaTimes, FaCog, FaRegCalendarCheck, FaBuilding, FaHourglassHalf, FaShieldAlt, FaCoins, FaUsers,
+  FaMoon, FaSun, FaDownload, FaTimes, FaCog, FaRegCalendarCheck, FaBuilding, FaHourglassHalf, FaShieldAlt, FaCoins, FaUsers, FaStar,
 } from 'react-icons/fa';
 import { API_ENDPOINTS } from '../../config/api';
 import { CompteContext } from '../../context/CompteContext';
@@ -27,6 +27,7 @@ const TITRES = {
   '/admin/plateforme': 'Vue d\'ensemble',
   '/admin/revenus': 'Revenus',
   '/admin/clients': 'Clients',
+  '/admin/avis': 'Avis',
 };
 
 /**
@@ -103,7 +104,8 @@ const AdminLayout = () => {
   const liens = compte?.superAdmin ? [
     { to: '/admin/plateforme', icone: <FaChartPie />, texte: 'Vue d\'ensemble', court: 'Aperçu', section: 'Plateforme' },
     { to: '/admin/entreprises', icone: <FaBuilding />, texte: 'Entreprises', court: 'Entreprises', badge: enAttente, section: 'Plateforme' },
-    { to: '/admin/clients', icone: <FaUsers />, texte: 'Clients', section: 'Plateforme' },
+    { to: '/admin/clients', icone: <FaUsers />, texte: 'Clients', section: 'Plateforme', mobile: false },
+    { to: '/admin/avis', icone: <FaStar />, texte: 'Avis', section: 'Plateforme', mobile: false },
     { to: '/admin/verifications', icone: <FaShieldAlt />, texte: 'Vérifications', court: 'Vérif.', badge: aVerifier, section: 'Plateforme' },
     { to: '/admin/finances', icone: <FaCoins />, texte: 'Finances', section: 'Plateforme' },
     { to: '/admin/parametres', icone: <FaCog />, texte: 'Paramètres', section: 'Réglages' },
@@ -113,6 +115,7 @@ const AdminLayout = () => {
     { to: '/admin/calendrier', icone: <FaRegCalendarCheck />, texte: 'Calendrier', section: 'Gestion' },
     { to: '/admin/residences', icone: <FaHome />, texte: 'Résidences', section: 'Gestion' },
     { to: '/admin/statistiques', icone: <FaChartLine />, texte: 'Statistiques', section: 'Pilotage', mobile: false },
+    { to: '/admin/avis', icone: <FaStar />, texte: 'Avis', section: 'Pilotage', mobile: false },
     ...(compte && !compte.entreprise?.interne ? [{ to: '/admin/revenus', icone: <FaCoins />, texte: 'Revenus', section: 'Pilotage', mobile: false }] : []),
     { to: '/admin/parametres', icone: <FaCog />, texte: 'Paramètres', section: 'Pilotage' },
   ];

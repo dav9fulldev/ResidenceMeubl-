@@ -14,6 +14,7 @@ export const API_ENDPOINTS = {
     smartSearch: `${API_BASE_URL}/residences/recherche-ia`,
     similar: (id) => `${API_BASE_URL}/residences/${id}/similaires`,
     report: (id) => `${API_BASE_URL}/residences/${id}/signalement`,
+    reviews: (id) => `${API_BASE_URL}/residences/${id}/avis`,
   },
   reservations: {
     create: `${API_BASE_URL}/reservations`,
@@ -36,6 +37,7 @@ export const API_ENDPOINTS = {
     reservations: `${API_BASE_URL}/client/reservations`,
     hide: `${API_BASE_URL}/client/reservations/masquer`,
     requestCancellation: (id) => `${API_BASE_URL}/client/reservations/${id}/annulation`,
+    review: (id) => `${API_BASE_URL}/client/reservations/${encodeURIComponent(id)}/avis`,
   },
   companies: {
     signup: `${API_BASE_URL}/entreprises/inscription`,
@@ -47,6 +49,7 @@ export const API_ENDPOINTS = {
     me: `${API_BASE_URL}/admin/moi`,
     password: `${API_BASE_URL}/admin/moi/mot-de-passe`,
     companies: `${API_BASE_URL}/admin/plateforme/entreprises`,
+    reviews: (chemin = '') => `${API_BASE_URL}/admin/avis${chemin}`,
     clients: (q = '') => `${API_BASE_URL}/admin/plateforme/clients${q ? `?q=${encodeURIComponent(q)}` : ''}`,
     companyStatus: (id) => `${API_BASE_URL}/admin/plateforme/entreprises/${encodeURIComponent(id)}/statut`,
     // Module financier : plateforme (/finance…) et entreprise (/revenus…)

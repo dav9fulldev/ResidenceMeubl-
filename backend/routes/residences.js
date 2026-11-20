@@ -256,6 +256,21 @@ router.get('/:id/similaires', async (req, res) => {
  * @desc    Obtenir une résidence par ID
  * @access  Public
  */
+/**
+ * @route   GET /api/residences/:id/avis
+ * @desc    Service de notation : moyenne, critères et derniers avis des voyageurs
+ */
+router.get('/:id/avis', async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id < 1 || !(await ResidenceService.getResidenceById(id))) return res.status(404).json({ success: false, message: 'Résidence non trouvée' });
+    res.json({ success: true, data: await require('../services/AvisService').publics(id) });
+  } catch (error) {
+    console.error('Erreur lors de la lecture des avis :', error);
+    res.status(500).json({ success: false, message: 'Erreur lors de la lecture des avis' });
+  }
+});
+
 router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;

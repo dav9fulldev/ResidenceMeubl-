@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { FaSearch, FaEnvelope, FaSignOutAlt, FaLock, FaEye, FaEyeSlash } from 'react-icons/fa';
+import { FaSignOutAlt, FaEye, FaEyeSlash } from 'react-icons/fa';
 import { API_ENDPOINTS, apiRequest, getClientToken, setClientToken } from '../config/api';
 import PaiementAcompte, { preparerPaiementDirect } from '../components/PaiementAcompte';
+import { Etoiles, FormulaireAvis } from '../components/Avis';
 import './MesReservations.css';
 
 const fcfa = (n) => `${Number(n).toLocaleString('fr-FR')} FCFA`;
@@ -29,11 +30,23 @@ const formatDate = (d) => (d ? new Date(d).toLocaleDateString('fr-FR', { day: 'n
 
 const MIN_MDP = 8;
 
+// Email du client mémorisé sur l'appareil (dernière session ou dernière réservation)
+const emailMemorise = () => {
+  try {
+    return localStorage.getItem('clientEmail') || JSON.parse(localStorage.getItem('coordonneesClient') || 'null')?.email || '';
+  } catch {
+    return '';
+  }
+};
+const memoriserEmail = (e) => { try { if (e) localStorage.setItem('clientEmail', String(e).toLowerCase()); } catch { /* stockage indisponible */ } };
+const oublierEmail = () => { try { localStorage.removeItem('clientEmail'); localStorage.removeItem('coordonneesClient'); } catch { /* stockage indisponible */ } };
+
 /**
- * « Mes réservations » (Service client).
- *  - le compte est créé à la réservation ; ?mdp=<jeton> (lien des emails) : choix du mot de passe ;
- *  - ensuite connexion email + mot de passe (session gardée sur l'appareil) ;
- *  - en secours : email + référence (une seule réservation).
+ * « Mes réservations » (Service client). Aucun formulaire de connexion pour le public :
+ *  - session ouverte (après une réservation, un lien d'email ou une connexion) : les réservations ;
+ *  - ?mdp=<jeton> (lien des emails, compte sans mot de passe) : choix du mot de passe ;
+ *  - session expirée, email connu (appareil ou #email= des liens d'email) : le mot de passe seul ;
+ *  - personne de connu : rien à remplir, invitation à découvrir les résidences.
  */
 const MesReservations = () => {
   const location = useLocation();
@@ -42,12 +55,11 @@ const MesReservations = () => {
 
   const [token, setToken] = useState(() => getClientToken());
   const [reservations, setReservations] = useState(null);
-  const [email, setEmail] = useState(location.state?.email || '');
-  const [reference, setReference] = useState(location.state?.reference || '');
-  const [mode, setMode] = useState('connexion'); // 'connexion' | 'lien' | 'reference'
+  const [email, setEmail] = useState(() => location.state?.email || emailMemorise());
   const [motDePasse, setMotDePasse] = useState('');
   const [confirmationMdp, setConfirmationMdp] = useState('');
   const [voirMdp, setVoirMdp] = useState(false);
+  const [noterId, setNoterId] = useState(null); // réservation en cours de notation
   const [jetonMdp, setJetonMdp] = useState(null); // lien « choisir mon mot de passe » reçu par email
   const [compte, setCompte] = useState(null); // compte connecté ; null pour un accès à une seule réservation
   const [limitee, setLimitee] = useState(false); // accès à une seule réservation (référence ou juste après réservation)
@@ -83,6 +95,17 @@ const MesReservations = () => {
     setObjetPaiement(objet);
     setPaiementPour(r);
   };
+
+  // Liens des emails d'un compte qui a déjà son mot de passe : #email=<adresse> (jamais envoyé au serveur)
+  useEffect(() => {
+    const m = /^#email=(.+)$/.exec(location.hash || '');
+    if (m) {
+      const adresse = decodeURIComponent(m[1]);
+      setEmail(adresse);
+      memoriserEmail(adresse);
+      navigate('/mes-reservations', { replace: true });
+    }
+  }, [location.hash, navigate]);
 
   // Liens reçus par email : ?mdp=<jeton> (choisir son mot de passe) ou ancien ?acces=<jeton>,
   // mémorisés puis retirés de l'adresse
@@ -144,7 +167,7 @@ const MesReservations = () => {
     setToken(null);
     setReservations(null);
     setCompte(null);
-    setMode('connexion');
+    setMotDePasse('');
     setError(message);
   }, []);
 
@@ -159,7 +182,7 @@ const MesReservations = () => {
       setReservations(response.data);
       setCompte(moi?.data || null);
       setLimitee(Boolean(moi?.limiteA));
-      if (response.email) setEmail(response.email);
+      if (response.email) { setEmail(response.email); memoriserEmail(response.email); }
     } catch (err) {
       if (err.status === 401) deconnexion('Votre accès a expiré. Identifiez-vous à nouveau.');
       else setError(err.message);
@@ -172,27 +195,11 @@ const MesReservations = () => {
     charger();
   }, [charger]);
 
-  const accederAvecReference = async (e) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
-    try {
-      const response = await apiRequest(API_ENDPOINTS.client.access, {
-        method: 'POST',
-        body: { email, reference },
-      });
-      setClientToken(response.data.token);
-      setToken(response.data.token);
-    } catch (err) {
-      setError(err.message);
-      setLoading(false);
-    }
-  };
-
   const ouvrirSession = (data) => {
     setClientToken(data.token);
     setToken(data.token);
     setCompte(data.client);
+    memoriserEmail(data.client?.email);
     setMotDePasse('');
     setConfirmationMdp('');
   };
@@ -263,7 +270,6 @@ const MesReservations = () => {
     }
   };
 
-  const changerMode = (m) => { setMode(m); setError(''); setInfo(''); };
   const champMotDePasse = (id, valeur, setValeur, autoComplete, label) => (
     <>
       <label htmlFor={id}>{label}</label>
@@ -292,72 +298,48 @@ const MesReservations = () => {
             <p className="acces-hint">Au moins {MIN_MDP} caractères.</p>
             {error && <div className="error-message" role="alert">{error}</div>}
             <button type="submit" className="btn btn-primary" disabled={loading}>{loading ? 'Patientez…' : 'Enregistrer et voir mes réservations'}</button>
-            {error && <button type="button" className="btn-lien-discret" onClick={() => { setJetonMdp(null); changerMode('lien'); }}>Recevoir un nouveau lien</button>}
+            {error && (email
+              ? <button type="button" className="btn-lien-discret" onClick={(e) => { setJetonMdp(null); recevoirLien(e); }}>Recevoir un nouveau lien à {email}</button>
+              : <p className="acces-hint">Utilisez le lien du dernier email reçu de BABI RESIDENCE.</p>)}
           </form>
         </div>
       </div>
     );
   }
 
-  // ---------- Formulaire d'accès ----------
+  // ---------- Sans session ----------
   if (!token) {
-    const soumettre = mode === 'connexion' ? seConnecter : mode === 'lien' ? recevoirLien : accederAvecReference;
+    // Personne de connu sur cet appareil : rien à remplir
+    if (!email) {
+      return (
+        <div className="mes-reservations-page">
+          <div className="container mes-reservations-container acces-container">
+            <h1>Mes réservations</h1>
+            <p className="mes-reservations-intro">
+              Vos réservations apparaîtront ici après votre première réservation. Ensuite, le bouton « Suivre ma réservation » de nos emails vous y ramène directement.
+            </p>
+            {error && <div className="error-message" role="alert">{error}</div>}
+            <Link to="/residences" className="btn btn-primary">Découvrir les résidences</Link>
+          </div>
+        </div>
+      );
+    }
+    // Client connu (session expirée) : son mot de passe seulement
     return (
       <div className="mes-reservations-page">
-        <div className="container mes-reservations-container">
+        <div className="container mes-reservations-container acces-container">
           <h1>Mes réservations</h1>
-          <p className="mes-reservations-intro">
-            Votre espace client est créé automatiquement à votre première réservation.
-          </p>
-
-          <div className="acces-tabs" role="tablist">
-            <button type="button" role="tab" aria-selected={mode === 'connexion'}
-              className={mode === 'connexion' ? 'active' : ''} onClick={() => changerMode('connexion')}>
-              <FaLock /> Se connecter
-            </button>
-            <button type="button" role="tab" aria-selected={mode === 'lien'}
-              className={mode === 'lien' ? 'active' : ''} onClick={() => changerMode('lien')}>
-              <FaEnvelope /> Première visite
-            </button>
-            <button type="button" role="tab" aria-selected={mode === 'reference'}
-              className={mode === 'reference' ? 'active' : ''} onClick={() => changerMode('reference')}>
-              <FaSearch /> Avec ma référence
-            </button>
-          </div>
-
-          <form className="acces-form" onSubmit={soumettre}>
-            <label htmlFor="acces-email">Email utilisé pour la réservation</label>
-            <input id="acces-email" type="email" required value={email}
-              onChange={(e) => setEmail(e.target.value)} placeholder="vous@exemple.com" autoComplete="email" />
-
-            {mode === 'connexion' && (
-              <>
-                {champMotDePasse('acces-mdp', motDePasse, setMotDePasse, 'current-password', 'Mot de passe')}
-                <p className="acces-hint">
-                  Pas encore de mot de passe, ou oublié ?{' '}
-                  <button type="button" className="btn-lien-discret" onClick={() => changerMode('lien')}>Recevoir un lien par email</button>
-                </p>
-              </>
-            )}
-            {mode === 'lien' && (
-              <p className="acces-hint">Vous recevrez un lien, valable 1 heure, pour choisir votre mot de passe. Il sert aussi si vous l'avez oublié.</p>
-            )}
-            {mode === 'reference' && (
-              <>
-                <label htmlFor="acces-ref">Référence de réservation</label>
-                <input id="acces-ref" type="text" required value={reference}
-                  onChange={(e) => setReference(e.target.value)} placeholder="RES_…" />
-                <p className="acces-hint">La référence figure sur la page de confirmation et dans l'email reçu après votre réservation. Elle donne accès à cette seule réservation.</p>
-              </>
-            )}
-
+          <p className="mes-reservations-intro">Entrez votre mot de passe pour <b>{email}</b>.</p>
+          <form className="acces-form" onSubmit={seConnecter}>
+            {champMotDePasse('acces-mdp', motDePasse, setMotDePasse, 'current-password', 'Mot de passe')}
             {error && <div className="error-message" role="alert">{error}</div>}
             {info && <div className="success-notice" role="status">{info}</div>}
-
-            <button type="submit" className="btn btn-primary" disabled={loading}>
-              {loading ? 'Patientez…' : mode === 'connexion' ? 'Se connecter' : mode === 'lien' ? 'Recevoir le lien' : 'Voir ma réservation'}
-            </button>
+            <button type="submit" className="btn btn-primary" disabled={loading}>{loading ? 'Patientez…' : 'Voir mes réservations'}</button>
           </form>
+          <ul className="acces-autres">
+            <li>Pas encore de mot de passe, ou oublié ? <button type="button" className="btn-lien-discret" disabled={loading} onClick={recevoirLien}>Recevoir un lien par email</button></li>
+            <li>Ce n'est pas vous ? <button type="button" className="btn-lien-discret" onClick={() => { oublierEmail(); setEmail(''); setError(''); setInfo(''); }}>Oublier cet appareil</button></li>
+          </ul>
         </div>
       </div>
     );
@@ -381,8 +363,7 @@ const MesReservations = () => {
 
         {limitee && reservations && (
           <div className="acces-limite">
-            <p>Vous voyez uniquement cette réservation. Pour retrouver toutes vos réservations, choisissez votre mot de passe depuis l'email reçu, ou connectez-vous.</p>
-            <button type="button" className="btn-lien-discret" onClick={() => deconnexion('')}>Se connecter</button>
+            <p>Vous voyez uniquement cette réservation. Pour retrouver toutes vos réservations, cliquez sur « Suivre ma réservation » dans l'email reçu et choisissez votre mot de passe.</p>
           </div>
         )}
 
@@ -426,6 +407,22 @@ const MesReservations = () => {
                   <p><strong>Du {formatDate(r.dates.arrivee)} au {formatDate(r.dates.depart)}</strong> · {r.nombrePersonnes} pers.</p>
                   {r.voyageur && <p className="client-reservation-voyageur">Pour {r.voyageur.prenom} {r.voyageur.nom}</p>}
                   <p>{Number(r.prixTotal).toLocaleString('fr-FR')} FCFA · Réf. {r.id}</p>
+
+                  {r.maNote && <p className="demande-info acceptee">Votre note : <Etoiles note={r.maNote} taille="petite" /> Merci pour votre avis.</p>}
+                  {r.peutNoter && noterId !== r.id && (
+                    <div className="acompte-bloc">
+                      <p>Comment s'est passé votre séjour ? Votre avis aide les prochains voyageurs.</p>
+                      <button type="button" className="btn btn-primary btn-sm" onClick={() => setNoterId(r.id)}>Noter mon séjour</button>
+                    </div>
+                  )}
+                  {r.peutNoter && noterId === r.id && (
+                    <FormulaireAvis reservationId={r.id} token={token} onAnnuler={() => setNoterId(null)}
+                      onEnvoye={(note, message) => {
+                        setNoterId(null);
+                        setInfo(message);
+                        setReservations(prev => prev.map(x => (x.id === r.id ? { ...x, maNote: note, peutNoter: false } : x)));
+                      }} />
+                  )}
 
                   {['a_rembourser', 'echec', 'en_cours'].includes(r.acompte?.remboursement?.statut) && (
                     <p className="demande-info attente">↩️ Remboursement de {Number(r.acompte.remboursement.montant ?? r.acompte.montant).toLocaleString('fr-FR')} FCFA en cours.</p>

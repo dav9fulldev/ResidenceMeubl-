@@ -1,0 +1,20 @@
+/* Service de notation (back-office) */
+.avis-admin-vide { padding: 18px 20px; color: var(--text-muted); }
+.avis-admin-liste { display: grid; gap: 16px; }
+.avis-admin-carte { padding: 18px 20px; display: grid; gap: 10px; min-width: 0; }
+.avis-admin-carte.masque { opacity: 0.75; }
+.avis-admin-carte > header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.avis-admin-carte h2 { margin: 0; font-size: 1.05rem; }
+.avis-admin-carte header p { margin: 2px 0 0; color: var(--text-muted); font-size: 0.875rem; }
+.avis-admin-criteres { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 0.85rem; color: var(--text-muted); }
+.avis-admin-criteres b { color: var(--text); font-variant-numeric: tabular-nums; }
+.avis-admin-texte { margin: 0; line-height: 1.6; overflow-wrap: anywhere; }
+.avis-admin-texte.vide { color: var(--text-muted); font-style: italic; }
+.avis-admin-masque { margin: 0; padding: 8px 12px; border-radius: 8px; background: var(--surface); border: 1px dashed var(--border); color: var(--text-muted); font-size: 0.875rem; display: flex; gap: 8px; align-items: center; }
+.avis-admin-reponse { padding: 10px 12px; border-left: 3px solid var(--gold); border-radius: 0 8px 8px 0; font-size: 0.9rem; }
+.avis-admin-reponse p { margin: 0; overflow-wrap: anywhere; }
+.avis-admin-reponse p + p { margin-top: 4px; }
+.avis-admin-form { display: grid; gap: 8px; }
+.avis-admin-form label { font-weight: 600; font-size: 0.9rem; }
+.avis-admin-form textarea, .avis-admin-form input { width: 100%; box-sizing: border-box; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); font: inherit; }
+.avis-admin-actions { display: flex; gap: 8px; flex-wrap: wrap; }

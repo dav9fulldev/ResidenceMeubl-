@@ -2076,7 +2076,9 @@ test('Service client : compte créé à la réservation, mot de passe via l\'ema
   assert.equal(active.body.data.client.prenom, 'Mariam');
   assert.equal((await db.collection('clients').findOne({ email })).statut, 'actif');
   assert.equal((await definir(jetonDe(liens[0].url), randomBytes(9).toString('hex'))).status, 400, 'les liens précédents ne servent plus');
-  assert.doesNotMatch(await ClientService.lienEspace({ email }), /mdp=/, 'compte actif : lien vers la connexion');
+  const lienActif = await ClientService.lienEspace({ email });
+  assert.doesNotMatch(lienActif, /mdp=/, 'compte actif : lien vers la connexion');
+  assert.match(lienActif, /\/mes-reservations#email=mariam%40service-client\.ci$/, 'la page ne demande que le mot de passe');
 
   // 3. Connexion : session de compte, toutes les réservations, profil pour pré-remplir
   assert.equal((await api('/api/client/connexion', { method: 'POST', body: { email, motDePasse: MAUVAIS_MDP } })).status, 401);
@@ -2124,4 +2126,97 @@ test('Service client : compte créé à la réservation, mot de passe via l\'ema
   assert.equal(ligne.reservations, 3);
   assert.ok(!('motDePasse' in ligne));
   assert.equal((await api('/api/admin/plateforme/clients', { headers: hSession })).status, 401);
+});
+
+test('Service de notation : séjour terminé noté une fois, moyenne publique, réponse, masquage, invitation', async (t) => {
+  const Avis = require('../services/AvisService');
+  const AuthService = require('../services/AuthService');
+  const es = ReservationService.emailService;
+  const invitations = [];
+  const original = es.sendInvitationAvis;
+  es.sendInvitationAvis = async (r) => { invitations.push(r.id); };
+  t.after(() => { es.sendInvitationAvis = original; });
+
+  const email = 'noteur@example.com';
+  // Réservations créées normalement, puis placées dans le passé (séjour terminé)
+  const creer = async (decalageDepart, statut = 'confirmee') => {
+    const r = await api('/api/reservations', { method: 'POST', body: nouvelleReservation({ email, prenom: 'Koffi', nom: 'Yao', dateArrivee: jourDansNJours(600 + Math.abs(decalageDepart) * 5), dateDepart: jourDansNJours(603 + Math.abs(decalageDepart) * 5) }) });
+    assert.equal(r.status, 201, JSON.stringify(r.body));
+    await db.collection('reservations').updateOne({ id: r.body.data.id }, { $set: { statut, 'dates.arrivee': jourDansNJours(decalageDepart - 3), 'dates.depart': jourDansNJours(decalageDepart) } });
+    return r.body.data.id;
+  };
+  const terminee = await creer(-1);
+  const future = await creer(20);
+  const ancienne = await creer(-100);
+  const nonConfirmee = await creer(-2, 'en_attente');
+  const aInviter = await creer(-3);
+  t.after(async () => {
+    const ids = [terminee, future, ancienne, nonConfirmee, aInviter];
+    await db.collection('avis').deleteMany({ reservationId: { $in: ids } });
+    await db.collection('reservations').deleteMany({ id: { $in: ids } });
+  });
+
+  const hTout = { Authorization: `Bearer ${AuthService.creerJetonClient(email)}` };
+  const liste = (await api('/api/client/reservations', { headers: hTout })).body.data;
+  assert.equal(liste.find(r => r.id === terminee).peutNoter, true);
+  assert.equal(liste.find(r => r.id === future).peutNoter, false);
+  assert.equal(liste.find(r => r.id === ancienne).peutNoter, false);
+
+  const criteres = { proprete: 5, conformite: 4, accueil: 5, qualitePrix: 4 };
+  const noter = (id, body, headers = hTout) => api(`/api/client/reservations/${id}/avis`, { method: 'POST', headers, body });
+  assert.equal((await noter(terminee, { note: 6, criteres })).status, 400);
+  assert.equal((await noter(terminee, { note: 5, criteres: { ...criteres, accueil: 0 } })).status, 400);
+  assert.equal((await noter(terminee, { note: 5, criteres, commentaire: { $gt: '' } })).status, 400);
+  assert.equal((await noter(future, { note: 5, criteres })).status, 409, 'séjour pas encore terminé');
+  assert.equal((await noter(ancienne, { note: 5, criteres })).status, 409, 'plus de 90 jours');
+  assert.equal((await noter(nonConfirmee, { note: 5, criteres })).status, 409);
+  assert.equal((await noter(terminee, { note: 5, criteres }, {})).status, 401);
+  const hAutre = { Authorization: `Bearer ${AuthService.creerJetonClient('autre@example.com')}` };
+  assert.equal((await noter(terminee, { note: 1, criteres }, hAutre)).status, 404, 'pas sa réservation');
+  const hRef = { Authorization: `Bearer ${AuthService.creerJetonClient(email, { reference: future })}` };
+  assert.equal((await noter(terminee, { note: 1, criteres }, hRef)).status, 404, 'accès limité à une autre réservation');
+
+  const ok = await noter(terminee, { note: 4, criteres, commentaire: '  Très propre, accueil chaleureux.  ' });
+  assert.equal(ok.status, 201, JSON.stringify(ok.body));
+  assert.equal((await noter(terminee, { note: 5, criteres })).status, 409, 'une seule fois');
+  const apres = (await api('/api/client/reservations', { headers: hTout })).body.data.find(r => r.id === terminee);
+  assert.equal(apres.maNote, 4);
+  assert.equal(apres.peutNoter, false);
+
+  // Fiche publique : moyenne réelle, auteur « Koffi Y. », jamais l'email
+  const publics = (await api('/api/residences/1/avis')).body.data;
+  const monAvis = publics.avis.find(a => a.commentaire === 'Très propre, accueil chaleureux.');
+  assert.equal(monAvis.auteur, 'Koffi Y.');
+  assert.ok(!JSON.stringify(publics).includes(email));
+  assert.equal((await api('/api/residences/1')).body.data.note, publics.moyenne);
+  assert.equal((await api('/api/residences/1')).body.data.nombreAvis, publics.nombre);
+  assert.equal((await api('/api/residences/999999/avis')).status, 404);
+
+  // Réponse du partenaire qui gère la résidence ; le super admin ne répond pas à sa place
+  const residence = await db.collection('residences').findOne({ id: 1 });
+  const hPartenaire = { Authorization: `Bearer ${AuthService.creerJeton('gestion@test', { entrepriseId: residence.entrepriseId, superAdmin: false })}` };
+  const hAdmin = await connexionAdmin();
+  const avisId = (await api('/api/admin/avis', { headers: hPartenaire })).body.data.find(a => a.reservationId === terminee).id;
+  assert.equal((await api(`/api/admin/avis/${avisId}/reponse`, { method: 'PUT', headers: hAdmin, body: { texte: 'x' } })).status, 403);
+  assert.equal((await api(`/api/admin/avis/${avisId}/reponse`, { method: 'PUT', headers: hPartenaire, body: { texte: 'Merci Koffi, à bientôt !' } })).status, 200);
+  assert.equal((await api('/api/residences/1/avis')).body.data.avis.find(a => a.id === avisId).reponse.texte, 'Merci Koffi, à bientôt !');
+
+  // Masquage par la plateforme : motif obligatoire, l'avis ne compte plus
+  assert.equal((await api(`/api/admin/avis/${avisId}/masquage`, { method: 'PUT', headers: hPartenaire, body: { masque: true, motif: 'abusif' } })).status, 403);
+  assert.equal((await api(`/api/admin/avis/${avisId}/masquage`, { method: 'PUT', headers: hAdmin, body: { masque: true } })).status, 400);
+  assert.equal((await api(`/api/admin/avis/${avisId}/masquage`, { method: 'PUT', headers: hAdmin, body: { masque: true, motif: 'Propos injurieux' } })).status, 200);
+  const masques = (await api('/api/residences/1/avis')).body.data;
+  assert.ok(!masques.avis.some(a => a.id === avisId));
+  assert.equal(masques.nombre, publics.nombre - 1);
+  assert.equal((await api('/api/admin/avis', { headers: hAdmin })).body.data.find(a => a.id === avisId).masque.motif, 'Propos injurieux');
+  assert.equal((await api('/api/admin/avis/pas-un-id/masquage', { method: 'PUT', headers: hAdmin, body: { masque: false } })).status, 404);
+
+  // Invitation à noter : séjours terminés depuis moins de 7 jours, non notés, une seule fois
+  await Avis.envoyerInvitations(es);
+  assert.ok(invitations.includes(aInviter));
+  assert.ok(!invitations.includes(terminee), 'déjà noté');
+  assert.ok(!invitations.includes(ancienne) && !invitations.includes(future) && !invitations.includes(nonConfirmee));
+  const nombre = invitations.length;
+  await Avis.envoyerInvitations(es);
+  assert.equal(invitations.length, nombre, 'pas de seconde invitation');
 });

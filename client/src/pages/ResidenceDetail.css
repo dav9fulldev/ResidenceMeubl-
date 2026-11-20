@@ -56,7 +56,8 @@
 }
 
 .residence-detail-page .rd-sous-titre svg { color: var(--gold); }
-.residence-detail-page .rd-note { color: var(--text); font-weight: 700; }
+.residence-detail-page .rd-note { color: var(--text); font-weight: 700; text-decoration: none; }
+.residence-detail-page a.rd-note:hover { text-decoration: underline; }
 .residence-detail-page .rd-ref { font-size: 0.85rem; }
 
 .residence-detail-page .rd-favori {
