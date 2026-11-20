@@ -73,6 +73,7 @@ app.use(cors({
 const PaymentService = require('./services/paiement/PaymentService');
 const Tenant = require('./services/Tenant');
 const EntrepriseService = require('./services/EntrepriseService');
+const Finance = require('./services/finance');
 const contexteWebhook = (req, res, next) => {
   const id = req.params.entrepriseId || Tenant.PRINCIPALE;
   if (!/^[a-z0-9_]{1,40}$/.test(id) || !EntrepriseService.statut(id)) return res.status(404).json({ success: false, message: 'Entreprise inconnue' });
@@ -85,7 +86,9 @@ const dansEntreprise = (traitement) => (req, res) => Tenant.run(req.entrepriseWe
 // PI-SPI : corps brut indispensable pour vérifier la signature X-Signature
 app.post(['/api/paiements/pispi/webhook', '/api/paiements/pispi/webhook/:entrepriseId'], contexteWebhook, express.raw({ type: '*/*', limit: '1mb' }), dansEntreprise((req, res) => {
   const corpsBrut = Buffer.isBuffer(req.body) ? req.body : Buffer.from('');
-  if (!PaymentService.signatureValide(corpsBrut, req.get('X-Signature'))) {
+  const valide = PaymentService.signatureValide(corpsBrut, req.get('X-Signature'));
+  const trace = Finance.tracerWebhook('pispi', corpsBrut, valide).catch(() => null);
+  if (!valide) {
     return res.status(401).json({ success: false, message: 'Signature invalide' });
   }
   let corps;
@@ -95,14 +98,18 @@ app.post(['/api/paiements/pispi/webhook', '/api/paiements/pispi/webhook/:entrepr
     return res.status(400).json({ success: false, message: 'JSON invalide' });
   }
   res.status(204).end(); // répondre en moins de 5 s, traiter ensuite
-  PaymentService.traiterEvenements(corps).catch(e => console.error('⚠️ Webhook PI-SPI :', e.message));
+  PaymentService.traiterEvenements(corps)
+    .then(async () => Finance.webhookTraite((await trace)?._id, 'TRAITE'))
+    .catch(async (e) => { console.error('⚠️ Webhook PI-SPI :', e.message); Finance.webhookTraite((await trace)?._id, 'ECHEC', e.message).catch(() => {}); });
 }));
 
 // Webhook GeniusPay : signature X-Webhook-Signature = HMAC-SHA256(timestamp + "." + corps)
 app.post(['/api/paiements/geniuspay/webhook', '/api/paiements/geniuspay/webhook/:entrepriseId'], contexteWebhook, express.raw({ type: '*/*', limit: '1mb' }), dansEntreprise((req, res) => {
   const GeniusPay = require('./services/paiement/GeniusPayClient');
   const corpsBrut = Buffer.isBuffer(req.body) ? req.body : Buffer.from('');
-  if (!GeniusPay.signatureValide(corpsBrut, req.get('X-Webhook-Signature'), req.get('X-Webhook-Timestamp'))) {
+  const valide = GeniusPay.signatureValide(corpsBrut, req.get('X-Webhook-Signature'), req.get('X-Webhook-Timestamp'));
+  const trace = Finance.tracerWebhook('geniuspay', corpsBrut, valide).catch(() => null);
+  if (!valide) {
     return res.status(401).json({ success: false, message: 'Signature invalide' });
   }
   let corps;
@@ -112,12 +119,14 @@ app.post(['/api/paiements/geniuspay/webhook', '/api/paiements/geniuspay/webhook/
     return res.status(400).json({ success: false, message: 'JSON invalide' });
   }
   res.status(200).json({ success: true }); // répondre vite, traiter ensuite
-  PaymentService.traiterEvenementGeniusPay(corps).catch(e => console.error('⚠️ Webhook GeniusPay :', e.message));
+  PaymentService.traiterEvenementGeniusPay(corps)
+    .then(async () => Finance.webhookTraite((await trace)?._id, 'TRAITE'))
+    .catch(async (e) => { console.error('⚠️ Webhook GeniusPay :', e.message); Finance.webhookTraite((await trace)?._id, 'ECHEC', e.message).catch(() => {}); });
 }));
 
 // Taille maximale des requêtes : 100 ko pour le public, 2 Mo pour le back-office (fiches résidences),
 // 8 Mo pour l'envoi d'un fichier (5 Mo encodés en base64)
-app.use(/^\/api\/admin\/residences\/\d+\/(verification\/(documents|preuves)|photos)$/, express.json({ limit: '8mb' }));
+app.use(/^\/api\/admin\/(residences\/\d+\/(verification\/(documents|preuves)|photos)|finance\/reversements\/[0-9a-f]{24}\/preuve)$/, express.json({ limit: '8mb' }));
 app.use('/api/admin', express.json({ limit: '2mb' }));
 app.use(express.json({ limit: '100kb' }));
 app.use(express.urlencoded({ extended: false, limit: '100kb' }));
@@ -170,6 +179,10 @@ app.get('/api/photos/:id', async (req, res) => {
 });
 app.use('/api/residences', residencesRoutes);
 app.use('/api/reservations', reservationsRoutes);
+// Module financier (avant le routeur admin général)
+const financeRoutes = require('./routes/finance');
+app.use('/api/admin/finance', financeRoutes.plateforme);
+app.use('/api/admin/revenus', financeRoutes.entreprise);
 app.use('/api/admin', adminRoutes);
 app.use('/api/entreprises', require('./routes/entreprises'));
 app.use('/api/client', clientRoutes);
@@ -242,7 +255,7 @@ if (require.main === module) {
   db.connect()
     .then(() => {
       console.log('🗄️  Connecté à MongoDB');
-      Promise.all([require('./services/SettingsService').charger(), require('./services/paiement/Cles').charger()])
+      require('./services/SettingsService').charger()
         .catch(e => console.error('⚠️ Paramètres :', e.message))
         .then(() => {
           const acompte = require('./services/paiement/acompte');
@@ -251,7 +264,6 @@ if (require.main === module) {
           console.log(`💳 Paiement de l'acompte : ${moyens.length ? moyens.map(m => (m === 'pispi' ? `PI-SPI (${acompte.mode()})` : `GeniusPay (${GeniusPay.environnement})`)).join(', ') : 'désactivé'}`);
           // Toutes les entreprises : chacune peut avoir ses propres moyens de paiement
           PaymentService.demarrerVerificationPeriodique();
-          if (!require('./services/paiement/Cles').chiffrementDisponible()) console.warn('⚠️ CLES_CHIFFREMENT non défini : les entreprises ne peuvent pas enregistrer leurs clés de paiement');
           require('./services/ReservationService').demarrerRappelsSolde();
         });
       const AIService = require('./services/AIService');

@@ -322,7 +322,8 @@ router.put('/plateforme/signalements/:id', superAdmin, async (req, res) => {
  * @route   PUT /api/admin/paiements/moyens/:id   { actif: true|false }
  */
 // Adresses des webhooks : propres à l'entreprise (la plateforme garde les adresses historiques)
-const urlWebhook = (req, fournisseur) => `${req.protocol}://${req.get('host')}/api/paiements/${fournisseur}/webhook${Tenant.estPrincipale() ? '' : `/${Tenant.courante()}`}`;
+// Encaissement centralisé : une seule adresse par prestataire (celle de la plateforme)
+const urlWebhook = (req, fournisseur) => `${req.protocol}://${req.get('host')}/api/paiements/${fournisseur}/webhook`;
 
 router.get('/paiements/moyens', (req, res) => {
   const principale = Tenant.estPrincipale();
@@ -330,10 +331,9 @@ router.get('/paiements/moyens', (req, res) => {
     success: true,
     data: {
       mode: acompte.mode(),
-      moyens: Moyens.liste().map(m => ({ ...m, ...(principale ? {} : { cles: Cles.formulaire(m.id) }) })),
-      // Plateforme : clés dans les variables du serveur ; entreprise : clés saisies dans le back-office
-      clesParEntreprise: !principale,
-      chiffrementDisponible: principale || Cles.chiffrementDisponible(),
+      moyens: principale ? Moyens.liste() : Moyens.liste().map(({ variables, problemes, ...m }) => m),
+      // Encaissement par la plateforme : les entreprises voient les moyens proposés, sans les régler
+      encaissementPlateforme: !principale,
       webhookUrl: urlWebhook(req, 'pispi'),
       webhookSecretDefini: Boolean(Cles.lire('PISPI_WEBHOOK_SECRET').trim()),
       webhooks: { pispi: urlWebhook(req, 'pispi'), geniuspay: urlWebhook(req, 'geniuspay') },
@@ -357,6 +357,7 @@ router.put('/paiements/cles/:id', async (req, res) => {
 });
 
 router.put('/paiements/moyens/:id', async (req, res) => {
+  if (!req.admin.sa) return res.status(403).json({ success: false, message: 'Les moyens de paiement sont gérés par BABI RESIDENCE' });
   try {
     const moyen = await Moyens.activer(req.params.id, Boolean(req.body?.actif));
     res.json({ success: true, data: { moyen, mode: acompte.mode() } });

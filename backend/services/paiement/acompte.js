@@ -27,8 +27,7 @@ const MARGE_VERIFICATION_MS = 3 * 60 * 1000; // on vérifie encore un peu après
 
 function mode() {
   // PAIEMENT_MODE vaut pour la plateforme ; une entreprise ne garde que la simulation (démonstrations)
-  const brut = (process.env.PAIEMENT_MODE || '').trim().toLowerCase();
-  const demande = Tenant.estPrincipale() || brut === 'simulation' ? brut : '';
+  const demande = (process.env.PAIEMENT_MODE || '').trim().toLowerCase(); // vaut pour toute la plateforme
   let m = ['pispi', 'simulation', 'desactive'].includes(demande) ? demande : (PiSpi.estConfigure() ? 'pispi' : 'desactive');
   // L'admin peut désactiver PI-SPI depuis le back-office (Paramètres > Moyens de paiement)
   if (m === 'pispi' && !Settings.moyenActif('pispi')) m = 'desactive';

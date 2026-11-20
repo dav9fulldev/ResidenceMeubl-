@@ -38,13 +38,13 @@ Mise en ligne : voir [DEPLOIEMENT.md](DEPLOIEMENT.md).
 - **Inscription** sur `/admin/inscription` (lien « Vous gérez des résidences ? Publiez-les » en pied de page) : nom de l'entreprise, gestionnaire, email, mot de passe.
 - L'entreprise est **vérifiée par la plateforme** : en attendant, le gestionnaire prépare ses résidences, ses règles d'acompte et ses moyens de paiement ; rien n'est visible sur le site.
 - Chaque entreprise ne voit **que ses données** : résidences, réservations, calendrier, statistiques, paramètres.
-- **Paiements sur son propre compte** : l'entreprise saisit ses clés GeniusPay et/ou PI-SPI (chiffrées) et déclare ses propres adresses de webhook. Sans moyen actif, ses clients règlent sur place.
+- **Paiements encaissés par la plateforme** : la part de l'entreprise (montant moins la commission de 8 %) lui est reversée 24 h après l'arrivée du client, sur le compte qu'elle déclare dans *Revenus* (vérifié par la plateforme).
 - Emails aux clients au nom de l'entreprise (les réponses lui parviennent) ; alertes à son adresse.
 - Sur le site, chaque fiche indique « Proposé par … » et applique les règles d'acompte de l'entreprise.
 - **Chaque résidence est vérifiée avant publication** (contre les fausses annonces) : photos de l'annonce téléversées, position GPS, justificatifs privés (pièce d'identité, droit d'exploiter le logement : titre, bail, mandat ou autorisation du propriétaire), photos prises sur place avec un code unique et géolocalisées. La plateforme vérifie, demande des compléments, refuse ou suspend. Changer l'adresse, les photos ou les justificatifs d'une résidence vérifiée la renvoie en vérification.
 
 ### Pour l'administrateur de la plateforme
-Connexion avec les identifiants `ADMIN_USERNAME` / `ADMIN_PASSWORD`. Il gère les résidences de BABI RESIDENCE comme une entreprise, et dispose en plus de la page **Entreprises** : liste des inscriptions, **validation**, refus, suspension (le gestionnaire est prévenu par email). Et de la page **Vérifications** : dossiers des résidences à examiner (photos sur place avec distance à l'adresse déclarée, justificatifs, liste de points à contrôler), décisions, et **signalements** des visiteurs (« Signaler cette annonce » sur chaque fiche).
+Connexion avec les identifiants `ADMIN_USERNAME` / `ADMIN_PASSWORD`. Il gère les résidences de BABI RESIDENCE comme une entreprise, et dispose en plus de la page **Entreprises** : liste des inscriptions, **validation**, refus, suspension (le gestionnaire est prévenu par email). Et des pages **Finances** (encaissements, commissions, sommes dues, reversements manuels avec preuve, registre comptable, rapprochement) et **Vérifications** : dossiers des résidences à examiner (photos sur place avec distance à l'adresse déclarée, justificatifs, liste de points à contrôler), décisions, et **signalements** des visiteurs (« Signaler cette annonce » sur chaque fiche).
 
 ### Le back-office
 Il n'est pas indexé par les moteurs de recherche ; on y accède par **`/admin`** ou par l'application **BABI Admin** installable (ordinateur et téléphone).
@@ -64,7 +64,7 @@ Les statuts « Réservé » / « Occupé » des résidences se calculent automat
 ### Sécurité et confidentialité
 - Coordonnées des clients jamais exposées publiquement ; lecture d'une réservation réservée à l'admin.
 - Jetons signés distincts pour le back-office (8 h) et les clients ; limitation des tentatives (connexion, inscription, accès client, paiement, réservation).
-- Cloisonnement des entreprises : chaque requête du back-office est limitée aux données de l'entreprise du compte ; mots de passe hachés (scrypt) ; clés de paiement des entreprises chiffrées (AES-256-GCM), jamais réaffichées.
+- Cloisonnement des entreprises : chaque requête du back-office est limitée aux données de l'entreprise du compte ; mots de passe hachés (scrypt) ; encaissement centralisé avec registre financier immuable (voir docs/finance).
 - Paiements validés uniquement après relecture auprès du prestataire ; webhooks signés (HMAC) et horodatés.
 - Validation stricte des entrées, taille des requêtes limitée, en-têtes de sécurité et politique de contenu (CSP) sur le site et l'API.
 - Statistiques de visite sans le back-office ni les paramètres d'adresse (les liens « Mes réservations » contiennent une clé d'accès personnelle).
@@ -137,6 +137,7 @@ cd backend && npm test    # MongoDB en mémoire, aucun appel aux prestataires
 - [DEPLOIEMENT.md](DEPLOIEMENT.md) — mise en ligne, prestataires de paiement, sécurité continue, dépannage
 - [backend/README.md](backend/README.md) — variables d'environnement, routes de l'API, fonctionnement des paiements
 - [client/README.md](client/README.md) — pages, charte graphique, fichiers clés
+- [docs/finance/](docs/finance/README.md) — module financier : encaissement, commission, reversements, registre
 - [.github/SECURITY.md](.github/SECURITY.md) — signaler une faille de sécurité
 
 ---

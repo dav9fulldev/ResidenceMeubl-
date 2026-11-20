@@ -3,6 +3,8 @@ const ResidenceService = require('./ResidenceService');
 const EmailService = require('./EmailService');
 const db = require('../db');
 const Tenant = require('./Tenant');
+// Module financier : chargé à la demande (évite une dépendance circulaire)
+const finance = () => require('./finance');
 const acompte = require('./paiement/acompte');
 const PaymentService = require('./paiement/PaymentService');
 const RefundService = require('./paiement/RefundService');
@@ -14,6 +16,9 @@ const FORMAT_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const versDocument = (reservation) => ({
   id: reservation.id,
   entrepriseId: reservation.entrepriseId,
+  // Conditions financières figées à la création (taux de commission) : un changement de taux
+  // n'affecte jamais une réservation existante
+  conditionsFinancieres: reservation.conditionsFinancieres || null,
   residenceId: reservation.residenceId,
   residenceInfo: reservation.residenceInfo,
   client: reservation.client,
@@ -116,6 +121,7 @@ class ReservationService {
       });
 
       reservation.entrepriseId = residence.entrepriseId || Tenant.PRINCIPALE;
+      reservation.conditionsFinancieres = await finance().Commission.conditionsPour(reservation.entrepriseId);
       const validation = reservation.valider();
       if (!validation.valide) {
         throw new Error(`Validation échouée: ${validation.erreurs.join(', ')}`);
@@ -230,11 +236,16 @@ class ReservationService {
 
   // L'admin indique que l'acompte a été remboursé hors PI-SPI (après un échec)
   async marquerRembourse(id, reference = '') {
-    const res = await this.collection.findOneAndUpdate(
-      { id: { $eq: String(id) }, ...Tenant.filtre(), 'acompte.remboursement.statut': { $in: ['a_rembourser', 'echec'] } },
-      { $set: { 'acompte.remboursement.statut': 'rembourse', 'acompte.remboursement.le': new Date(), 'acompte.remboursement.reference': String(reference || '').slice(0, 80) } },
-      { returnDocument: 'after', projection: { _id: 0 } }
-    );
+    // Remboursement et écriture comptable : tout ou rien
+    const res = await db.transaction(async (session) => {
+      const maj = await this.collection.findOneAndUpdate(
+        { id: { $eq: String(id) }, ...Tenant.filtre(), 'acompte.remboursement.statut': { $in: ['a_rembourser', 'echec'] } },
+        { $set: { 'acompte.remboursement.statut': 'rembourse', 'acompte.remboursement.le': new Date(), 'acompte.remboursement.reference': String(reference || '').slice(0, 80) } },
+        { returnDocument: 'after', projection: { _id: 0 }, session }
+      );
+      if (maj) await finance().remboursementEffectue(maj, 'acompte', maj.acompte.remboursement.montant ?? maj.acompte.montant, {}, session);
+      return maj;
+    });
     if (!res) throw new ErreurClient('Aucun remboursement en attente pour cette réservation', 404);
     return res;
   }
@@ -402,14 +413,18 @@ class ReservationService {
     if (r.statut !== 'confirmee') throw new ErreurClient('Seul le solde d\'un séjour confirmé peut être enregistré', 409);
     if (r.solde?.paye) throw new ErreurClient('Le solde de ce séjour est déjà enregistré', 409);
     const etat = acompte.etatSolde(r);
-    await this.collection.updateOne({ id: r.id, 'solde.paye': { $ne: true } }, {
-      $set: {
-        solde: {
-          paye: true, enLigne: false, moyen, montant: etat.montant, payeLe: new Date(),
-          reference: String(reference || '').trim().slice(0, 80) || null,
-          ...(r.solde?.rappelLe ? { rappelLe: r.solde.rappelLe } : {}),
+    // Solde encaissé par l'entreprise : la commission due est comptabilisée dans la même transaction
+    await db.transaction(async (session) => {
+      const res = await this.collection.updateOne({ id: r.id, 'solde.paye': { $ne: true } }, {
+        $set: {
+          solde: {
+            paye: true, enLigne: false, moyen, montant: etat.montant, payeLe: new Date(),
+            reference: String(reference || '').trim().slice(0, 80) || null,
+            ...(r.solde?.rappelLe ? { rappelLe: r.solde.rappelLe } : {}),
+          },
         },
-      },
+      }, { session });
+      if (res.modifiedCount === 1) await finance().soldeSurPlace(r, etat.montant, session);
     });
     const maj = await this.collection.findOne({ id: r.id }, { projection: { _id: 0 } });
     return acompte.etatSolde(maj);
@@ -417,11 +432,15 @@ class ReservationService {
 
   /** Le solde d'un séjour annulé a été rendu au client (hors ligne). */
   async marquerSoldeRembourse(id, reference = '') {
-    const res = await this.collection.findOneAndUpdate(
-      { id: { $eq: String(id) }, ...Tenant.filtre(), 'solde.remboursement.statut': 'a_rembourser' },
-      { $set: { 'solde.remboursement.statut': 'rembourse', 'solde.remboursement.le': new Date(), 'solde.remboursement.reference': String(reference || '').slice(0, 80) } },
-      { returnDocument: 'after', projection: { _id: 0 } }
-    );
+    const res = await db.transaction(async (session) => {
+      const maj = await this.collection.findOneAndUpdate(
+        { id: { $eq: String(id) }, ...Tenant.filtre(), 'solde.remboursement.statut': 'a_rembourser' },
+        { $set: { 'solde.remboursement.statut': 'rembourse', 'solde.remboursement.le': new Date(), 'solde.remboursement.reference': String(reference || '').slice(0, 80) } },
+        { returnDocument: 'after', projection: { _id: 0 }, session }
+      );
+      if (maj) await finance().remboursementEffectue(maj, 'solde', maj.solde.remboursement.montant ?? maj.solde.montant, { enLigne: Boolean(maj.solde.enLigne) }, session);
+      return maj;
+    });
     if (!res) throw new ErreurClient('Aucun solde à rembourser pour cette réservation', 404);
     return acompte.etatSolde(res);
   }

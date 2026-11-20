@@ -95,12 +95,14 @@ class SettingsService {
 
   /** Activation d'un moyen de paiement par l'admin (PI-SPI actif par défaut pour la plateforme). */
   moyenActif(id) {
-    return this.moyens[id] ?? (id === 'pispi' && Tenant.estPrincipale());
+    // Moyens activés par la plateforme : les mêmes pour toutes les entreprises (encaissement centralisé)
+    const plateforme = this.parEntreprise.get(Tenant.PRINCIPALE)?.moyens || {};
+    return plateforme[id] ?? (id === 'pispi');
   }
 
   async modifierMoyen(id, actif) {
     await db.collection('parametres').updateOne(
-      { _id: cleDoc('paiement', Tenant.courante()) },
+      { _id: cleDoc('paiement', Tenant.PRINCIPALE) },
       { $set: { [`actifs.${id}`]: Boolean(actif), modifieLe: new Date() } },
       { upsert: true }
     );

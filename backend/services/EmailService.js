@@ -357,6 +357,16 @@ class EmailService {
     }))));
   }
 
+  // ---------- Module financier ----------
+
+  async sendAlerteFinance(sujet, message) {
+    await require('./Tenant').run(require('./Tenant').PRINCIPALE, () => this.envoyer({
+      to: this.destinataireAdmin,
+      subject: sujet,
+      html: this.gabarit({ titre: sujet, prevue: message, contenu: `<p style="margin:0;">${esc(message)}</p>`, bouton: { texte: 'Ouvrir les finances', url: `${urlSite()}/admin/finances` } }),
+    }));
+  }
+
   // ---------- Vérification des résidences ----------
 
   async sendAlerteVerification(residence, evenement, signalement = null) {

@@ -86,10 +86,15 @@ class VerificationService {
 
   /** Migration : résidences de la plateforme vérifiées d'office, les autres en brouillon. */
   async initialiser() {
-    await Promise.all([
-      this.residences.updateMany({ statutVerification: { $exists: false }, entrepriseId: Tenant.PRINCIPALE }, { $set: { statutVerification: 'verifiee' } }),
-      this.residences.updateMany({ statutVerification: { $exists: false } }, { $set: { statutVerification: 'brouillon' } }),
-    ]);
+    // Les résidences de la plateforme sont toujours vérifiées (aucune décision possible sur elles).
+    // Corrige aussi celles passées par erreur en brouillon : l'ancienne migration lançait les deux
+    // mises à jour en parallèle, et la seconde pouvait passer avant la première.
+    await this.residences.updateMany(
+      { entrepriseId: Tenant.PRINCIPALE, statutVerification: { $ne: 'verifiee' } },
+      { $set: { statutVerification: 'verifiee' } }
+    );
+    // Puis seulement les autres : en brouillon tant que leur dossier n'est pas vérifié
+    await this.residences.updateMany({ statutVerification: { $exists: false } }, { $set: { statutVerification: 'brouillon' } });
   }
 
   /** Statut initial d'une nouvelle résidence. */
