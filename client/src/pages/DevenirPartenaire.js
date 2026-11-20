@@ -1,27 +1,27 @@
 import React, { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { FaUserPlus, FaShieldAlt, FaCalendarCheck, FaMoneyBillWave, FaSignInAlt } from 'react-icons/fa';
-import './DevenirHote.css';
+import './DevenirPartenaire.css';
 
 const ETAPES = [
-  [FaUserPlus, 'Créez le compte de votre entreprise', 'Gratuit, en quelques minutes. Notre équipe vérifie votre entreprise.'],
+  [FaUserPlus, 'Inscrivez votre entreprise', 'Gratuit, en quelques minutes. Notre équipe vérifie votre entreprise et vous accueille comme partenaire.'],
   [FaShieldAlt, 'Ajoutez et faites vérifier vos résidences', 'Photos, localisation et justificatifs : chaque annonce est vérifiée avant d\'être publiée.'],
   [FaCalendarCheck, 'Recevez des réservations', 'Vous confirmez les demandes, suivez votre calendrier et vos clients depuis votre espace.'],
   [FaMoneyBillWave, 'Soyez payé', 'Les clients paient en ligne sur BABI RESIDENCE ; votre part vous est reversée 24 h après leur arrivée.'],
 ];
 
-/** Page d'accueil des gestionnaires de résidences : inscription ou connexion à leur espace. */
-const DevenirHote = () => {
-  useEffect(() => { document.title = 'Devenir hôte · BABI RESIDENCE'; }, []);
+/** Page des partenaires BABI (gestionnaires de résidences) : inscription ou connexion à leur espace. */
+const DevenirPartenaire = () => {
+  useEffect(() => { document.title = 'Devenir partenaire · BABI RESIDENCE'; }, []);
   return (
     <div className="hote-page">
       <section className="hote-hero">
-        <p className="surtitre">Gestionnaires et propriétaires</p>
-        <h1>Louez vos résidences meublées sur BABI RESIDENCE</h1>
-        <p>Une vitrine vérifiée, des paiements sécurisés et un espace de gestion complet pour vos réservations à Abidjan.</p>
+        <p className="surtitre">Partenaires BABI RESIDENCE</p>
+        <h1>Devenez partenaire BABI RESIDENCE</h1>
+        <p>Propriétaires, gestionnaires, agences : confiez-nous la visibilité de vos résidences meublées. Une vitrine vérifiée, des paiements sécurisés et un espace partenaire pour gérer vos réservations à Abidjan.</p>
         <div className="hote-actions">
-          <Link to="/admin/inscription" className="btn btn-primary"><FaUserPlus aria-hidden="true" /> Créer mon compte</Link>
-          <Link to="/admin/login" className="btn btn-outline"><FaSignInAlt aria-hidden="true" /> J'ai déjà un compte</Link>
+          <Link to="/admin/inscription" className="btn btn-primary"><FaUserPlus aria-hidden="true" /> Devenir partenaire</Link>
+          <Link to="/admin/login" className="btn btn-outline"><FaSignInAlt aria-hidden="true" /> Accéder à mon espace partenaire</Link>
         </div>
       </section>
       <ol className="hote-etapes">
@@ -39,4 +39,4 @@ const DevenirHote = () => {
   );
 };
 
-export default DevenirHote;
+export default DevenirPartenaire;

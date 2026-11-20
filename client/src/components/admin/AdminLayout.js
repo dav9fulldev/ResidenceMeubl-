@@ -125,7 +125,7 @@ const AdminLayout = () => {
           <LogoBabi className="admin-brand-logo" />
           <div>
             <strong title={nomEntreprise}>{nomEntreprise}</strong>
-            <span>{compte?.superAdmin ? 'Administration de la plateforme' : 'Espace de gestion'}</span>
+            <span>{compte?.superAdmin ? 'Administration de la plateforme' : 'Espace partenaire'}</span>
           </div>
         </div>
 

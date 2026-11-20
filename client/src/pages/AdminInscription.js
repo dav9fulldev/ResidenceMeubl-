@@ -17,7 +17,7 @@ const AdminInscription = () => {
   const [erreur, setErreur] = useState('');
   const [enCours, setEnCours] = useState(false);
 
-  useEffect(() => { document.title = 'Créer un compte entreprise · BABI RESIDENCE'; }, []);
+  useEffect(() => { document.title = 'Devenir partenaire · BABI RESIDENCE'; }, []);
   useEffect(() => { if (isAdmin) navigate('/admin/dashboard', { replace: true }); }, [isAdmin, navigate]);
 
   const champ = (e) => { setF(v => ({ ...v, [e.target.name]: e.target.value })); setErreur(''); };
@@ -41,12 +41,12 @@ const AdminInscription = () => {
   return (
     <div className="admin-login-page">
       <div className="admin-login-container">
-        <PanneauMarque mention="Espace gestionnaires">
+        <PanneauMarque mention="Espace partenaires">
           <p>Publiez vos résidences meublées sur BABI RESIDENCE : réservations, paiements et suivi au même endroit.</p>
         </PanneauMarque>
 
         <div className="admin-login-form">
-          <h3>Créer un compte entreprise</h3>
+          <h3>Devenir partenaire</h3>
           <p className="admin-login-sous-titre">Gratuit. Votre entreprise est vérifiée par notre équipe avant que vos résidences apparaissent sur le site.</p>
 
           {erreur && <div className="error-message" role="alert">{erreur}</div>}
