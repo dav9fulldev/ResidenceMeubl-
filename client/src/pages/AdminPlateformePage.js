@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { FaBuilding, FaShieldAlt, FaFlag, FaCoins, FaCalendarAlt, FaExchangeAlt, FaCheckCircle, FaExclamationTriangle, FaArrowRight } from 'react-icons/fa';
-import { API_ENDPOINTS, API_BASE_URL } from '../config/api';
+import { API_BASE_URL } from '../config/api';
 import { useResidences } from '../context/ResidencesContext';
 import { useCompte } from '../context/CompteContext';
 import { fcfa } from './AdminFinancesPage';

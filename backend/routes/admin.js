@@ -449,8 +449,10 @@ router.get('/etablissement', (req, res) => {
 
 router.put('/etablissement', async (req, res) => {
   try {
-    const valeurs = Tenant.estPrincipale() ? (req.body || {}) : pourEntreprise(req.body || {});
-    for (const k of Object.keys(valeurs)) if (valeurs[k] === undefined) delete valeurs[k];
+    // Seuls les champs d'une liste fixe sont recopiés (jamais une clé choisie par la requête)
+    const corps = req.body || {};
+    const champs = Tenant.estPrincipale() ? Object.keys(Settings.TEXTES) : CHAMPS_ENTREPRISE;
+    const valeurs = Object.fromEntries(champs.filter(k => Object.prototype.hasOwnProperty.call(corps, k)).map(k => [k, corps[k]]));
     const etab = await Settings.modifierEtablissement(valeurs);
     res.json({ success: true, data: Tenant.estPrincipale() ? etab : pourEntreprise(etab) });
   } catch (error) {
