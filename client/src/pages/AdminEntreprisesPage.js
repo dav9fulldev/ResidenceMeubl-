@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Navigate } from 'react-router-dom';
-import { FaCheck, FaBan, FaUndo, FaEnvelope, FaPhone, FaHome, FaCalendarAlt } from 'react-icons/fa';
+import { FaCheck, FaBan, FaUndo, FaTrash, FaEnvelope, FaPhone, FaHome, FaCalendarAlt } from 'react-icons/fa';
 import { API_ENDPOINTS } from '../config/api';
 import { useResidences } from '../context/ResidencesContext';
 import { useCompte } from '../context/CompteContext';
@@ -23,6 +23,24 @@ const AdminEntreprisesPage = () => {
   const [erreur, setErreur] = useState('');
   const [enCours, setEnCours] = useState(null);
   const [suspension, setSuspension] = useState(null); // { id, nom, motif }
+  const [suppression, setSuppression] = useState(null); // { id, nom, vers, confirmation }
+
+  const supprimer = async () => {
+    setEnCours(suppression.id);
+    setErreur('');
+    try {
+      const r = (await adminRequest(`${API_ENDPOINTS.admin.companies}/${encodeURIComponent(suppression.id)}/suppression`, { method: 'POST', body: { vers: suppression.vers } })).data;
+      setSuppression(null);
+      await charger();
+      recharger();
+      window.alert(`« ${r.supprimee} » supprimée : ${r.residences} résidence(s) et ${r.reservations} réservation(s) confiées à « ${r.vers} ».`);
+    } catch (e) {
+      setErreur(e.message);
+      setSuppression(null);
+    } finally {
+      setEnCours(null);
+    }
+  };
 
   const charger = useCallback(async () => {
     try {
@@ -103,6 +121,12 @@ const AdminEntreprisesPage = () => {
               </div>
               {e.motif && e.statut === 'suspendue' && <p className="ent-motif">Motif : {e.motif}</p>}
 
+              {!e.principale && (
+                <div className="ent-actions">
+                  <button type="button" className="btn btn-outline ent-suspendre" disabled={enCours === e.id}
+                    onClick={() => setSuppression({ id: e.id, nom: e.nom, vers: '', confirmation: '' })}><FaTrash aria-hidden="true" /> Supprimer</button>
+                </div>
+              )}
               {!e.principale && !e.interne && (
                 <div className="ent-actions">
                   {e.statut !== 'validee' && (
@@ -121,6 +145,26 @@ const AdminEntreprisesPage = () => {
           );
         })}
       </ul>
+
+      {suppression && (
+        <div className="admin-modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="supp-titre" onClick={() => setSuppression(null)}>
+          <form className="admin-modal" onClick={(ev) => ev.stopPropagation()} onSubmit={(ev) => { ev.preventDefault(); supprimer(); }}>
+            <h2 id="supp-titre">Supprimer {suppression.nom} ?</h2>
+            <p>Ses comptes responsables et ses paramètres sont supprimés. Ses résidences et réservations sont confiées à l'entreprise choisie ci-dessous ; l'historique financier est conservé.</p>
+            <label htmlFor="supp-vers">Confier ses résidences à</label>
+            <select id="supp-vers" required value={suppression.vers} onChange={(ev) => setSuppression(v => ({ ...v, vers: ev.target.value }))}>
+              <option value="">Choisir une entreprise validée</option>
+              {(liste || []).filter(x => x.id !== suppression.id && x.statut === 'validee').map(x => <option key={x.id} value={x.id}>{x.nom}</option>)}
+            </select>
+            <label htmlFor="supp-confirmation">Tapez SUPPRIMER pour confirmer</label>
+            <input id="supp-confirmation" value={suppression.confirmation} onChange={(ev) => setSuppression(v => ({ ...v, confirmation: ev.target.value }))} autoComplete="off" />
+            <div className="ent-actions">
+              <button type="button" className="btn btn-outline" onClick={() => setSuppression(null)}>Annuler</button>
+              <button type="submit" className="btn btn-primary ent-confirmer-suspension" disabled={!suppression.vers || suppression.confirmation !== 'SUPPRIMER' || enCours}>Supprimer</button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {suspension && (
         <div className="admin-modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="susp-titre" onClick={() => setSuspension(null)}>

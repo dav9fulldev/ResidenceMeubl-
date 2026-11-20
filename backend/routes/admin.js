@@ -173,6 +173,21 @@ router.get('/plateforme/entreprises', superAdmin, async (req, res) => {
   }
 });
 
+/**
+ * @route   POST /api/admin/plateforme/entreprises/:id/suppression   { vers }
+ * @desc    Supprime une entreprise ; ses résidences et réservations passent à l'entreprise « vers »
+ */
+router.post('/plateforme/entreprises/:id/suppression', superAdmin, async (req, res) => {
+  try {
+    const r = await EntrepriseService.supprimerEnTransferant(String(req.params.id), String(req.body?.vers || ''));
+    await require('../services/finance').journaliser(`plateforme:${req.admin.sub}`, 'ENTREPRISE_SUPPRIMEE', r);
+    res.json({ success: true, data: r });
+  } catch (error) {
+    if (error instanceof EntrepriseService.ErreurEntreprise) return res.status(error.status).json({ success: false, message: error.message });
+    gererErreur(res, error, 'lors de la suppression de l\'entreprise');
+  }
+});
+
 router.put('/plateforme/entreprises/:id/statut', superAdmin, async (req, res) => {
   try {
     const avant = EntrepriseService.statut(req.params.id);
