@@ -94,10 +94,17 @@ const Header = () => {
                 Mes réservations
               </Link>
             </li>
+            <li className="nav-item nav-item-hote">
+              <Link to="/devenir-hote" className={`nav-link ${isActive('/devenir-hote') ? 'active' : ''}`} onClick={closeMenu}>
+                Devenir hôte
+              </Link>
+            </li>
           </ul>
         </nav>
 
         <div className="header-actions">
+          {/* Espace des gestionnaires de résidences (comme « Devenir hôte » sur les plateformes de location) */}
+          <Link to="/devenir-hote" className="header-hote" onClick={closeMenu}>Devenir hôte</Link>
           <button
             className="theme-toggle"
             onClick={toggleTheme}

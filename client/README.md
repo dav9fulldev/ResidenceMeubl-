@@ -49,6 +49,7 @@ Logo : composant [`LogoBabi`](src/components/LogoBabi.js) (le bleu nuit suit le 
 | `/reservation?residence=:id` | Réservation en 3 étapes avec récapitulatif |
 | `/mes-reservations` | Espace client : suivi, paiement de l'acompte et du solde, annulation |
 | `/favorites` | Favoris (navigateur) |
+| `/devenir-hote` | Page des gestionnaires (bouton « Devenir hôte » de l'en-tête) : créer un compte ou se connecter |
 | `/admin/inscription` | Création du compte d'une entreprise de gestion (validée ensuite par la plateforme) |
 | `/admin/*` | Back-office de l'entreprise connectée : vue d'ensemble, réservations, calendrier, résidences, statistiques, paramètres ; **entreprises** pour l'administrateur de la plateforme |
 | autre | Page 404 |
