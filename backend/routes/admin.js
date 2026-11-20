@@ -209,6 +209,19 @@ router.put('/avis/:id/masquage', superAdmin, async (req, res) => {
 });
 
 /**
+ * @route   GET /api/admin/clients
+ * @desc    Partenaire : ses clients (voyageurs qui ont réservé ses résidences)
+ */
+router.get('/clients', async (req, res) => {
+  if (req.admin.sa) return res.status(403).json({ success: false, message: 'Réservé aux partenaires : la plateforme voit les utilisateurs' });
+  try {
+    res.json({ success: true, data: await require('../services/ClientService').clientsPartenaire(Tenant.courante()) });
+  } catch (error) {
+    gererErreur(res, error, 'lors de la récupération des clients');
+  }
+});
+
+/**
  * @route   GET /api/admin/plateforme/utilisateurs?q=
  * @desc    Service client : comptes des voyageurs (créés en arrière-plan à la réservation)
  */

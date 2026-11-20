@@ -27,6 +27,7 @@ const TITRES = {
   '/admin/plateforme': 'Vue d\'ensemble',
   '/admin/revenus': 'Revenus',
   '/admin/utilisateurs': 'Utilisateurs',
+  '/admin/clients': 'Clients',
   '/admin/avis': 'Avis',
 };
 
@@ -114,6 +115,7 @@ const AdminLayout = () => {
     { to: '/admin/reservations', icone: <FaCalendarAlt />, texte: 'Réservations', badge: aTraiter, section: 'Gestion' },
     { to: '/admin/calendrier', icone: <FaRegCalendarCheck />, texte: 'Calendrier', section: 'Gestion' },
     { to: '/admin/residences', icone: <FaHome />, texte: 'Résidences', section: 'Gestion' },
+    { to: '/admin/clients', icone: <FaUsers />, texte: 'Clients', section: 'Gestion', mobile: false },
     { to: '/admin/statistiques', icone: <FaChartLine />, texte: 'Statistiques', section: 'Pilotage', mobile: false },
     { to: '/admin/avis', icone: <FaStar />, texte: 'Avis', section: 'Pilotage', mobile: false },
     ...(compte && !compte.entreprise?.interne ? [{ to: '/admin/revenus', icone: <FaCoins />, texte: 'Revenus', section: 'Pilotage', mobile: false }] : []),

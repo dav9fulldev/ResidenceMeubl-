@@ -2220,3 +2220,47 @@ test('Service de notation : séjour terminé noté une fois, moyenne publique, r
   await Avis.envoyerInvitations(es);
   assert.equal(invitations.length, nombre, 'pas de seconde invitation');
 });
+
+test('Clients du partenaire : voyageurs ayant réservé ses résidences, jamais ceux des autres', async (t) => {
+  const AuthService = require('../services/AuthService');
+  const es = ReservationService.emailService;
+  for (const nom of ['sendBienvenueEntreprise', 'sendNouvelleEntrepriseAdmin']) {
+    const original = es[nom];
+    es[nom] = async () => {};
+    t.after(() => { es[nom] = original; });
+  }
+  const email = 'fidele@clients-partenaire.ci';
+  const ids = [];
+  for (const j of [700, 710]) {
+    const r = await api('/api/reservations', { method: 'POST', body: nouvelleReservation({ email, prenom: 'Aya', nom: 'Bamba', dateArrivee: jourDansNJours(j), dateDepart: jourDansNJours(j + 3) }) });
+    assert.equal(r.status, 201, JSON.stringify(r.body));
+    ids.push(r.body.data.id);
+  }
+  await db.collection('reservations').updateOne({ id: ids[0] }, { $set: { statut: 'confirmee' } });
+  t.after(() => db.collection('reservations').deleteMany({ id: { $in: ids } }));
+
+  const residence = await db.collection('residences').findOne({ id: 1 });
+  const hPartenaire = { Authorization: `Bearer ${AuthService.creerJeton('gestion@test', { entrepriseId: residence.entrepriseId, superAdmin: false })}` };
+  const liste = await api('/api/admin/clients', { headers: hPartenaire });
+  assert.equal(liste.status, 200);
+  const aya = liste.body.data.find(c => c.email === email);
+  assert.equal(aya.prenom, 'Aya');
+  assert.equal(aya.reservations, 2);
+  assert.equal(aya.sejours, 1);
+  assert.equal(aya.prochainSejour, jourDansNJours(700));
+  assert.equal(aya.detail.length, 2);
+
+  // Un autre partenaire ne voit pas ce client ; la plateforme passe par « Utilisateurs »
+  const autre = await api('/api/entreprises/inscription', { method: 'POST', body: {
+    entreprise: 'Autre Partenaire', prenom: 'Ali', nom: 'Koné', email: 'ali@autre-partenaire.ci', telephone: '+225 07 00 00 00 77', motDePasse: randomBytes(9).toString('hex'),
+  } });
+  assert.equal(autre.status, 201, JSON.stringify(autre.body));
+  t.after(async () => {
+    await db.collection('utilisateurs').deleteMany({ entrepriseId: autre.body.data.entreprise.id });
+    await db.collection('entreprises').deleteOne({ _id: autre.body.data.entreprise.id });
+  });
+  const hAutre = { Authorization: `Bearer ${autre.body.data.token}` };
+  assert.ok(!(await api('/api/admin/clients', { headers: hAutre })).body.data.some(c => c.email === email));
+  assert.equal((await api('/api/admin/clients', { headers: await connexionAdmin() })).status, 403);
+  assert.equal((await api('/api/admin/clients')).status, 401);
+});

@@ -24,6 +24,7 @@ const AdminLogin = lazy(() => import(/* webpackChunkName: "adminlogin" */ './pag
 const AdminInscription = lazy(() => import(/* webpackChunkName: "admininscription" */ './pages/AdminInscription'));
 const AdminEntreprisesPage = lazy(() => import(/* webpackChunkName: "adminentreprises" */ './pages/AdminEntreprisesPage'));
 const AdminAvisPage = lazy(() => import(/* webpackChunkName: "adminavis" */ './pages/AdminAvisPage'));
+const AdminClientsPage = lazy(() => import(/* webpackChunkName: "adminclients" */ './pages/AdminClientsPage'));
 const AdminUtilisateursPage = lazy(() => import(/* webpackChunkName: "adminutilisateurs" */ './pages/AdminUtilisateursPage'));
 const AdminVerificationDossier = lazy(() => import(/* webpackChunkName: "adminverification" */ './pages/AdminVerificationDossier'));
 const AdminPlateformePage = lazy(() => import(/* webpackChunkName: "adminplateforme" */ './pages/AdminPlateformePage'));
@@ -115,7 +116,7 @@ function App() {
               <Route path="parametres" element={<AdminSettingsPage />} />
               <Route path="entreprises" element={<AdminEntreprisesPage />} />
               <Route path="utilisateurs" element={<AdminUtilisateursPage />} />
-              <Route path="clients" element={<Navigate to="/admin/utilisateurs" replace />} />
+              <Route path="clients" element={<AdminClientsPage />} />
               <Route path="avis" element={<AdminAvisPage />} />
               <Route path="verifications" element={<AdminVerificationsPage />} />
               <Route path="finances" element={<AdminFinancesPage />} />

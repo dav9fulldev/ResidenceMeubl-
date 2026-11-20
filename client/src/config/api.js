@@ -51,6 +51,8 @@ export const API_ENDPOINTS = {
     companies: `${API_BASE_URL}/admin/plateforme/entreprises`,
     reviews: (chemin = '') => `${API_BASE_URL}/admin/avis${chemin}`,
     // Utilisateurs de la plateforme (comptes du Service client), clients des partenaires
+    // Partenaire : ses clients (voyageurs qui ont réservé ses résidences)
+    partnerClients: `${API_BASE_URL}/admin/clients`,
     users: (q = '') => `${API_BASE_URL}/admin/plateforme/utilisateurs${q ? `?q=${encodeURIComponent(q)}` : ''}`,
     companyStatus: (id) => `${API_BASE_URL}/admin/plateforme/entreprises/${encodeURIComponent(id)}/statut`,
     // Module financier : plateforme (/finance…) et entreprise (/revenus…)

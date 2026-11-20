@@ -41,6 +41,7 @@ Mise en ligne : voir [DEPLOIEMENT.md](DEPLOIEMENT.md).
 - **Inscription** sur `/admin/inscription` (lien « Vous gérez des résidences ? Publiez-les » en pied de page) : nom de l'entreprise, gestionnaire, email, mot de passe.
 - L'entreprise est **vérifiée par la plateforme** : en attendant, le gestionnaire prépare ses résidences, ses règles d'acompte et ses moyens de paiement ; rien n'est visible sur le site.
 - Chaque entreprise ne voit **que ses données** : résidences, réservations, calendrier, statistiques, paramètres.
+- **Clients** : les voyageurs qui ont réservé ses résidences (séjours, montant, dernier et prochain séjour, coordonnées), construits à partir de ses seules réservations.
 - **Mot de passe oublié** : lien « Mot de passe oublié ? » sur la page de connexion, lien de réinitialisation envoyé par email (voir *Mot de passe oublié* plus bas).
 - **Paiements encaissés par la plateforme** : la part de l'entreprise (montant moins la commission de 8 %) lui est reversée 24 h après l'arrivée du client, sur le compte qu'elle déclare dans *Revenus* (vérifié par la plateforme).
 - Emails aux clients au nom de l'entreprise (les réponses lui parviennent) ; alertes à son adresse.
@@ -113,6 +114,7 @@ revient      ──►  /mes-reservations                ──►   POST /api/c
 | `backend/middleware/requireClient.js` | Session de compte (fermée si le mot de passe change) ou accès à une réservation |
 | `client/src/pages/MesReservations.js` | Aucun formulaire pour le public : réservations si session ; choix du mot de passe (lien `?mdp=`) ; mot de passe seul si l'email est connu (appareil ou lien `#email=`) ; sinon invitation à découvrir les résidences |
 | `client/src/pages/Reservation.js` | Pré-remplissage si connecté, « Je réserve pour une autre personne » |
+| `client/src/pages/AdminClientsPage.js` | Partenaire : ses **clients** (voyageurs ayant réservé ses résidences) ; `GET /api/admin/clients`, refusé à la plateforme |
 | `client/src/pages/AdminUtilisateursPage.js` | Super admin : liste des **utilisateurs** (les voyageurs ; clients des partenaires), statut du compte, nombre de réservations |
 
 Règles :
