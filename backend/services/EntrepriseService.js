@@ -74,8 +74,8 @@ class EntrepriseService {
   }
 
   async recharger() {
-    const docs = await this.entreprises.find({}, { projection: { nom: 1, statut: 1 } }).toArray();
-    this.cache = new Map(docs.map(d => [d._id, { nom: d.nom, statut: d.statut }]));
+    const docs = await this.entreprises.find({}, { projection: { nom: 1, statut: 1, interne: 1 } }).toArray();
+    this.cache = new Map(docs.map(d => [d._id, { nom: d.nom, statut: d.statut, interne: Boolean(d.interne) }]));
   }
 
   /** Entreprises dont les résidences sont visibles sur le site public. */
@@ -89,6 +89,14 @@ class EntrepriseService {
 
   statut(id) {
     return this.cache.get(id)?.statut || null;
+  }
+
+  /**
+   * Entreprise de la plateforme elle-même (la principale, ou « BABI RESIDENCE Gestion » qui gère
+   * ses résidences) : pas de commission, revenus propres, résidences vérifiées d'office.
+   */
+  estInterne(id) {
+    return id === Tenant.PRINCIPALE || Boolean(this.cache.get(id)?.interne);
   }
 
   async trouver(id) {
@@ -180,6 +188,7 @@ class EntrepriseService {
       nom: e.nom,
       statut: e.statut,
       principale: Boolean(e.principale),
+      interne: Boolean(e.interne),
       telephone: e.telephone || null,
       creeLe: e.creeLe,
       valideeLe: e.valideeLe || null,
@@ -194,12 +203,59 @@ class EntrepriseService {
     if (!STATUTS.includes(statut)) throw new ErreurEntreprise('Statut invalide');
     const e = await this.trouver(id);
     if (!e) throw new ErreurEntreprise('Entreprise introuvable', 404);
-    if (e.principale) throw new ErreurEntreprise('L\'entreprise principale ne peut pas changer de statut', 409);
+    if (e.principale || e.interne) throw new ErreurEntreprise('Les entreprises de la plateforme ne changent pas de statut', 409);
     const maj = { statut, motif: texte(motif, 500) || null, statutLe: new Date() };
     if (statut === 'validee') maj.valideeLe = new Date();
     await this.entreprises.updateOne({ _id: e._id }, { $set: maj });
     await this.recharger();
     return { ...e, ...maj };
+  }
+
+  /**
+   * L'administrateur de la plateforme ne gère plus de résidences : celles de la plateforme (et leurs
+   * réservations, dossiers, paramètres d'acompte et coordonnées) sont confiées à une entreprise interne
+   * « BABI RESIDENCE Gestion », avec un compte responsable. Idempotent : une seule entreprise interne.
+   */
+  async transfererPlateforme(donnees = {}) {
+    const prenom = texte(donnees.prenom, 60);
+    const nom = texte(donnees.nom, 60);
+    const email = texte(donnees.email, 254).toLowerCase();
+    const telephone = texte(donnees.telephone, 30);
+    const motDePasse = String(donnees.motDePasse ?? '');
+    if (prenom.length < 2 || nom.length < 2) throw new ErreurEntreprise('Indiquez le prénom et le nom du responsable');
+    if (!EMAIL.test(email)) throw new ErreurEntreprise('Adresse email invalide');
+    if (!TEL.test(telephone)) throw new ErreurEntreprise('Numéro de téléphone invalide');
+    if (motDePasse.length < MOT_DE_PASSE_MIN || motDePasse.length > 200) throw new ErreurEntreprise(`Le mot de passe doit contenir au moins ${MOT_DE_PASSE_MIN} caractères`);
+    if (await this.utilisateurs.findOne({ email: { $eq: email } })) throw new ErreurEntreprise('Un compte existe déjà avec cette adresse email', 409);
+    if (await this.entreprises.findOne({ interne: true })) throw new ErreurEntreprise('Les résidences de la plateforme ont déjà été transférées', 409);
+
+    const id = 'ent_babi_gestion';
+    const maintenant = new Date();
+    await this.entreprises.insertOne({ _id: id, nom: 'BABI RESIDENCE Gestion', statut: 'validee', interne: true, telephone, creeLe: maintenant, valideeLe: maintenant });
+    await this.utilisateurs.insertOne({ _id: crypto.randomUUID(), entrepriseId: id, email, prenom, nom, telephone, role: 'proprietaire', motDePasse: hacher(motDePasse), creeLe: maintenant });
+    const filtre = { entrepriseId: Tenant.PRINCIPALE };
+    const [residences, reservations] = await Promise.all([
+      db.collection('residences').updateMany(filtre, { $set: { entrepriseId: id, statutVerification: 'verifiee' } }),
+      db.collection('reservations').updateMany(filtre, { $set: { entrepriseId: id } }),
+      db.collection('verifications').updateMany(filtre, { $set: { entrepriseId: id } }),
+      db.collection('signalements').updateMany(filtre, { $set: { entrepriseId: id } }),
+    ]);
+    // Mêmes règles d'acompte et mêmes coordonnées pour les clients (valeurs en vigueur, y compris
+    // celles par défaut) : les emails aux clients restent « BABI RESIDENCE »
+    const Settings = require('./SettingsService');
+    const [regles, etab] = Tenant.run(Tenant.PRINCIPALE, () => [Settings.tous(), Settings.etablissement()]);
+    const parametres = db.collection('parametres');
+    await parametres.updateOne({ _id: `acompte:${id}` }, { $set: { ...regles, modifieLe: maintenant } }, { upsert: true });
+    await parametres.updateOne({ _id: `etablissement:${id}` }, {
+      $set: {
+        nom: etab.nom || 'BABI RESIDENCE', telephone: etab.telephone || '', whatsapp: etab.whatsapp || '', email: etab.email || '', adresse: etab.adresse || '',
+        emailNotifications: etab.emailNotifications || process.env.ADMIN_EMAIL || process.env.EMAIL_USER || email, modifieLe: maintenant,
+      },
+    }, { upsert: true });
+    await this.recharger();
+    await require('./SettingsService').charger();
+    require('./SmartSearchService').synchroniserEnFond();
+    return { entrepriseId: id, residences: residences.modifiedCount, reservations: reservations.modifiedCount };
   }
 
   async gestionnaires(entrepriseId) {

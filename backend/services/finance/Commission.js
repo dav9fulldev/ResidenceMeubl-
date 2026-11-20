@@ -9,7 +9,7 @@ const Tenant = require('../Tenant');
  *   règle ; les anciennes réservations gardent le taux figé au moment de leur création
  *   (reservation.conditionsFinancieres).
  * - Arrondi : au FCFA le plus proche (0,5 arrondi au-dessus), calcul reproductible.
- * - Les résidences de la plateforme elle-même ne paient pas de commission (taux 0).
+ * - Les résidences de la plateforme elle-même (entreprise interne) ne paient pas de commission (taux 0).
  */
 const TAUX_DEFAUT_PB = 800;
 
@@ -43,7 +43,7 @@ const Commission = {
 
   /** Conditions financières figées à la création d'une réservation. */
   async conditionsPour(entrepriseId, date = new Date()) {
-    if (entrepriseId === Tenant.PRINCIPALE) return { tauxCommissionPb: 0, regleId: null, proprePlateforme: true, figeesLe: new Date() };
+    if (require('../EntrepriseService').estInterne(entrepriseId)) return { tauxCommissionPb: 0, regleId: null, proprePlateforme: true, figeesLe: new Date() };
     const regle = await this.regleA(date);
     return { tauxCommissionPb: regle ? regle.tauxPb : TAUX_DEFAUT_PB, regleId: regle?._id || null, proprePlateforme: false, figeesLe: new Date() };
   },

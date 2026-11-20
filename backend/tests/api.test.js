@@ -1898,3 +1898,50 @@ test('module financier : commission, registre en partie double, sommes dues, rev
   const csv = await fetch(`${baseUrl}/api/admin/finance/registre.csv`, { headers: headersAdmin });
   assert.match(await csv.text(), /PAIEMENT_CLIENT/);
 });
+
+// Doit rester le dernier test : il confie les résidences de la plateforme à une entreprise interne
+test('super admin : vue d\'ensemble de la plateforme, transfert des résidences à « BABI RESIDENCE Gestion », champs des entreprises', async () => {
+  const headersAdmin = await connexionAdmin();
+  const avant = (await api('/api/admin/plateforme/apercu', { headers: headersAdmin })).body.data;
+  assert.ok(avant.residencesPlateforme >= 10);
+  assert.equal(avant.transfertFait, false);
+  const publiquesAvant = (await api('/api/residences')).body.total;
+
+  const responsable = { prenom: 'Awa', nom: 'Gestion', email: 'gestion@babi-residence.test', telephone: '+225 07 00 00 00 55', motDePasse: randomBytes(9).toString('hex') };
+  assert.equal((await api('/api/admin/plateforme/transfert', { method: 'POST', headers: headersAdmin, body: { ...responsable, motDePasse: 'court' } })).status, 400);
+  const t = await api('/api/admin/plateforme/transfert', { method: 'POST', headers: headersAdmin, body: responsable });
+  assert.equal(t.status, 201, JSON.stringify(t.body));
+  assert.ok(t.body.data.residences >= 10);
+  assert.equal((await api('/api/admin/plateforme/transfert', { method: 'POST', headers: headersAdmin, body: { ...responsable, email: 'autre@babi-residence.test' } })).status, 409, 'une seule fois');
+
+  // Le site public ne change pas ; le super admin ne gère plus de résidences ; le responsable, si
+  assert.equal((await api('/api/residences')).body.total, publiquesAvant);
+  assert.equal((await api('/api/admin/residences', { headers: headersAdmin })).body.data.length, 0);
+  const login = await api('/api/admin/login', { method: 'POST', body: { email: responsable.email, password: responsable.motDePasse } });
+  const g = { Authorization: `Bearer ${login.body.data.token}` };
+  assert.ok((await api('/api/admin/residences', { headers: g })).body.data.length >= 10);
+  const etabTransfere = (await api('/api/admin/etablissement', { headers: g })).body.data;
+  assert.equal(etabTransfere.nom, 'BABI RESIDENCE', 'les clients voient toujours BABI RESIDENCE');
+  assert.ok(etabTransfere.telephone && etabTransfere.email, 'coordonnées en vigueur recopiées (y compris celles par défaut)');
+
+  // Entreprise interne : pas de commission, revenu de la plateforme
+  const c = await api('/api/reservations', { method: 'POST', body: nouvelleReservation({ residenceId: 1, email: 'apres-transfert@example.com', dateArrivee: jourDansNJours(400), dateDepart: jourDansNJours(403) }) });
+  assert.equal(c.status, 201, JSON.stringify(c.body));
+  const doc = await db.collection('reservations').findOne({ id: c.body.data.id });
+  assert.equal(doc.entrepriseId, 'ent_babi_gestion');
+  assert.equal(doc.conditionsFinancieres.proprePlateforme, true);
+  assert.equal(doc.conditionsFinancieres.tauxCommissionPb, 0);
+
+  // Une entreprise ne règle ni slogan ni réseaux sociaux (ce sont ceux du site)
+  const etab = (await api('/api/admin/etablissement', { headers: g })).body.data;
+  assert.ok(!('facebook' in etab) && !('slogan' in etab));
+  await api('/api/admin/etablissement', { method: 'PUT', headers: g, body: { facebook: 'https://facebook.com/pirate', telephone: '+225 27 00 00 00 01' } });
+  const Settings = require('../services/SettingsService');
+  const Tenant = require('../services/Tenant');
+  assert.equal(Tenant.run('ent_babi_gestion', () => Settings.etablissement().facebook), '', 'ignoré');
+  assert.equal((await api('/api/admin/etablissement', { headers: g })).body.data.telephone, '+225 27 00 00 00 01');
+  assert.equal((await api('/api/admin/plateforme/apercu', { headers: g })).status, 403);
+  const apres = (await api('/api/admin/plateforme/apercu', { headers: headersAdmin })).body.data;
+  assert.equal(apres.residencesPlateforme, 0);
+  assert.equal(apres.transfertFait, true);
+});

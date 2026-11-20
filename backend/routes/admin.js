@@ -84,7 +84,7 @@ router.get('/moi', async (req, res) => {
       data: {
         superAdmin: Boolean(req.admin.sa),
         utilisateur: utilisateur || { prenom: 'Administrateur', nom: '', email: null, role: 'super_admin' },
-        entreprise: { id: entreprise._id, nom: entreprise.nom, statut: entreprise.statut, principale: Boolean(entreprise.principale), motif: entreprise.motif || null },
+        entreprise: { id: entreprise._id, nom: entreprise.nom, statut: entreprise.statut, principale: Boolean(entreprise.principale), interne: Boolean(entreprise.interne), motif: entreprise.motif || null },
       },
     });
   } catch (error) {
@@ -111,6 +111,60 @@ router.put('/moi/mot-de-passe', async (req, res) => {
  * @route   PUT /api/admin/plateforme/entreprises/:id/statut   { statut, motif? }
  * @desc    Administrateur de la plateforme : validation et suspension des entreprises
  */
+/**
+ * @route   GET /api/admin/plateforme/apercu
+ * @desc    Vue d'ensemble de la plateforme : entreprises, résidences, vérifications, réservations, finances
+ */
+router.get('/plateforme/apercu', superAdmin, async (req, res) => {
+  try {
+    const db = require('../db');
+    const Finance = require('../services/finance');
+    const debutMois = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1));
+    const [entreprises, residences, compteurs, reservations, reservationsMois, residencesPlateforme, finances, mois] = await Promise.all([
+      EntrepriseService.lister(),
+      db.collection('residences').aggregate([{ $group: { _id: '$statutVerification', n: { $sum: 1 } } }]).toArray(),
+      Verification.compteurs(),
+      db.collection('reservations').countDocuments({}),
+      db.collection('reservations').countDocuments({ dateCreation: { $gte: debutMois } }),
+      db.collection('residences').countDocuments({ entrepriseId: Tenant.PRINCIPALE }),
+      Finance.apercu(),
+      Finance.apercu({ du: debutMois.toISOString().slice(0, 10) }),
+    ]);
+    const statuts = (s) => entreprises.filter(e => !e.principale && e.statut === s).length;
+    res.json({
+      success: true,
+      data: {
+        entreprises: { validees: statuts('validee'), aValider: statuts('en_attente'), suspendues: statuts('suspendue') },
+        residences: Object.fromEntries(residences.map(r => [r._id || 'brouillon', r.n])),
+        verifications: compteurs,
+        reservations: { total: reservations, ceMois: reservationsMois },
+        finances: { encaisseMois: mois.encaisse, commissionsMois: mois.commissions, versable: finances.versable, reversementsEnAttente: finances.reversementsEnAttente, balanceEquilibree: finances.balanceEquilibree },
+        // Résidences encore rattachées au compte de la plateforme : à confier à une entreprise interne
+        residencesPlateforme,
+        transfertFait: entreprises.some(e => e.interne),
+      },
+    });
+  } catch (error) {
+    gererErreur(res, error, 'lors du calcul de la vue d\'ensemble');
+  }
+});
+
+/**
+ * @route   POST /api/admin/plateforme/transfert
+ * @desc    Confie les résidences et réservations de la plateforme à « BABI RESIDENCE Gestion »
+ * @body    { prenom, nom, email, telephone, motDePasse }  (compte du responsable)
+ */
+router.post('/plateforme/transfert', superAdmin, async (req, res) => {
+  try {
+    const r = await EntrepriseService.transfererPlateforme(req.body || {});
+    await require('../services/finance').journaliser(`plateforme:${req.admin.sub}`, 'TRANSFERT_RESIDENCES_PLATEFORME', r);
+    res.status(201).json({ success: true, data: r });
+  } catch (error) {
+    if (error instanceof EntrepriseService.ErreurEntreprise) return res.status(error.status).json({ success: false, message: error.message });
+    gererErreur(res, error, 'lors du transfert');
+  }
+});
+
 router.get('/plateforme/entreprises', superAdmin, async (req, res) => {
   try {
     res.json({ success: true, data: await EntrepriseService.lister() });
@@ -384,13 +438,21 @@ router.get('/paiements/config', (req, res) => {
  * @route   GET / PUT /api/admin/etablissement
  * @desc    Identité de l'établissement : nom, coordonnées, réseaux sociaux, email des alertes
  */
+// Une entreprise ne règle que ce qui sert à ses clients ; slogan et réseaux sociaux sont ceux du site (plateforme)
+const CHAMPS_ENTREPRISE = ['nom', 'telephone', 'whatsapp', 'email', 'adresse', 'emailNotifications'];
+const pourEntreprise = (etab) => Object.fromEntries(CHAMPS_ENTREPRISE.map(k => [k, etab[k]]));
+
 router.get('/etablissement', (req, res) => {
-  res.json({ success: true, data: Settings.etablissement() });
+  const etab = Settings.etablissement();
+  res.json({ success: true, data: Tenant.estPrincipale() ? etab : pourEntreprise(etab) });
 });
 
 router.put('/etablissement', async (req, res) => {
   try {
-    res.json({ success: true, data: await Settings.modifierEtablissement(req.body || {}) });
+    const valeurs = Tenant.estPrincipale() ? (req.body || {}) : pourEntreprise(req.body || {});
+    for (const k of Object.keys(valeurs)) if (valeurs[k] === undefined) delete valeurs[k];
+    const etab = await Settings.modifierEtablissement(valeurs);
+    res.json({ success: true, data: Tenant.estPrincipale() ? etab : pourEntreprise(etab) });
   } catch (error) {
     if (error instanceof Settings.ErreurParametre) return res.status(400).json({ success: false, message: error.message });
     gererErreur(res, error, 'lors de l\'enregistrement de l\'établissement');

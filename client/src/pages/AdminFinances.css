@@ -51,3 +51,12 @@
 .fin-modal label { display: block; margin: 12px 0 6px; font-weight: 600; font-size: 0.9rem; }
 .fin-modal input, .fin-modal select { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border); font: inherit; margin-bottom: 4px; }
 .fin-modal .ent-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+
+/* Vue d'ensemble de la plateforme */
+.plat-kpi { text-decoration: none; color: inherit; transition: border-color 0.15s ease, transform 0.15s ease; }
+.plat-kpi:hover { border-color: var(--gold); transform: translateY(-1px); }
+.plat-kpi p { display: flex; align-items: center; gap: 8px; }
+.plat-kpi.alerte { border-color: rgba(224, 165, 38, 0.6); background: var(--gold-soft); }
+.plat-lien { margin-top: auto; display: inline-flex; align-items: center; gap: 6px; font-size: 0.82rem; font-weight: 700; color: var(--gold-ink); }
+.plat-transfert { border: 1px solid rgba(224, 165, 38, 0.5); }
+.plat-transfert h2 { display: flex; align-items: center; gap: 10px; }
