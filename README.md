@@ -107,7 +107,7 @@ revient      ──►  /mes-reservations                ──►   POST /api/c
 | `backend/routes/client.js` | `/connexion`, `/mot-de-passe`, `/mot-de-passe/lien`, `/moi`, réservations du client |
 | `backend/routes/reservations.js` | Réservation par le compte connecté ou création du compte ; voyageur différent |
 | `backend/middleware/requireClient.js` | Session de compte (fermée si le mot de passe change) ou accès à une réservation |
-| `client/src/pages/MesReservations.js` | Connexion, « Première visite » (lien par email), choix du mot de passe |
+| `client/src/pages/MesReservations.js` | Un seul formulaire de connexion ; liens « Recevoir un lien par email » (première visite, mot de passe oublié) et « Retrouver une réservation avec sa référence » ; choix du mot de passe |
 | `client/src/pages/Reservation.js` | Pré-remplissage si connecté, « Je réserve pour une autre personne » |
 | `client/src/pages/AdminClientsPage.js` | Super admin : liste des clients, statut du compte, nombre de réservations |
 

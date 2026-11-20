@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { FaSearch, FaEnvelope, FaSignOutAlt, FaLock, FaEye, FaEyeSlash } from 'react-icons/fa';
+import { FaSignOutAlt, FaEye, FaEyeSlash } from 'react-icons/fa';
 import { API_ENDPOINTS, apiRequest, getClientToken, setClientToken } from '../config/api';
 import PaiementAcompte, { preparerPaiementDirect } from '../components/PaiementAcompte';
 import { Etoiles, FormulaireAvis } from '../components/Avis';
@@ -302,64 +302,52 @@ const MesReservations = () => {
   }
 
   // ---------- Formulaire d'accès ----------
+  // Un seul formulaire (connexion). Deux cas plus rares, en liens discrets :
+  // première visite ou mot de passe oublié (lien par email), et accès avec la référence.
   if (!token) {
-    const soumettre = mode === 'connexion' ? seConnecter : mode === 'lien' ? recevoirLien : accederAvecReference;
+    const ECRANS = {
+      connexion: { titre: 'Accédez à vos réservations', intro: 'Connectez-vous avec l\'email utilisé pour réserver.', bouton: 'Se connecter', envoyer: seConnecter },
+      lien: { titre: 'Choisir mon mot de passe', intro: 'Votre espace a été créé lors de votre réservation. Recevez un lien pour choisir votre mot de passe. Il sert aussi si vous l\'avez oublié.', bouton: 'Recevoir le lien', envoyer: recevoirLien },
+      reference: { titre: 'Retrouver une réservation', intro: 'Avec votre email et la référence de réservation (page de confirmation ou email reçu). Vous verrez cette seule réservation.', bouton: 'Voir ma réservation', envoyer: accederAvecReference },
+    };
+    const e = ECRANS[mode];
     return (
       <div className="mes-reservations-page">
-        <div className="container mes-reservations-container">
-          <h1>Mes réservations</h1>
-          <p className="mes-reservations-intro">
-            Votre espace client est créé automatiquement à votre première réservation.
-          </p>
+        <div className="container mes-reservations-container acces-container">
+          <h1>{e.titre}</h1>
+          <p className="mes-reservations-intro">{e.intro}</p>
 
-          <div className="acces-tabs" role="tablist">
-            <button type="button" role="tab" aria-selected={mode === 'connexion'}
-              className={mode === 'connexion' ? 'active' : ''} onClick={() => changerMode('connexion')}>
-              <FaLock /> Se connecter
-            </button>
-            <button type="button" role="tab" aria-selected={mode === 'lien'}
-              className={mode === 'lien' ? 'active' : ''} onClick={() => changerMode('lien')}>
-              <FaEnvelope /> Première visite
-            </button>
-            <button type="button" role="tab" aria-selected={mode === 'reference'}
-              className={mode === 'reference' ? 'active' : ''} onClick={() => changerMode('reference')}>
-              <FaSearch /> Avec ma référence
-            </button>
-          </div>
-
-          <form className="acces-form" onSubmit={soumettre}>
-            <label htmlFor="acces-email">Email utilisé pour la réservation</label>
+          <form className="acces-form" onSubmit={e.envoyer}>
+            <label htmlFor="acces-email">Email</label>
             <input id="acces-email" type="email" required value={email}
-              onChange={(e) => setEmail(e.target.value)} placeholder="vous@exemple.com" autoComplete="email" />
+              onChange={(ev) => setEmail(ev.target.value)} placeholder="vous@exemple.com" autoComplete="email" />
 
-            {mode === 'connexion' && (
-              <>
-                {champMotDePasse('acces-mdp', motDePasse, setMotDePasse, 'current-password', 'Mot de passe')}
-                <p className="acces-hint">
-                  Pas encore de mot de passe, ou oublié ?{' '}
-                  <button type="button" className="btn-lien-discret" onClick={() => changerMode('lien')}>Recevoir un lien par email</button>
-                </p>
-              </>
-            )}
-            {mode === 'lien' && (
-              <p className="acces-hint">Vous recevrez un lien, valable 1 heure, pour choisir votre mot de passe. Il sert aussi si vous l'avez oublié.</p>
-            )}
+            {mode === 'connexion' && champMotDePasse('acces-mdp', motDePasse, setMotDePasse, 'current-password', 'Mot de passe')}
             {mode === 'reference' && (
               <>
                 <label htmlFor="acces-ref">Référence de réservation</label>
                 <input id="acces-ref" type="text" required value={reference}
-                  onChange={(e) => setReference(e.target.value)} placeholder="RES_…" />
-                <p className="acces-hint">La référence figure sur la page de confirmation et dans l'email reçu après votre réservation. Elle donne accès à cette seule réservation.</p>
+                  onChange={(ev) => setReference(ev.target.value)} placeholder="RES_…" />
               </>
             )}
 
             {error && <div className="error-message" role="alert">{error}</div>}
             {info && <div className="success-notice" role="status">{info}</div>}
 
-            <button type="submit" className="btn btn-primary" disabled={loading}>
-              {loading ? 'Patientez…' : mode === 'connexion' ? 'Se connecter' : mode === 'lien' ? 'Recevoir le lien' : 'Voir ma réservation'}
-            </button>
+            <button type="submit" className="btn btn-primary" disabled={loading}>{loading ? 'Patientez…' : e.bouton}</button>
           </form>
+
+          <ul className="acces-autres">
+            {mode !== 'connexion' && (
+              <li><button type="button" className="btn-lien-discret" onClick={() => changerMode('connexion')}>J'ai déjà un mot de passe : me connecter</button></li>
+            )}
+            {mode !== 'lien' && (
+              <li>{mode === 'connexion' ? 'Première visite ou mot de passe oublié ? ' : ''}<button type="button" className="btn-lien-discret" onClick={() => changerMode('lien')}>Recevoir un lien par email</button></li>
+            )}
+            {mode !== 'reference' && (
+              <li>Pas reçu l'email ? <button type="button" className="btn-lien-discret" onClick={() => changerMode('reference')}>Retrouver une réservation avec sa référence</button></li>
+            )}
+          </ul>
         </div>
       </div>
     );
