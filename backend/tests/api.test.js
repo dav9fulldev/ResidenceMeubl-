@@ -2039,7 +2039,7 @@ test('Service client : compte créé à la réservation, mot de passe via l\'ema
   const original = es.sendLienMotDePasseClient;
   es.sendLienMotDePasseClient = async (client, url) => { liens.push({ email: client.email, url }); };
   t.after(() => { es.sendLienMotDePasseClient = original; });
-  const jetonDe = (url) => new URL(url).searchParams.get('mdp');
+  const jetonDe = (url) => new URL(url, 'http://site.test').searchParams.get('mdp'); // FRONTEND_URL vide en CI : lien relatif
   const email = 'mariam@service-client.ci';
   const mdp = randomBytes(9).toString('hex');
 
