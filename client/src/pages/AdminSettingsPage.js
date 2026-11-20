@@ -144,11 +144,22 @@ const AdminSettingsPage = () => {
                 {champ('slogan', { maxLength: 160 })}
                 <p>Une phrase courte qui résume l'offre, reprise sur la page d'accueil.</p>
               </div>}
-              <div className="params-apercu">
-                <p className="surtitre">Aperçu</p>
-                <p className="params-apercu-nom">{etab.nom || '—'}</p>
-                {role === 'plateforme' && <p>{etab.slogan}</p>}
-              </div>
+              {role === 'plateforme' ? (
+                <div className="params-apercu">
+                  <p className="surtitre">Aperçu</p>
+                  <p className="params-apercu-nom">{etab.nom || '—'}</p>
+                  <p>{etab.slogan}</p>
+                </div>
+              ) : (
+                <>
+                  <div className="params-apercu-entreprise">
+                    <p className="surtitre">Ce que voient vos clients</p>
+                    <p>Sur la fiche de vos résidences : <b>Proposé par {etab.nom || '—'}</b></p>
+                    <p>Dans les emails de leurs réservations : l'expéditeur « {etab.nom || '—'} »</p>
+                  </div>
+                  <p className="params-note">Le nom, le logo, les coordonnées et les réseaux sociaux du site BABI RESIDENCE sont gérés par l'administrateur de la plateforme : ce champ ne les modifie pas.</p>
+                </>
+              )}
               {bouton(modifie(etab, etabInitial, CLES_ETAB))}
             </form>
           )}

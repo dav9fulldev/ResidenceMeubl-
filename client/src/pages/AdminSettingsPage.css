@@ -150,3 +150,8 @@
   .params-grille { grid-template-columns: 1fr; }
   .params-paliers ol { grid-template-columns: 1fr; }
 }
+
+/* Responsable : aperçu de ce que voient ses clients (pas le site) */
+.params-apercu-entreprise { padding: 16px 18px; border-radius: 12px; border: 1px dashed var(--border); background: var(--surface-2); }
+.params-apercu-entreprise p { margin: 4px 0 0; font-size: 0.92rem; color: var(--text); }
+.params-apercu-entreprise .surtitre { margin: 0 0 6px; }
