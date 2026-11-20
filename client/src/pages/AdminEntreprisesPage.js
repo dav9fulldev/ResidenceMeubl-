@@ -26,7 +26,8 @@ const AdminEntreprisesPage = () => {
 
   const charger = useCallback(async () => {
     try {
-      setListe((await adminRequest(API_ENDPOINTS.admin.companies)).data);
+      // Le compte de la plateforme n'est pas une entreprise : il n'apparaît pas dans la liste
+      setListe((await adminRequest(API_ENDPOINTS.admin.companies)).data.filter(e => !e.principale));
     } catch (e) {
       setErreur(e.message);
     }
