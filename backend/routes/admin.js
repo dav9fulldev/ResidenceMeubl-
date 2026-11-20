@@ -209,10 +209,10 @@ router.put('/avis/:id/masquage', superAdmin, async (req, res) => {
 });
 
 /**
- * @route   GET /api/admin/plateforme/clients?q=
+ * @route   GET /api/admin/plateforme/utilisateurs?q=
  * @desc    Service client : comptes des voyageurs (créés en arrière-plan à la réservation)
  */
-router.get('/plateforme/clients', superAdmin, async (req, res) => {
+router.get('/plateforme/utilisateurs', superAdmin, async (req, res) => {
   try {
     const q = typeof req.query.q === 'string' ? req.query.q : '';
     res.json({ success: true, data: await require('../services/ClientService').lister({ recherche: q }) });

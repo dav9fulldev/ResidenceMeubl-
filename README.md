@@ -20,7 +20,7 @@ Mise en ligne : voir [DEPLOIEMENT.md](DEPLOIEMENT.md).
 
 ## Fonctionnalités
 
-### Pour les clients
+### Pour les voyageurs (utilisateurs de la plateforme, clients des partenaires)
 - **Accueil** : recherche par dates, nombre de personnes et quartier ; résidences disponibles mises en avant.
 - **Catalogue** filtré par la disponibilité réelle sur les dates choisies.
 - **Recherche intelligente** : « une villa avec jardin pour une famille de 6, moins de 90 000 FCFA ». Les critères chiffrés sont compris, les résidences classées par pertinence (français et anglais). **Recherche vocale** par le bouton micro.
@@ -54,6 +54,8 @@ Connexion avec les identifiants `ADMIN_USERNAME` / `ADMIN_PASSWORD`. Il **ne gè
 |---|---|
 | Vue d'ensemble | Entreprises à valider, résidences à vérifier, signalements, réservations, encaissements et sommes à reverser |
 | Entreprises | Inscriptions : validation, refus, suspension (le gestionnaire est prévenu par email) |
+| Utilisateurs | Voyageurs inscrits automatiquement à leur première réservation : compte avec ou sans mot de passe, réservations |
+| Avis | Notes des voyageurs sur toutes les résidences ; masquage motivé d'un avis abusif |
 | Vérifications | Dossiers des résidences (photos sur place, distance GPS, justificatifs, points à contrôler), décisions, signalements des visiteurs |
 | Finances | Encaissements, commissions, sommes dues, reversements manuels avec preuve, registre comptable, rapprochement |
 | Paramètres | Identité du site, coordonnées et réseaux sociaux du pied de page, email des alertes, moyens de paiement |
@@ -84,7 +86,9 @@ Les statuts « Réservé » / « Occupé » des résidences se calculent automat
 - Statistiques de visite sans le back-office ni les paramètres d'adresse (les liens « Mes réservations » contiennent une clé d'accès personnelle).
 - Identifiants et clés uniquement dans les variables d'environnement.
 
-### Service client (comptes des voyageurs)
+### Service client (comptes des utilisateurs)
+
+> **Vocabulaire.** Les **clients** de BABI RESIDENCE sont les **partenaires** (entreprises qui publient leurs résidences). Les voyageurs qui réservent sont des **utilisateurs** de la plateforme, et les **clients des partenaires**. « Service client » est le nom du module qui gère leurs comptes.
 
 ```
 Visiteur          Site                                   API                                       MongoDB
@@ -109,7 +113,7 @@ revient      ──►  /mes-reservations                ──►   POST /api/c
 | `backend/middleware/requireClient.js` | Session de compte (fermée si le mot de passe change) ou accès à une réservation |
 | `client/src/pages/MesReservations.js` | Aucun formulaire pour le public : réservations si session ; choix du mot de passe (lien `?mdp=`) ; mot de passe seul si l'email est connu (appareil ou lien `#email=`) ; sinon invitation à découvrir les résidences |
 | `client/src/pages/Reservation.js` | Pré-remplissage si connecté, « Je réserve pour une autre personne » |
-| `client/src/pages/AdminClientsPage.js` | Super admin : liste des clients, statut du compte, nombre de réservations |
+| `client/src/pages/AdminUtilisateursPage.js` | Super admin : liste des **utilisateurs** (les voyageurs ; clients des partenaires), statut du compte, nombre de réservations |
 
 Règles :
 1. **Le mot de passe ne se choisit que depuis un lien reçu par email** : connaître l'email de quelqu'un ne suffit pas pour s'approprier son compte.

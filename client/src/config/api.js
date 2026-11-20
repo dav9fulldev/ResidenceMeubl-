@@ -50,7 +50,8 @@ export const API_ENDPOINTS = {
     password: `${API_BASE_URL}/admin/moi/mot-de-passe`,
     companies: `${API_BASE_URL}/admin/plateforme/entreprises`,
     reviews: (chemin = '') => `${API_BASE_URL}/admin/avis${chemin}`,
-    clients: (q = '') => `${API_BASE_URL}/admin/plateforme/clients${q ? `?q=${encodeURIComponent(q)}` : ''}`,
+    // Utilisateurs de la plateforme (comptes du Service client), clients des partenaires
+    users: (q = '') => `${API_BASE_URL}/admin/plateforme/utilisateurs${q ? `?q=${encodeURIComponent(q)}` : ''}`,
     companyStatus: (id) => `${API_BASE_URL}/admin/plateforme/entreprises/${encodeURIComponent(id)}/statut`,
     // Module financier : plateforme (/finance…) et entreprise (/revenus…)
     finance: (chemin = '') => `${API_BASE_URL}/admin/finance${chemin}`,

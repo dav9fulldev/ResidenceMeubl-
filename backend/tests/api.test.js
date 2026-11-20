@@ -2118,14 +2118,14 @@ test('Service client : compte créé à la réservation, mot de passe via l\'ema
   assert.equal((await api('/api/client/reservations', { headers: hSession })).status, 401, 'session ouverte avant');
   assert.equal((await api('/api/client/connexion', { method: 'POST', body: { email, motDePasse: nouveau } })).status, 200);
 
-  // 7. Plateforme : liste des clients (super admin uniquement)
-  const liste = await api('/api/admin/plateforme/clients?q=mariam', { headers: await connexionAdmin() });
+  // 7. Plateforme : liste des utilisateurs (super admin uniquement)
+  const liste = await api('/api/admin/plateforme/utilisateurs?q=mariam', { headers: await connexionAdmin() });
   assert.equal(liste.status, 200);
   const ligne = liste.body.data.find(c => c.email === email);
   assert.equal(ligne.statut, 'actif');
   assert.equal(ligne.reservations, 3);
   assert.ok(!('motDePasse' in ligne));
-  assert.equal((await api('/api/admin/plateforme/clients', { headers: hSession })).status, 401);
+  assert.equal((await api('/api/admin/plateforme/utilisateurs', { headers: hSession })).status, 401);
 });
 
 test('Service de notation : séjour terminé noté une fois, moyenne publique, réponse, masquage, invitation', async (t) => {
