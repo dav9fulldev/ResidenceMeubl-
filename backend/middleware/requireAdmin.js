@@ -25,6 +25,10 @@ module.exports = async function requireAdmin(req, res, next) {
       // Compte supprimé ou déplacé : le jeton ne vaut plus rien
       const u = await EntrepriseService.utilisateur(admin.uid);
       if (!u || u.entrepriseId !== admin.ent) return refus(res, 401, 'Session expirée, reconnectez-vous');
+      // Mot de passe réinitialisé : les sessions ouvertes avant ne valent plus rien
+      if (u.sessionsInvalideesLe && (Number(admin.iat) || 0) < new Date(u.sessionsInvalideesLe).getTime()) {
+        return refus(res, 401, 'Session expirée, reconnectez-vous');
+      }
     }
     if (EntrepriseService.statut(admin.ent) === 'suspendue') {
       return refus(res, 403, 'Le compte de votre entreprise est suspendu. Contactez BABI RESIDENCE.');

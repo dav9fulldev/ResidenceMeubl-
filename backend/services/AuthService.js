@@ -59,6 +59,7 @@ class AuthService {
       ent: entrepriseId || require('./Tenant').PRINCIPALE,
       ...(utilisateurId ? { uid: utilisateurId } : {}),
       sa: Boolean(superAdmin),
+      iat: Date.now(),
       exp: Date.now() + DUREE_JETON_MS,
     });
   }
