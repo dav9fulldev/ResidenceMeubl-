@@ -82,7 +82,7 @@ const AdminEntreprisesPage = () => {
             <li key={e.id} className="ent-carte">
               <div className="ent-tete">
                 <div>
-                  <h2>{e.nom}{e.principale && <small> · plateforme</small>}</h2>
+                  <h2>{e.nom}{e.principale && <small> · compte de la plateforme</small>}{e.interne && <small> · résidences de la plateforme</small>}</h2>
                   <p className="ent-date">Inscrite le {date(e.creeLe)}{e.valideeLe ? ` · validée le ${date(e.valideeLe)}` : ''}</p>
                 </div>
                 <span className={`ent-statut ${s.classe}`}>{s.libelle}</span>
@@ -102,7 +102,7 @@ const AdminEntreprisesPage = () => {
               </div>
               {e.motif && e.statut === 'suspendue' && <p className="ent-motif">Motif : {e.motif}</p>}
 
-              {!e.principale && (
+              {!e.principale && !e.interne && (
                 <div className="ent-actions">
                   {e.statut !== 'validee' && (
                     <button type="button" className="btn btn-primary" disabled={enCours === e.id} onClick={() => changer(e.id, 'validee')}>

@@ -8,13 +8,16 @@ import { API_ENDPOINTS } from '../config/api';
 import MoyensPaiement from '../components/admin/MoyensPaiement';
 import './AdminSettingsPage.css';
 
-const CATEGORIES = [
-  { cle: 'etablissement', icone: <FaBuilding />, titre: 'Établissement', resume: 'Nom et présentation' },
-  { cle: 'coordonnees', icone: <FaAddressBook />, titre: 'Coordonnées et réseaux', resume: 'Téléphone, email, adresse, réseaux sociaux' },
-  { cle: 'remboursements', icone: <FaCoins />, titre: 'Acompte et remboursements', resume: 'Montant de l\'acompte, règles d\'annulation' },
-  { cle: 'emails', icone: <FaEnvelope />, titre: 'Emails', resume: 'Destinataire des alertes' },
-  { cle: 'paiement', icone: <FaCreditCard />, titre: 'Moyens de paiement', resume: 'PI-SPI, GeniusPay…' },
-  { cle: 'compte', icone: <FaUserLock />, titre: 'Mon compte', resume: 'Identifiant et mot de passe', gestionnaire: true },
+// pour : 'plateforme' (administrateur du site) et/ou 'entreprise' (responsable)
+const CATEGORIES_TOUTES = [
+  { cle: 'etablissement', icone: <FaBuilding />, titre: 'Identité du site', resume: 'Nom et phrase de présentation', pour: ['plateforme'] },
+  { cle: 'etablissement', icone: <FaBuilding />, titre: 'Entreprise', resume: 'Nom affiché aux clients', pour: ['entreprise'] },
+  { cle: 'coordonnees', icone: <FaAddressBook />, titre: 'Coordonnées et réseaux', resume: 'Pied de page du site, réseaux sociaux', pour: ['plateforme'] },
+  { cle: 'coordonnees', icone: <FaAddressBook />, titre: 'Coordonnées', resume: 'Téléphone, WhatsApp, email, adresse', pour: ['entreprise'] },
+  { cle: 'remboursements', icone: <FaCoins />, titre: 'Acompte et remboursements', resume: 'Montant de l\'acompte, règles d\'annulation', pour: ['entreprise'] },
+  { cle: 'emails', icone: <FaEnvelope />, titre: 'Emails', resume: 'Destinataire des alertes', pour: ['plateforme', 'entreprise'] },
+  { cle: 'paiement', icone: <FaCreditCard />, titre: 'Moyens de paiement', resume: 'PI-SPI, GeniusPay…', pour: ['plateforme'] },
+  { cle: 'compte', icone: <FaUserLock />, titre: 'Mon compte', resume: 'Identifiant et mot de passe', pour: ['entreprise'] },
 ];
 
 const CHAMPS_ACOMPTE = [
@@ -24,8 +27,10 @@ const CHAMPS_ACOMPTE = [
   { cle: 'nonRemboursableAvantArriveeJours', label: 'Aucun remboursement à moins de', unite: 'jours de l\'arrivée', min: 0, max: 365 },
 ];
 
-const CLES_ETAB = ['nom', 'slogan'];
-const CLES_COORD = ['telephone', 'whatsapp', 'email', 'adresse', 'facebook', 'instagram', 'tiktok', 'x'];
+const CLES_ETAB_PLATEFORME = ['nom', 'slogan'];
+const CLES_COORD_PLATEFORME = ['telephone', 'whatsapp', 'email', 'adresse', 'facebook', 'instagram', 'tiktok', 'x'];
+const CLES_ETAB_ENTREPRISE = ['nom'];
+const CLES_COORD_ENTREPRISE = ['telephone', 'whatsapp', 'email', 'adresse'];
 const fcfa = (n) => `${Math.round(n).toLocaleString('fr-FR')} FCFA`;
 
 /** Paramètres du back-office, par catégories. */
@@ -34,7 +39,10 @@ const AdminSettingsPage = () => {
   const { compte } = useCompte();
   const [mdp, setMdp] = useState({ actuel: '', nouveau: '', confirmation: '' });
   // « Mon compte » : gestionnaires seulement (l'administrateur de la plateforme se règle sur le serveur)
-  const categories = CATEGORIES.filter(c => !c.gestionnaire || (compte && !compte.superAdmin));
+  const role = compte?.superAdmin ? 'plateforme' : 'entreprise';
+  const categories = CATEGORIES_TOUTES.filter(c => c.pour.includes(role));
+  const CLES_ETAB = role === 'plateforme' ? CLES_ETAB_PLATEFORME : CLES_ETAB_ENTREPRISE;
+  const CLES_COORD = role === 'plateforme' ? CLES_COORD_PLATEFORME : CLES_COORD_ENTREPRISE;
   const [categorie, setCategorie] = useState('etablissement');
   const [acompte, setAcompte] = useState(null);
   const [acompteInitial, setAcompteInitial] = useState(null);
@@ -100,7 +108,7 @@ const AdminSettingsPage = () => {
       <div className="admin-page-header">
         <div>
           <h1>Paramètres</h1>
-          <p>Votre établissement, vos règles d'acompte et vos moyens de paiement.</p>
+          <p>{role === 'plateforme' ? 'Le site : identité, coordonnées et réseaux du pied de page, alertes, moyens de paiement.' : 'Votre entreprise : nom et coordonnées pour vos clients, règles d\'acompte, alertes, mot de passe.'}</p>
         </div>
       </div>
 
@@ -127,19 +135,19 @@ const AdminSettingsPage = () => {
           {categorie === 'etablissement' && etab && (
             <form className="params-form" onSubmit={(e) => { e.preventDefault(); sauverEtab(CLES_ETAB); }}>
               <div className="params-champ">
-                <label htmlFor="f-nom">Nom de l'établissement</label>
+                <label htmlFor="f-nom">{role === 'plateforme' ? 'Nom du site' : 'Nom de l\'entreprise'}</label>
                 {champ('nom', { required: true, maxLength: 80 })}
-                <p>Affiché sur le site et comme expéditeur des emails.</p>
+                <p>{role === 'plateforme' ? 'Affiché sur le site et comme expéditeur des emails de la plateforme.' : 'Affiché sur vos résidences (« Proposé par ») et dans les emails à vos clients.'}</p>
               </div>
-              <div className="params-champ">
+              {role === 'plateforme' && <div className="params-champ">
                 <label htmlFor="f-slogan">Phrase de présentation</label>
                 {champ('slogan', { maxLength: 160 })}
-                <p>{compte && !compte.entreprise?.principale ? 'Une phrase courte qui résume votre offre.' : 'Une phrase courte qui résume votre offre, reprise sur la page d\'accueil.'}</p>
-              </div>
+                <p>Une phrase courte qui résume l'offre, reprise sur la page d'accueil.</p>
+              </div>}
               <div className="params-apercu">
                 <p className="surtitre">Aperçu</p>
                 <p className="params-apercu-nom">{etab.nom || '—'}</p>
-                <p>{etab.slogan}</p>
+                {role === 'plateforme' && <p>{etab.slogan}</p>}
               </div>
               {bouton(modifie(etab, etabInitial, CLES_ETAB))}
             </form>
@@ -153,6 +161,7 @@ const AdminSettingsPage = () => {
                 <div className="params-champ"><label htmlFor="f-email">Email de contact</label>{champ('email', { type: 'email' })}</div>
                 <div className="params-champ"><label htmlFor="f-adresse">Adresse</label>{champ('adresse')}</div>
               </div>
+              {role === 'plateforme' && <>
               <h3 className="params-sous-titre">Réseaux sociaux</h3>
               <p className="params-note">Laissez vide pour masquer un réseau sur le site. Adresse complète, commençant par https://.</p>
               <div className="params-grille">
@@ -161,6 +170,7 @@ const AdminSettingsPage = () => {
                 <div className="params-champ"><label htmlFor="f-tiktok">TikTok</label>{champ('tiktok', { type: 'url', placeholder: 'https://www.tiktok.com/@…' })}</div>
                 <div className="params-champ"><label htmlFor="f-x">X (Twitter)</label>{champ('x', { type: 'url', placeholder: 'https://x.com/…' })}</div>
               </div>
+              </>}
               {bouton(modifie(etab, etabInitial, CLES_COORD))}
             </form>
           )}

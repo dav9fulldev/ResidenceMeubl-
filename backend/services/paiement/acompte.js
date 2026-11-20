@@ -17,7 +17,6 @@
  */
 const PiSpi = require('./PiSpiClient');
 const Settings = require('../SettingsService');
-const Tenant = require('../Tenant');
 const Cles = require('./Cles');
 
 const DUREE_QR_MS = 15 * 60 * 1000;      // durée de validité d'un QR affiché

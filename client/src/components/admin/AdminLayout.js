@@ -24,6 +24,7 @@ const TITRES = {
   '/admin/entreprises': 'Entreprises',
   '/admin/verifications': 'Vérifications',
   '/admin/finances': 'Finances',
+  '/admin/plateforme': 'Vue d\'ensemble',
   '/admin/revenus': 'Revenus',
 };
 
@@ -63,6 +64,13 @@ const AdminLayout = () => {
   }, [adminRequest]);
   useEffect(() => { recharger(); }, [recharger]);
   const valeurCompte = useMemo(() => ({ compte, recharger }), [compte, recharger]);
+
+  // L'administrateur de la plateforme n'a pas de pages de gestion : il arrive sur la vue d'ensemble de la plateforme
+  useEffect(() => {
+    const GESTION = ['/admin/dashboard', '/admin/reservations', '/admin/calendrier', '/admin/residences', '/admin/statistiques', '/admin/revenus'];
+    if (compte?.superAdmin && GESTION.includes(location.pathname)) navigate('/admin/plateforme', { replace: true });
+    if (compte && !compte.superAdmin && ['/admin/plateforme', '/admin/entreprises', '/admin/verifications', '/admin/finances'].includes(location.pathname)) navigate('/admin/dashboard', { replace: true });
+  }, [compte, location.pathname, navigate]);
   const { theme, toggleTheme } = useTheme();
   const { installee, peutInstaller, ios, installer } = useInstallPrompt();
   const { aTraiter } = useAdminReservations();
@@ -89,19 +97,22 @@ const AdminLayout = () => {
     </button>
   );
 
-  const liens = [
+  // Deux espaces distincts : l'administrateur de la plateforme ne gère pas de résidences,
+  // le responsable d'une entreprise ne voit que la gestion de son entreprise.
+  const liens = compte?.superAdmin ? [
+    { to: '/admin/plateforme', icone: <FaChartPie />, texte: 'Vue d\'ensemble', court: 'Aperçu', section: 'Plateforme' },
+    { to: '/admin/entreprises', icone: <FaBuilding />, texte: 'Entreprises', court: 'Entreprises', badge: enAttente, section: 'Plateforme' },
+    { to: '/admin/verifications', icone: <FaShieldAlt />, texte: 'Vérifications', court: 'Vérif.', badge: aVerifier, section: 'Plateforme' },
+    { to: '/admin/finances', icone: <FaCoins />, texte: 'Finances', section: 'Plateforme' },
+    { to: '/admin/parametres', icone: <FaCog />, texte: 'Paramètres', section: 'Réglages' },
+  ] : [
     { to: '/admin/dashboard', icone: <FaChartPie />, texte: 'Vue d\'ensemble', court: 'Aperçu', section: 'Gestion' },
     { to: '/admin/reservations', icone: <FaCalendarAlt />, texte: 'Réservations', badge: aTraiter, section: 'Gestion' },
     { to: '/admin/calendrier', icone: <FaRegCalendarCheck />, texte: 'Calendrier', section: 'Gestion' },
     { to: '/admin/residences', icone: <FaHome />, texte: 'Résidences', section: 'Gestion' },
     { to: '/admin/statistiques', icone: <FaChartLine />, texte: 'Statistiques', section: 'Pilotage', mobile: false },
-    ...(compte && !compte.entreprise?.principale ? [{ to: '/admin/revenus', icone: <FaCoins />, texte: 'Revenus', section: 'Pilotage', mobile: false }] : []),
+    ...(compte && !compte.entreprise?.interne ? [{ to: '/admin/revenus', icone: <FaCoins />, texte: 'Revenus', section: 'Pilotage', mobile: false }] : []),
     { to: '/admin/parametres', icone: <FaCog />, texte: 'Paramètres', section: 'Pilotage' },
-    ...(compte?.superAdmin ? [
-      { to: '/admin/entreprises', icone: <FaBuilding />, texte: 'Entreprises', court: 'Entreprises', badge: enAttente, section: 'Plateforme' },
-      { to: '/admin/verifications', icone: <FaShieldAlt />, texte: 'Vérifications', court: 'Vérif.', badge: aVerifier, section: 'Plateforme' },
-      { to: '/admin/finances', icone: <FaCoins />, texte: 'Finances', section: 'Plateforme', mobile: false },
-    ] : []),
   ];
   const nomEntreprise = compte?.entreprise?.nom || 'BABI RESIDENCE';
 

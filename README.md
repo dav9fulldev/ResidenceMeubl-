@@ -44,7 +44,17 @@ Mise en ligne : voir [DEPLOIEMENT.md](DEPLOIEMENT.md).
 - **Chaque résidence est vérifiée avant publication** (contre les fausses annonces) : photos de l'annonce téléversées, position GPS, justificatifs privés (pièce d'identité, droit d'exploiter le logement : titre, bail, mandat ou autorisation du propriétaire), photos prises sur place avec un code unique et géolocalisées. La plateforme vérifie, demande des compléments, refuse ou suspend. Changer l'adresse, les photos ou les justificatifs d'une résidence vérifiée la renvoie en vérification.
 
 ### Pour l'administrateur de la plateforme
-Connexion avec les identifiants `ADMIN_USERNAME` / `ADMIN_PASSWORD`. Il gère les résidences de BABI RESIDENCE comme une entreprise, et dispose en plus de la page **Entreprises** : liste des inscriptions, **validation**, refus, suspension (le gestionnaire est prévenu par email). Et des pages **Finances** (encaissements, commissions, sommes dues, reversements manuels avec preuve, registre comptable, rapprochement) et **Vérifications** : dossiers des résidences à examiner (photos sur place avec distance à l'adresse déclarée, justificatifs, liste de points à contrôler), décisions, et **signalements** des visiteurs (« Signaler cette annonce » sur chaque fiche).
+Connexion avec les identifiants `ADMIN_USERNAME` / `ADMIN_PASSWORD`. Il **ne gère pas de résidences** : son espace ne contient que la plateforme.
+
+| Page | Contenu |
+|---|---|
+| Vue d'ensemble | Entreprises à valider, résidences à vérifier, signalements, réservations, encaissements et sommes à reverser |
+| Entreprises | Inscriptions : validation, refus, suspension (le gestionnaire est prévenu par email) |
+| Vérifications | Dossiers des résidences (photos sur place, distance GPS, justificatifs, points à contrôler), décisions, signalements des visiteurs |
+| Finances | Encaissements, commissions, sommes dues, reversements manuels avec preuve, registre comptable, rapprochement |
+| Paramètres | Identité du site, coordonnées et réseaux sociaux du pied de page, email des alertes, moyens de paiement |
+
+Les résidences de BABI RESIDENCE elle-même sont gérées par l'entreprise interne **BABI RESIDENCE Gestion** (sans commission), avec son propre compte responsable : à créer une fois depuis la vue d'ensemble (« Créer le compte et transférer »).
 
 ### Le back-office
 Il n'est pas indexé par les moteurs de recherche ; on y accède par **`/admin`** ou par l'application **BABI Admin** installable (ordinateur et téléphone).

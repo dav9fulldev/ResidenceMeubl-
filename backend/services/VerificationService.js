@@ -99,7 +99,7 @@ class VerificationService {
 
   /** Statut initial d'une nouvelle résidence. */
   statutInitial() {
-    return Tenant.estPrincipale() ? 'verifiee' : 'brouillon';
+    return require('./EntrepriseService').estInterne(Tenant.courante()) ? 'verifiee' : 'brouillon';
   }
 
   // ---------- Dossier (gestionnaire, limité à son entreprise) ----------
@@ -261,7 +261,7 @@ class VerificationService {
    * ou en attente la renvoie en vérification : elle disparaît du site jusqu'à la nouvelle décision.
    */
   async apresChangementSensible(residence, raison) {
-    if (residence.entrepriseId === Tenant.PRINCIPALE) return;
+    if (require('./EntrepriseService').estInterne(residence.entrepriseId)) return; // résidences de la plateforme
     if (!['verifiee', 'refusee'].includes(residence.statutVerification)) return;
     const nouveau = residence.statutVerification === 'verifiee' ? 'en_attente' : residence.statutVerification;
     if (nouveau === residence.statutVerification) return;
