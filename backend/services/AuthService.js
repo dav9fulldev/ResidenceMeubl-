@@ -79,6 +79,25 @@ class AuthService {
     });
   }
 
+  /** Session d'un compte client (Service client) : 30 jours, liée au compte (cid). */
+  creerSessionClient(client) {
+    return this.signerDonnees({
+      role: 'client',
+      email: String(client.email).toLowerCase(),
+      cid: String(client._id),
+      iat: Date.now(),
+      exp: Date.now() + 30 * 24 * 60 * 60 * 1000,
+    });
+  }
+
+  /**
+   * Lien « choisir mon mot de passe » d'un compte client. Pas de stockage : il devient inutilisable
+   * dès que le mot de passe change (voir ClientService.definirMotDePasse).
+   */
+  creerJetonMotDePasseClient(client, dureeMs) {
+    return this.signerDonnees({ role: 'mdp_client', cid: String(client._id), iat: Date.now(), exp: Date.now() + dureeMs });
+  }
+
   signerDonnees(donnees) {
     const contenu = base64url(JSON.stringify(donnees));
     return `${contenu}.${signer(contenu)}`;

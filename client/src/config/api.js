@@ -28,6 +28,11 @@ export const API_ENDPOINTS = {
   client: {
     access: `${API_BASE_URL}/client/acces`,
     link: `${API_BASE_URL}/client/lien`,
+    // Service client : compte créé à la réservation, mot de passe choisi depuis l'email
+    login: `${API_BASE_URL}/client/connexion`,
+    setPassword: `${API_BASE_URL}/client/mot-de-passe`,
+    passwordLink: `${API_BASE_URL}/client/mot-de-passe/lien`,
+    me: `${API_BASE_URL}/client/moi`,
     reservations: `${API_BASE_URL}/client/reservations`,
     hide: `${API_BASE_URL}/client/reservations/masquer`,
     requestCancellation: (id) => `${API_BASE_URL}/client/reservations/${id}/annulation`,
@@ -42,6 +47,7 @@ export const API_ENDPOINTS = {
     me: `${API_BASE_URL}/admin/moi`,
     password: `${API_BASE_URL}/admin/moi/mot-de-passe`,
     companies: `${API_BASE_URL}/admin/plateforme/entreprises`,
+    clients: (q = '') => `${API_BASE_URL}/admin/plateforme/clients${q ? `?q=${encodeURIComponent(q)}` : ''}`,
     companyStatus: (id) => `${API_BASE_URL}/admin/plateforme/entreprises/${encodeURIComponent(id)}/statut`,
     // Module financier : plateforme (/finance…) et entreprise (/revenus…)
     finance: (chemin = '') => `${API_BASE_URL}/admin/finance${chemin}`,
@@ -101,12 +107,13 @@ export class ApiError extends Error {
  * Requête vers l'API. `auth: true` ajoute le jeton admin.
  * Lève une ApiError avec le message renvoyé par le serveur.
  */
-// Jeton d'accès client « Mes réservations » (sans compte)
+// Jeton « Mes réservations » : session du compte client (30 jours) ou accès à une réservation.
+// Gardé sur l'appareil pour que le client reste connecté.
 const CLIENT_TOKEN_KEY = 'clientToken';
 
 export const getClientToken = () => {
   try {
-    return sessionStorage.getItem(CLIENT_TOKEN_KEY);
+    return localStorage.getItem(CLIENT_TOKEN_KEY) || sessionStorage.getItem(CLIENT_TOKEN_KEY);
   } catch {
     return null;
   }
@@ -114,8 +121,9 @@ export const getClientToken = () => {
 
 export const setClientToken = (token) => {
   try {
-    if (token) sessionStorage.setItem(CLIENT_TOKEN_KEY, token);
-    else sessionStorage.removeItem(CLIENT_TOKEN_KEY);
+    sessionStorage.removeItem(CLIENT_TOKEN_KEY); // ancien emplacement
+    if (token) localStorage.setItem(CLIENT_TOKEN_KEY, token);
+    else localStorage.removeItem(CLIENT_TOKEN_KEY);
   } catch {
     // stockage indisponible : l'accès durera le temps de la page
   }

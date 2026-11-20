@@ -4,6 +4,17 @@ const ReservationService = require('../services/ReservationService');
 const rateLimit = require('express-rate-limit');
 const { cleLimite } = require('../middleware/clientIp');
 const requireAdmin = require('../middleware/requireAdmin');
+const AuthService = require('../services/AuthService');
+const ClientService = require('../services/ClientService');
+
+// Compte du Service client connecté (en-tête « Authorization: Bearer <session> »), sinon null
+async function sessionClient(req) {
+  const [type, jeton] = (req.headers.authorization || '').split(' ');
+  const donnees = type === 'Bearer' ? AuthService.verifierJeton(jeton) : null;
+  if (!donnees || donnees.role !== 'client' || !donnees.cid) return null;
+  const client = await ClientService.depuisSession(donnees);
+  return client?.statut === ClientService.STATUTS.ACTIF ? client : null;
+}
 
 // Limiter les réservations pour éviter le spam
 const reservationLimiter = rateLimit({
@@ -33,6 +44,11 @@ function validerReservation(corps) {
   if (typeof c.dateArrivee !== 'string' || typeof c.dateDepart !== 'string' || !DATE.test(c.dateArrivee) || !DATE.test(c.dateDepart)) return 'Dates invalides (format AAAA-MM-JJ)';
   if (Number.isNaN(Date.parse(c.dateArrivee)) || Number.isNaN(Date.parse(c.dateDepart))) return 'Dates invalides';
   if (c.notes !== undefined && c.notes !== null && (typeof c.notes !== 'string' || c.notes.length > 1000)) return 'Demandes particulières : 1000 caractères maximum';
+  if (c.voyageur !== undefined && c.voyageur !== null) {
+    const v = c.voyageur;
+    if (typeof v !== 'object' || !texte(v.prenom, 80) || !texte(v.nom, 80)) return 'Indiquez le prénom et le nom de la personne qui séjourne';
+    if (typeof v.telephone !== 'string' || !TELEPHONE.test(v.telephone.trim())) return 'Numéro de téléphone du voyageur invalide';
+  }
   return null;
 }
 
@@ -47,15 +63,22 @@ router.post('/', reservationLimiter, async (req, res) => {
     if (erreur) {
       return res.status(400).json({ success: false, message: erreur });
     }
-    const { residenceId, nom, prenom, email, telephone, dateArrivee, dateDepart, nombrePersonnes, notes } = req.body;
+    const { residenceId, dateArrivee, dateDepart, nombrePersonnes, notes, voyageur } = req.body;
+
+    // Qui réserve : le compte connecté (Service client), sinon les coordonnées saisies, dont le
+    // compte est créé en arrière-plan. Réserver avec l'email d'un compte ne connecte personne.
+    const session = await sessionClient(req);
+    const reservant = session
+      ? { nom: session.nom, prenom: session.prenom, email: session.email, telephone: session.telephone }
+      : { nom: req.body.nom.trim(), prenom: req.body.prenom.trim(), email: req.body.email.trim().toLowerCase(), telephone: req.body.telephone.trim() };
+    const compte = session || await ClientService.assurerCompte(reservant);
 
     // Créer la réservation (champs connus uniquement, convertis et nettoyés)
     const resultat = await ReservationService.createReservation({
       residenceId: Number(residenceId),
-      nom: nom.trim(),
-      prenom: prenom.trim(),
-      email: email.trim().toLowerCase(),
-      telephone: telephone.trim(),
+      ...reservant,
+      clientId: compte?._id || null,
+      voyageur: voyageur ? { prenom: voyageur.prenom.trim(), nom: voyageur.nom.trim(), telephone: voyageur.telephone.trim() } : null,
       dateArrivee,
       dateDepart,
       nombrePersonnes: Number(nombrePersonnes),
@@ -71,7 +94,9 @@ router.post('/', reservationLimiter, async (req, res) => {
           reference: resultat.reservation.id,
           statut: resultat.reservation.statut,
           prixTotal: resultat.reservation.prixTotal,
-          emailEnvoye: resultat.emailEnvoye
+          emailEnvoye: resultat.emailEnvoye,
+          // Sans session : accès immédiat à cette seule réservation (le reste demande le mot de passe)
+          acces: session ? null : AuthService.creerJetonClient(reservant.email, { reference: resultat.reservation.id }),
         }
       });
     } else {

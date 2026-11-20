@@ -497,7 +497,7 @@ test("le client sans compte retrouve sa réservation et demande l'annulation, l'
   const envois = [];
   es.sendDemandeAnnulationAdmin = async (r) => { envois.push(['admin', r.id]); };
   es.sendRefusAnnulation = async (r) => { envois.push(['refus', r.id, r.demandeAnnulation.reponse]); };
-  es.sendLienAcces = async (email) => { envois.push(['lien', email]); };
+  es.sendLienMotDePasseClient = async (client) => { envois.push(['lien', client.email]); };
   const headersAdmin = await connexionAdmin();
 
   const email = 'koffi@example.com';
@@ -527,13 +527,14 @@ test("le client sans compte retrouve sa réservation et demande l'annulation, l'
   assert.equal((await api('/api/admin/residences', { headers: hRef })).status, 401);
   assert.equal((await api(`/api/client/reservations/${r2}/annulation`, { method: 'POST', headers: hRef, body: {} })).status, 403);
 
-  // Lien par email : même réponse que l'adresse soit connue ou non
+  // Lien par email (Service client) : même réponse que l'adresse soit connue ou non
   const lienConnu = await api('/api/client/lien', { method: 'POST', body: { email } });
   const lienInconnu = await api('/api/client/lien', { method: 'POST', body: { email: 'inconnu@example.com' } });
   assert.equal(lienConnu.body.message, lienInconnu.body.message);
+  await new Promise(r => setImmediate(r));
   assert.deepEqual(envois.filter(e => e[0] === 'lien'), [['lien', email]]);
 
-  // Jeton « historique » (celui du lien envoyé) : toutes les réservations
+  // Ancien lien « historique » (envoyé avant le Service client) : toutes les réservations
   const hTout = { Authorization: `Bearer ${require('../services/AuthService').creerJetonClient(email)}` };
   const historique = await api('/api/client/reservations', { headers: hTout });
   assert.deepEqual(historique.body.data.map(r => r.id).sort(), [r1, r2].sort());
@@ -2029,4 +2030,98 @@ test('mot de passe oublié : lien unique, valable 1 h, sessions fermées, aucun 
   const ent = await db.collection('utilisateurs').findOne({ email: 'awa@oubli.ci' });
   await db.collection('utilisateurs').deleteOne({ _id: ent._id });
   await db.collection('entreprises').deleteOne({ _id: ent.entrepriseId });
+});
+
+test('Service client : compte créé à la réservation, mot de passe via l\'email, réservation pour autrui', async (t) => {
+  const ClientService = require('../services/ClientService');
+  const es = ReservationService.emailService;
+  const liens = [];
+  const original = es.sendLienMotDePasseClient;
+  es.sendLienMotDePasseClient = async (client, url) => { liens.push({ email: client.email, url }); };
+  t.after(() => { es.sendLienMotDePasseClient = original; });
+  const jetonDe = (url) => new URL(url, 'http://site.test').searchParams.get('mdp'); // FRONTEND_URL vide en CI : lien relatif
+  const email = 'mariam@service-client.ci';
+  const mdp = randomBytes(9).toString('hex');
+
+  // 1. Réservation sans compte : compte créé en arrière-plan, sans mot de passe
+  const r1 = await api('/api/reservations', { method: 'POST', body: nouvelleReservation({ email: 'Mariam@Service-Client.ci', prenom: 'Mariam', nom: 'Traoré', dateArrivee: jourDansNJours(520), dateDepart: jourDansNJours(523) }) });
+  assert.equal(r1.status, 201, JSON.stringify(r1.body));
+  const compte = await db.collection('clients').findOne({ email });
+  assert.equal(compte.statut, 'sans_mot_de_passe');
+  assert.equal(compte.prenom, 'Mariam');
+  assert.equal((await db.collection('reservations').findOne({ id: r1.body.data.id })).clientId, compte._id);
+
+  // Accès immédiat limité à cette réservation ; pas de compte connecté
+  const hRef = { Authorization: `Bearer ${r1.body.data.acces}` };
+  assert.deepEqual((await api('/api/client/reservations', { headers: hRef })).body.data.map(r => r.id), [r1.body.data.id]);
+  assert.equal((await api('/api/client/moi', { headers: hRef })).body.data, null);
+
+  // Pas de connexion tant que le mot de passe n'est pas choisi
+  assert.equal((await api('/api/client/connexion', { method: 'POST', body: { email, motDePasse: mdp } })).status, 401);
+
+  // 2. Lien des emails : choix du mot de passe tant que le compte n'en a pas
+  const lienEmail = await ClientService.lienEspace({ email });
+  assert.match(lienEmail, /\/mes-reservations\?mdp=/);
+  const reponseInconnue = await api('/api/client/mot-de-passe/lien', { method: 'POST', body: { email: 'personne@nulle-part.ci' } });
+  const reponseConnue = await api('/api/client/mot-de-passe/lien', { method: 'POST', body: { email } });
+  assert.equal(reponseConnue.body.message, reponseInconnue.body.message, 'aucun compte révélé');
+  await new Promise(r => setImmediate(r));
+  assert.deepEqual(liens.map(l => l.email), [email]);
+
+  const definir = (jeton, motDePasse) => api('/api/client/mot-de-passe', { method: 'POST', body: { jeton, motDePasse } });
+  assert.equal((await definir(jetonDe(lienEmail), randomBytes(2).toString('hex'))).status, 400, 'trop court');
+  assert.equal((await definir(r1.body.data.acces, mdp)).status, 400, 'un accès de réservation ne permet pas de choisir le mot de passe');
+  const active = await definir(jetonDe(lienEmail), mdp);
+  assert.equal(active.status, 200, JSON.stringify(active.body));
+  assert.equal(active.body.data.client.prenom, 'Mariam');
+  assert.equal((await db.collection('clients').findOne({ email })).statut, 'actif');
+  assert.equal((await definir(jetonDe(liens[0].url), randomBytes(9).toString('hex'))).status, 400, 'les liens précédents ne servent plus');
+  assert.doesNotMatch(await ClientService.lienEspace({ email }), /mdp=/, 'compte actif : lien vers la connexion');
+
+  // 3. Connexion : session de compte, toutes les réservations, profil pour pré-remplir
+  assert.equal((await api('/api/client/connexion', { method: 'POST', body: { email, motDePasse: MAUVAIS_MDP } })).status, 401);
+  const connexion = await api('/api/client/connexion', { method: 'POST', body: { email: 'MARIAM@service-client.ci', motDePasse: mdp } });
+  assert.equal(connexion.status, 200);
+  const hSession = { Authorization: `Bearer ${connexion.body.data.token}` };
+  assert.equal((await api('/api/client/moi', { headers: hSession })).body.data.telephone, '0700000000');
+
+  // 4. Réservation connectée, pour une autre personne : le compte reste celui qui réserve
+  const pourAutrui = await api('/api/reservations', { method: 'POST', headers: hSession, body: nouvelleReservation({
+    email: 'pirate@example.com', dateArrivee: jourDansNJours(530), dateDepart: jourDansNJours(533),
+    voyageur: { prenom: 'Ibrahim', nom: 'Traoré', telephone: '0711111111' },
+  }) });
+  assert.equal(pourAutrui.status, 201, JSON.stringify(pourAutrui.body));
+  assert.equal(pourAutrui.body.data.acces, null, 'déjà connecté');
+  const doc = await db.collection('reservations').findOne({ id: pourAutrui.body.data.id });
+  assert.equal(doc.client.email, email, 'réservée par le compte connecté');
+  assert.equal(doc.voyageur.prenom, 'Ibrahim');
+  assert.equal(await db.collection('clients').countDocuments({ email: 'pirate@example.com' }), 0);
+  const miennes = (await api('/api/client/reservations', { headers: hSession })).body.data;
+  assert.deepEqual(miennes.map(r => r.id).sort(), [r1.body.data.id, pourAutrui.body.data.id].sort());
+  assert.equal(miennes.find(r => r.id === pourAutrui.body.data.id).voyageur.prenom, 'Ibrahim');
+  assert.equal((await api('/api/reservations', { method: 'POST', body: nouvelleReservation({ dateArrivee: jourDansNJours(540), dateDepart: jourDansNJours(543), voyageur: { prenom: 'X' } }) })).status, 400);
+
+  // 5. Quelqu'un réserve avec l'email d'un compte actif sans être connecté : rattachée, compte intact, personne connecté
+  const tiers = await api('/api/reservations', { method: 'POST', body: nouvelleReservation({ email, prenom: 'Faux', nom: 'Nom', dateArrivee: jourDansNJours(550), dateDepart: jourDansNJours(553) }) });
+  assert.equal(tiers.status, 201);
+  assert.equal((await db.collection('clients').findOne({ email })).prenom, 'Mariam', 'compte actif inchangé');
+  assert.equal((await api('/api/client/moi', { headers: { Authorization: `Bearer ${tiers.body.data.acces}` } })).body.data, null);
+
+  // 6. Mot de passe oublié : nouveau mot de passe, anciennes sessions fermées
+  await api('/api/client/mot-de-passe/lien', { method: 'POST', body: { email } });
+  await new Promise(r => setImmediate(r));
+  const nouveau = randomBytes(9).toString('hex');
+  await new Promise(r => setTimeout(r, 5));
+  assert.equal((await definir(jetonDe(liens.at(-1).url), nouveau)).status, 200);
+  assert.equal((await api('/api/client/reservations', { headers: hSession })).status, 401, 'session ouverte avant');
+  assert.equal((await api('/api/client/connexion', { method: 'POST', body: { email, motDePasse: nouveau } })).status, 200);
+
+  // 7. Plateforme : liste des clients (super admin uniquement)
+  const liste = await api('/api/admin/plateforme/clients?q=mariam', { headers: await connexionAdmin() });
+  assert.equal(liste.status, 200);
+  const ligne = liste.body.data.find(c => c.email === email);
+  assert.equal(ligne.statut, 'actif');
+  assert.equal(ligne.reservations, 3);
+  assert.ok(!('motDePasse' in ligne));
+  assert.equal((await api('/api/admin/plateforme/clients', { headers: hSession })).status, 401);
 });

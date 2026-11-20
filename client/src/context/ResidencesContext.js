@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { API_ENDPOINTS, apiRequest, getAdminToken, setAdminToken } from '../config/api';
+import { API_ENDPOINTS, apiRequest, getAdminToken, setAdminToken, getClientToken } from '../config/api';
 import { compresserImage } from '../utils/fichiers';
 import { fromApiResidence, toApiResidence } from '../config/mappers';
 import { residences as fallbackResidences } from '../data/residences';
@@ -88,6 +88,7 @@ export const ResidencesProvider = ({ children }) => {
   const createReservation = useCallback(async (residenceId, data) => {
     const response = await apiRequest(API_ENDPOINTS.reservations.create, {
       method: 'POST',
+      token: getClientToken() || undefined, // client connecté : la réservation va sur son compte
       body: {
         residenceId,
         nom: data.lastName,
@@ -98,6 +99,9 @@ export const ResidencesProvider = ({ children }) => {
         dateDepart: data.departureDate,
         nombrePersonnes: Number(data.guests),
         notes: data.specialRequests || '',
+        voyageur: data.pourAutrui
+          ? { prenom: data.voyageurPrenom, nom: data.voyageurNom, telephone: data.voyageurTelephone }
+          : undefined,
       },
     });
     return response.data;

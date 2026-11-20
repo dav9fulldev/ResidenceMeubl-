@@ -300,6 +300,7 @@ const AdminReservations = () => {
             <div><dt>Départ</dt><dd>{formatDate(selection.dates.depart)}</dd></div>
             <div><dt>Durée</dt><dd>{nuits(selection)} nuit{nuits(selection) > 1 ? 's' : ''}</dd></div>
             <div><dt>Personnes</dt><dd>{selection.details?.nombrePersonnes}</dd></div>
+            {selection.voyageur && <div><dt>Voyageur</dt><dd>{selection.voyageur.prenom} {selection.voyageur.nom} · <a href={`tel:${selection.voyageur.telephone}`}>{selection.voyageur.telephone}</a><br /><small>Réservé par {selection.client.prenom} {selection.client.nom}</small></dd></div>}
             <div><dt>Montant</dt><dd>{fcfa(selection.prixTotal)}</dd></div>
           </dl>
 

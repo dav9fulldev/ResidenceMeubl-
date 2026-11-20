@@ -23,6 +23,7 @@ const AdminMotDePasse = lazy(() => import(/* webpackChunkName: "adminmotdepasse"
 const AdminLogin = lazy(() => import(/* webpackChunkName: "adminlogin" */ './pages/AdminLogin'));
 const AdminInscription = lazy(() => import(/* webpackChunkName: "admininscription" */ './pages/AdminInscription'));
 const AdminEntreprisesPage = lazy(() => import(/* webpackChunkName: "adminentreprises" */ './pages/AdminEntreprisesPage'));
+const AdminClientsPage = lazy(() => import(/* webpackChunkName: "adminclients" */ './pages/AdminClientsPage'));
 const AdminVerificationDossier = lazy(() => import(/* webpackChunkName: "adminverification" */ './pages/AdminVerificationDossier'));
 const AdminPlateformePage = lazy(() => import(/* webpackChunkName: "adminplateforme" */ './pages/AdminPlateformePage'));
 const AdminFinancesPage = lazy(() => import(/* webpackChunkName: "adminfinances" */ './pages/AdminFinancesPage'));
@@ -112,6 +113,7 @@ function App() {
               <Route path="statistiques" element={<AdminStatsPage />} />
               <Route path="parametres" element={<AdminSettingsPage />} />
               <Route path="entreprises" element={<AdminEntreprisesPage />} />
+              <Route path="clients" element={<AdminClientsPage />} />
               <Route path="verifications" element={<AdminVerificationsPage />} />
               <Route path="finances" element={<AdminFinancesPage />} />
               <Route path="plateforme" element={<AdminPlateformePage />} />

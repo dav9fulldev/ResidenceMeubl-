@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { FaSearch, FaEnvelope, FaSignOutAlt } from 'react-icons/fa';
+import { FaSearch, FaEnvelope, FaSignOutAlt, FaLock, FaEye, FaEyeSlash } from 'react-icons/fa';
 import { API_ENDPOINTS, apiRequest, getClientToken, setClientToken } from '../config/api';
 import PaiementAcompte, { preparerPaiementDirect } from '../components/PaiementAcompte';
 import './MesReservations.css';
@@ -27,9 +27,13 @@ const STATUTS = {
 
 const formatDate = (d) => (d ? new Date(d).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }) : '—');
 
+const MIN_MDP = 8;
+
 /**
- * « Mes réservations » : accès sans compte (email + référence, ou lien reçu par email),
- * historique et demande d'annulation.
+ * « Mes réservations » (Service client).
+ *  - le compte est créé à la réservation ; ?mdp=<jeton> (lien des emails) : choix du mot de passe ;
+ *  - ensuite connexion email + mot de passe (session gardée sur l'appareil) ;
+ *  - en secours : email + référence (une seule réservation).
  */
 const MesReservations = () => {
   const location = useLocation();
@@ -40,7 +44,13 @@ const MesReservations = () => {
   const [reservations, setReservations] = useState(null);
   const [email, setEmail] = useState(location.state?.email || '');
   const [reference, setReference] = useState(location.state?.reference || '');
-  const [mode, setMode] = useState('reference'); // 'reference' | 'lien'
+  const [mode, setMode] = useState('connexion'); // 'connexion' | 'lien' | 'reference'
+  const [motDePasse, setMotDePasse] = useState('');
+  const [confirmationMdp, setConfirmationMdp] = useState('');
+  const [voirMdp, setVoirMdp] = useState(false);
+  const [jetonMdp, setJetonMdp] = useState(null); // lien « choisir mon mot de passe » reçu par email
+  const [compte, setCompte] = useState(null); // compte connecté ; null pour un accès à une seule réservation
+  const [limitee, setLimitee] = useState(false); // accès à une seule réservation (référence ou juste après réservation)
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
@@ -74,10 +84,15 @@ const MesReservations = () => {
     setPaiementPour(r);
   };
 
-  // Lien reçu par email : ?acces=<jeton> → mémoriser puis retirer de l'adresse
+  // Liens reçus par email : ?mdp=<jeton> (choisir son mot de passe) ou ancien ?acces=<jeton>,
+  // mémorisés puis retirés de l'adresse
   useEffect(() => {
+    const mdp = searchParams.get('mdp');
     const acces = searchParams.get('acces');
-    if (acces) {
+    if (mdp) {
+      setJetonMdp(mdp);
+      navigate('/mes-reservations', { replace: true });
+    } else if (acces) {
       setClientToken(acces);
       setToken(acces);
       navigate('/mes-reservations', { replace: true });
@@ -128,6 +143,8 @@ const MesReservations = () => {
     setClientToken(null);
     setToken(null);
     setReservations(null);
+    setCompte(null);
+    setMode('connexion');
     setError(message);
   }, []);
 
@@ -135,8 +152,13 @@ const MesReservations = () => {
     if (!token) return;
     setLoading(true);
     try {
-      const response = await apiRequest(API_ENDPOINTS.client.reservations, { token });
+      const [response, moi] = await Promise.all([
+        apiRequest(API_ENDPOINTS.client.reservations, { token }),
+        apiRequest(API_ENDPOINTS.client.me, { token }).catch(() => null),
+      ]);
       setReservations(response.data);
+      setCompte(moi?.data || null);
+      setLimitee(Boolean(moi?.limiteA));
       if (response.email) setEmail(response.email);
     } catch (err) {
       if (err.status === 401) deconnexion('Votre accès a expiré. Identifiez-vous à nouveau.');
@@ -167,13 +189,51 @@ const MesReservations = () => {
     }
   };
 
+  const ouvrirSession = (data) => {
+    setClientToken(data.token);
+    setToken(data.token);
+    setCompte(data.client);
+    setMotDePasse('');
+    setConfirmationMdp('');
+  };
+
+  const seConnecter = async (e) => {
+    e.preventDefault();
+    setError('');
+    setInfo('');
+    setLoading(true);
+    try {
+      ouvrirSession((await apiRequest(API_ENDPOINTS.client.login, { method: 'POST', body: { email, motDePasse } })).data);
+    } catch (err) {
+      setError(err.message);
+      setLoading(false);
+    }
+  };
+
+  const choisirMotDePasse = async (e) => {
+    e.preventDefault();
+    setError('');
+    if (motDePasse.length < MIN_MDP) return setError(`Le mot de passe doit contenir au moins ${MIN_MDP} caractères.`);
+    if (motDePasse !== confirmationMdp) return setError('Les deux mots de passe ne sont pas identiques.');
+    setLoading(true);
+    try {
+      const r = await apiRequest(API_ENDPOINTS.client.setPassword, { method: 'POST', body: { jeton: jetonMdp, motDePasse } });
+      setJetonMdp(null);
+      ouvrirSession(r.data);
+      setInfo('Mot de passe enregistré. Vous êtes connecté sur cet appareil.');
+    } catch (err) {
+      setError(err.message);
+      setLoading(false);
+    }
+  };
+
   const recevoirLien = async (e) => {
     e.preventDefault();
     setError('');
     setInfo('');
     setLoading(true);
     try {
-      const response = await apiRequest(API_ENDPOINTS.client.link, { method: 'POST', body: { email } });
+      const response = await apiRequest(API_ENDPOINTS.client.passwordLink, { method: 'POST', body: { email } });
       setInfo(response.message);
     } catch (err) {
       setError(err.message);
@@ -203,48 +263,99 @@ const MesReservations = () => {
     }
   };
 
+  const changerMode = (m) => { setMode(m); setError(''); setInfo(''); };
+  const champMotDePasse = (id, valeur, setValeur, autoComplete, label) => (
+    <>
+      <label htmlFor={id}>{label}</label>
+      <div className="acces-mdp">
+        <input id={id} type={voirMdp ? 'text' : 'password'} required value={valeur} maxLength={200}
+          onChange={(e) => { setValeur(e.target.value); setError(''); }} autoComplete={autoComplete} />
+        <button type="button" onClick={() => setVoirMdp(v => !v)} aria-label={voirMdp ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}>
+          {voirMdp ? <FaEyeSlash /> : <FaEye />}
+        </button>
+      </div>
+    </>
+  );
+
+  // ---------- Choix du mot de passe (lien reçu par email) ----------
+  if (jetonMdp) {
+    return (
+      <div className="mes-reservations-page">
+        <div className="container mes-reservations-container">
+          <h1>Choisissez votre mot de passe</h1>
+          <p className="mes-reservations-intro">
+            Votre espace client a été créé lors de votre réservation. Choisissez un mot de passe pour retrouver toutes vos réservations, payer en ligne et suivre vos demandes.
+          </p>
+          <form className="acces-form" onSubmit={choisirMotDePasse}>
+            {champMotDePasse('mdp-nouveau', motDePasse, setMotDePasse, 'new-password', 'Mot de passe')}
+            {champMotDePasse('mdp-confirmation', confirmationMdp, setConfirmationMdp, 'new-password', 'Confirmer le mot de passe')}
+            <p className="acces-hint">Au moins {MIN_MDP} caractères.</p>
+            {error && <div className="error-message" role="alert">{error}</div>}
+            <button type="submit" className="btn btn-primary" disabled={loading}>{loading ? 'Patientez…' : 'Enregistrer et voir mes réservations'}</button>
+            {error && <button type="button" className="btn-lien-discret" onClick={() => { setJetonMdp(null); changerMode('lien'); }}>Recevoir un nouveau lien</button>}
+          </form>
+        </div>
+      </div>
+    );
+  }
+
   // ---------- Formulaire d'accès ----------
   if (!token) {
+    const soumettre = mode === 'connexion' ? seConnecter : mode === 'lien' ? recevoirLien : accederAvecReference;
     return (
       <div className="mes-reservations-page">
         <div className="container mes-reservations-container">
           <h1>Mes réservations</h1>
           <p className="mes-reservations-intro">
-            Consultez vos réservations et demandez une annulation, sans créer de compte.
+            Votre espace client est créé automatiquement à votre première réservation.
           </p>
 
           <div className="acces-tabs" role="tablist">
-            <button type="button" role="tab" aria-selected={mode === 'reference'}
-              className={mode === 'reference' ? 'active' : ''} onClick={() => { setMode('reference'); setError(''); setInfo(''); }}>
-              <FaSearch /> Avec ma référence
+            <button type="button" role="tab" aria-selected={mode === 'connexion'}
+              className={mode === 'connexion' ? 'active' : ''} onClick={() => changerMode('connexion')}>
+              <FaLock /> Se connecter
             </button>
             <button type="button" role="tab" aria-selected={mode === 'lien'}
-              className={mode === 'lien' ? 'active' : ''} onClick={() => { setMode('lien'); setError(''); setInfo(''); }}>
-              <FaEnvelope /> Recevoir un lien par email
+              className={mode === 'lien' ? 'active' : ''} onClick={() => changerMode('lien')}>
+              <FaEnvelope /> Première visite
+            </button>
+            <button type="button" role="tab" aria-selected={mode === 'reference'}
+              className={mode === 'reference' ? 'active' : ''} onClick={() => changerMode('reference')}>
+              <FaSearch /> Avec ma référence
             </button>
           </div>
 
-          <form className="acces-form" onSubmit={mode === 'reference' ? accederAvecReference : recevoirLien}>
+          <form className="acces-form" onSubmit={soumettre}>
             <label htmlFor="acces-email">Email utilisé pour la réservation</label>
             <input id="acces-email" type="email" required value={email}
               onChange={(e) => setEmail(e.target.value)} placeholder="vous@exemple.com" autoComplete="email" />
 
-            {mode === 'reference' ? (
+            {mode === 'connexion' && (
+              <>
+                {champMotDePasse('acces-mdp', motDePasse, setMotDePasse, 'current-password', 'Mot de passe')}
+                <p className="acces-hint">
+                  Pas encore de mot de passe, ou oublié ?{' '}
+                  <button type="button" className="btn-lien-discret" onClick={() => changerMode('lien')}>Recevoir un lien par email</button>
+                </p>
+              </>
+            )}
+            {mode === 'lien' && (
+              <p className="acces-hint">Vous recevrez un lien, valable 1 heure, pour choisir votre mot de passe. Il sert aussi si vous l'avez oublié.</p>
+            )}
+            {mode === 'reference' && (
               <>
                 <label htmlFor="acces-ref">Référence de réservation</label>
                 <input id="acces-ref" type="text" required value={reference}
                   onChange={(e) => setReference(e.target.value)} placeholder="RES_…" />
-                <p className="acces-hint">La référence figure sur la page de confirmation et dans l'email reçu après votre réservation.</p>
+                <p className="acces-hint">La référence figure sur la page de confirmation et dans l'email reçu après votre réservation. Elle donne accès à cette seule réservation.</p>
               </>
-            ) : (
-              <p className="acces-hint">Vous recevrez un lien valable 24 heures pour voir l'historique de toutes vos réservations.</p>
             )}
 
             {error && <div className="error-message" role="alert">{error}</div>}
             {info && <div className="success-notice" role="status">{info}</div>}
 
             <button type="submit" className="btn btn-primary" disabled={loading}>
-              {loading ? 'Patientez…' : mode === 'reference' ? 'Voir ma réservation' : 'Recevoir le lien'}
+              {loading ? 'Patientez…' : mode === 'connexion' ? 'Se connecter' : mode === 'lien' ? 'Recevoir le lien' : 'Voir ma réservation'}
             </button>
           </form>
         </div>
@@ -259,12 +370,21 @@ const MesReservations = () => {
         <div className="mes-reservations-header">
           <div>
             <h1>Mes réservations</h1>
-            {email && <p className="mes-reservations-intro">{email}</p>}
+            {compte
+              ? <p className="mes-reservations-intro">{compte.prenom} {compte.nom} · {compte.email}</p>
+              : email && <p className="mes-reservations-intro">{email}</p>}
           </div>
           <button type="button" className="btn btn-outline btn-sm" onClick={() => deconnexion('')}>
-            <FaSignOutAlt /> Quitter
+            <FaSignOutAlt /> {compte ? 'Se déconnecter' : 'Quitter'}
           </button>
         </div>
+
+        {limitee && reservations && (
+          <div className="acces-limite">
+            <p>Vous voyez uniquement cette réservation. Pour retrouver toutes vos réservations, choisissez votre mot de passe depuis l'email reçu, ou connectez-vous.</p>
+            <button type="button" className="btn-lien-discret" onClick={() => deconnexion('')}>Se connecter</button>
+          </div>
+        )}
 
         {error && <div className="error-message" role="alert">{error}</div>}
         {info && <div className="success-notice" role="status">{info}</div>}
@@ -304,6 +424,7 @@ const MesReservations = () => {
                   </div>
                   <p>{r.residence.localisation}</p>
                   <p><strong>Du {formatDate(r.dates.arrivee)} au {formatDate(r.dates.depart)}</strong> · {r.nombrePersonnes} pers.</p>
+                  {r.voyageur && <p className="client-reservation-voyageur">Pour {r.voyageur.prenom} {r.voyageur.nom}</p>}
                   <p>{Number(r.prixTotal).toLocaleString('fr-FR')} FCFA · Réf. {r.id}</p>
 
                   {['a_rembourser', 'echec', 'en_cours'].includes(r.acompte?.remboursement?.statut) && (
