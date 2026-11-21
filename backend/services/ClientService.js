@@ -157,6 +157,45 @@ const ClientService = {
     return c ? { id: c._id, prenom: c.prenom, nom: c.nom, email: c.email, telephone: c.telephone, actif: c.statut === STATUTS.ACTIF } : null;
   },
 
+  // ---------- Partenaire ----------
+
+  /**
+   * Clients d'un partenaire : les voyageurs qui ont réservé ses résidences, regroupés par email,
+   * à partir de ses seules réservations. Montant = séjours non annulés.
+   */
+  async clientsPartenaire(entrepriseId) {
+    const Tenant = require('./Tenant');
+    const aujourdhui = new Date().toISOString().slice(0, 10);
+    const lignes = await db.collection('reservations').aggregate([
+      { $match: { entrepriseId: { $eq: String(entrepriseId || Tenant.PRINCIPALE) } } },
+      { $sort: { dateCreation: -1 } },
+      {
+        $group: {
+          _id: '$client.email',
+          prenom: { $first: '$client.prenom' }, nom: { $first: '$client.nom' }, telephone: { $first: '$client.telephone' },
+          reservations: { $sum: 1 },
+          sejours: { $sum: { $cond: [{ $eq: ['$statut', 'confirmee'] }, 1, 0] } },
+          montant: { $sum: { $cond: [{ $ne: ['$statut', 'annulee'] }, '$prixTotal', 0] } },
+          premiereLe: { $min: '$dateCreation' },
+          detail: { $push: { id: '$id', residence: '$residenceInfo.nom', arrivee: '$dates.arrivee', depart: '$dates.depart', statut: '$statut', prixTotal: '$prixTotal', voyageur: '$voyageur' } },
+        },
+      },
+      { $sort: { premiereLe: -1 } },
+      { $limit: 1000 },
+    ]).toArray();
+    return lignes.map(l => {
+      const actives = l.detail.filter(d => d.statut !== 'annulee');
+      const passees = actives.filter(d => d.depart <= aujourdhui).map(d => d.arrivee).sort();
+      const futures = actives.filter(d => d.arrivee >= aujourdhui).map(d => d.arrivee).sort();
+      return {
+        email: l._id, prenom: l.prenom, nom: l.nom, telephone: l.telephone,
+        reservations: l.reservations, sejours: l.sejours, montant: l.montant, premiereLe: l.premiereLe,
+        dernierSejour: passees.at(-1) || null, prochainSejour: futures[0] || null,
+        detail: l.detail.slice(0, 20).map(d => ({ ...d, voyageur: d.voyageur ? `${d.voyageur.prenom} ${d.voyageur.nom}` : null })),
+      };
+    });
+  },
+
   // ---------- Plateforme ----------
 
   /** Clients pour le super-administrateur, avec leur nombre de réservations. */
