@@ -22,10 +22,19 @@ const AdminAvisPage = () => {
   const [edition, setEdition] = useState(null); // { id, texte } réponse en cours
   const [masquage, setMasquage] = useState(null); // { id, motif }
   const [enCours, setEnCours] = useState(false);
+  const [classement, setClassement] = useState(null); // plateforme : partenaires par note moyenne
+  const [ouvert, setOuvert] = useState(null); // partenaire dont on lit les avis
 
   const charger = useCallback(async () => {
-    try { setListe((await adminRequest(API_ENDPOINTS.admin.reviews())).data); } catch (e) { setMsg({ ok: '', erreur: e.message }); }
-  }, [adminRequest]);
+    try {
+      const [avis, partenaires] = await Promise.all([
+        adminRequest(API_ENDPOINTS.admin.reviews()),
+        plateforme ? adminRequest(API_ENDPOINTS.admin.reviews('/partenaires')) : null,
+      ]);
+      setListe(avis.data);
+      if (partenaires) setClassement(partenaires.data);
+    } catch (e) { setMsg({ ok: '', erreur: e.message }); }
+  }, [adminRequest, plateforme]);
   useEffect(() => { charger(); }, [charger]);
 
   const agir = async (chemin, body, ok) => {
@@ -40,35 +49,8 @@ const AdminAvisPage = () => {
     } catch (e) { setMsg({ ok: '', erreur: e.message }); } finally { setEnCours(false); }
   };
 
-  const visibles = liste?.filter(a => !a.masque) || [];
-  const moyenne = visibles.length ? (visibles.reduce((s, a) => s + a.note, 0) / visibles.length) : null;
-  const sansReponse = visibles.filter(a => !a.reponse).length;
-
-  return (
-    <div className="finances-page avis-admin">
-      <header className="admin-page-header">
-        <div>
-          <h1>Avis</h1>
-          <p>{plateforme
-            ? 'Notes laissées par les voyageurs après leur séjour, sur toutes les résidences. Masquez un avis abusif : il ne compte plus dans la moyenne.'
-            : 'Notes laissées par vos voyageurs après leur séjour. Votre réponse est publique, sous l\'avis, sur la fiche de la résidence.'}</p>
-        </div>
-      </header>
-      {msg.erreur && <p className="params-msg erreur" role="alert"><FaExclamationTriangle /> {msg.erreur}</p>}
-      {msg.ok && <p className="params-msg ok" role="status"><FaCheckCircle /> {msg.ok}</p>}
-
-      {liste && (
-        <div className="fin-kpis">
-          <div className="adm-carte fin-kpi or"><p>Note moyenne</p><strong>{moyenne ? moyenne.toLocaleString('fr-FR', { maximumFractionDigits: 1 }) : '—'}</strong><small>{visibles.length} avis visible{visibles.length > 1 ? 's' : ''}</small></div>
-          <div className="adm-carte fin-kpi"><p>Sans réponse</p><strong>{sansReponse}</strong><small>{plateforme ? 'réponses des partenaires' : 'répondre montre votre sérieux'}</small></div>
-          {plateforme && <div className="adm-carte fin-kpi"><p>Masqués</p><strong>{liste.length - visibles.length}</strong><small>avis abusifs retirés</small></div>}
-        </div>
-      )}
-
-      {liste?.length === 0 && <p className="adm-carte avis-admin-vide">Aucun avis pour l'instant. Les voyageurs sont invités à noter leur séjour par email le lendemain de leur départ.</p>}
-
-      <div className="avis-admin-liste">
-        {liste?.map(a => (
+  // Carte d'un avis (partenaire : réponse ; plateforme : masquage)
+  const carte = (a) => (
           <article key={a.id} className={`adm-carte avis-admin-carte${a.masque ? ' masque' : ''}`}>
             <header>
               <div>
@@ -125,8 +107,77 @@ const AdminAvisPage = () => {
               </div>
             )}
           </article>
-        ))}
-      </div>
+  );
+
+  const visibles = liste?.filter(a => !a.masque) || [];
+  const moyenne = visibles.length ? (visibles.reduce((s, a) => s + a.note, 0) / visibles.length) : null;
+  const sansReponse = visibles.filter(a => !a.reponse).length;
+
+  return (
+    <div className="finances-page avis-admin">
+      <header className="admin-page-header">
+        <div>
+          <h1>Avis</h1>
+          <p>{plateforme
+            ? 'La note de chaque partenaire : moyenne des avis laissés par les voyageurs sur ses résidences. Ouvrez une carte pour lire ses avis et masquer un avis abusif.'
+            : 'Notes laissées par vos voyageurs après leur séjour. Votre réponse est publique, sous l\'avis, sur la fiche de la résidence.'}</p>
+        </div>
+      </header>
+      {msg.erreur && <p className="params-msg erreur" role="alert"><FaExclamationTriangle /> {msg.erreur}</p>}
+      {msg.ok && <p className="params-msg ok" role="status"><FaCheckCircle /> {msg.ok}</p>}
+
+      {liste && (
+        <div className="fin-kpis">
+          <div className="adm-carte fin-kpi or"><p>Note moyenne</p><strong>{moyenne ? moyenne.toLocaleString('fr-FR', { maximumFractionDigits: 1 }) : '—'}</strong><small>{visibles.length} avis visible{visibles.length > 1 ? 's' : ''}</small></div>
+          {plateforme
+            ? <div className="adm-carte fin-kpi"><p>Partenaires notés</p><strong>{classement?.filter(e => e.notation).length ?? '—'}</strong><small>sur {classement?.length ?? 0} partenaire{classement?.length > 1 ? 's' : ''}</small></div>
+            : <div className="adm-carte fin-kpi"><p>Sans réponse</p><strong>{sansReponse}</strong><small>répondre montre votre sérieux</small></div>}
+          {plateforme && <div className="adm-carte fin-kpi"><p>Masqués</p><strong>{liste.length - visibles.length}</strong><small>avis abusifs retirés</small></div>}
+        </div>
+      )}
+
+      {plateforme && classement && (
+        <ol className="avis-classement">
+          {classement.map((e, i) => {
+            const n = e.notation;
+            const sesAvis = (liste || []).filter(a => a.entrepriseId === e.id);
+            return (
+              <li key={e.id} className={`adm-carte avis-partenaire${n ? '' : ' sans-note'}`}>
+                <header>
+                  {n && <span className="avis-rang" aria-label={`Rang ${i + 1}`}>{i + 1}</span>}
+                  <div>
+                    <h2>{e.nom}</h2>
+                    <p>{n ? `${n.nombre} avis · ${n.residences} résidence${n.residences > 1 ? 's' : ''} notée${n.residences > 1 ? 's' : ''}` : 'Pas encore d\'avis'}</p>
+                  </div>
+                </header>
+                {n ? (
+                  <>
+                    <p className="avis-partenaire-note"><strong>{n.moyenne.toLocaleString('fr-FR')}</strong><span>/ 5</span><Etoiles note={n.moyenne} /></p>
+                    <dl className="avis-criteres">
+                      {Object.entries(CRITERES).map(([k, libelle]) => (
+                        <div key={k}>
+                          <dt>{libelle}</dt>
+                          <dd><span className="avis-barre" aria-hidden="true"><span style={{ width: `${(n.criteres[k] / 5) * 100}%` }} /></span><b>{n.criteres[k].toLocaleString('fr-FR')}</b></dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </>
+                ) : <p className="avis-partenaire-vide">Ses voyageurs n'ont pas encore noté leur séjour.</p>}
+                {sesAvis.length > 0 && (
+                  <button type="button" className="adm-btn" aria-expanded={ouvert === e.id} onClick={() => setOuvert(o => (o === e.id ? null : e.id))}>
+                    {ouvert === e.id ? 'Masquer les avis' : `Voir les avis (${sesAvis.length})`}
+                  </button>
+                )}
+                {ouvert === e.id && <div className="avis-admin-liste">{sesAvis.map(carte)}</div>}
+              </li>
+            );
+          })}
+        </ol>
+      )}
+
+      {!plateforme && liste?.length === 0 && <p className="adm-carte avis-admin-vide">Aucun avis pour l'instant. Les voyageurs sont invités à noter leur séjour par email le lendemain de leur départ.</p>}
+
+      {!plateforme && <div className="avis-admin-liste">{liste?.map(carte)}</div>}
     </div>
   );
 };

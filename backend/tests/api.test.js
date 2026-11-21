@@ -2264,3 +2264,43 @@ test('Clients du partenaire : voyageurs ayant réservé ses résidences, jamais 
   assert.equal((await api('/api/admin/clients', { headers: await connexionAdmin() })).status, 403);
   assert.equal((await api('/api/admin/clients')).status, 401);
 });
+
+test('Comparateur : les résidences mal notées descendent, classement des partenaires pour la plateforme', async (t) => {
+  const AuthService = require('../services/AuthService');
+  const publiques = (await api('/api/residences')).body.data;
+  assert.ok(publiques.length >= 2);
+  assert.ok(publiques.every(r => typeof r.recommandation === 'number'));
+  const cible = publiques[0];
+
+  // Cinq avis à 1/5 sur la première résidence (insérés directement : séjours fictifs)
+  const ids = [];
+  for (let i = 0; i < 5; i += 1) {
+    const { insertedId } = await db.collection('avis').insertOne({
+      reservationId: `COMPARATEUR_${i}`, residenceId: cible.id, entrepriseId: cible.entrepriseId, clientEmail: `c${i}@example.com`,
+      auteur: 'Test T.', note: 1, criteres: { proprete: 1, conformite: 1, accueil: 1, qualitePrix: 1 }, commentaire: '', creeLe: new Date(), reponse: null, masque: null,
+    });
+    ids.push(insertedId);
+  }
+  t.after(() => db.collection('avis').deleteMany({ _id: { $in: ids } }));
+
+  const apres = (await api('/api/residences')).body.data;
+  const r = apres.find(x => x.id === cible.id);
+  assert.ok(r.recommandation < cible.recommandation, 'score en baisse');
+  assert.notEqual(apres[0].id, cible.id, 'n\'est plus proposée en premier');
+  for (let i = 1; i < apres.length; i += 1) assert.ok(apres[i - 1].recommandation >= apres[i].recommandation, 'catalogue trié par recommandation');
+  assert.equal(r.entreprise.recommande, false);
+
+  // Classement des partenaires (plateforme) et note dans « Entreprises »
+  const hAdmin = await connexionAdmin();
+  const classement = await api('/api/admin/avis/partenaires', { headers: hAdmin });
+  assert.equal(classement.status, 200);
+  const Tenant = require('../services/Tenant');
+  assert.ok(!classement.body.data.some(e => e.id === Tenant.PRINCIPALE), 'seuls les partenaires sont classés');
+  const ligne = classement.body.data.find(e => e.id === cible.entrepriseId);
+  if (ligne) assert.ok(ligne.notation.nombre >= 5);
+  const notes = classement.body.data.filter(e => e.notation).map(e => e.notation.moyenne);
+  assert.deepEqual(notes, [...notes].sort((a, b) => b - a), 'mieux notés d\'abord');
+  assert.ok((await api('/api/admin/plateforme/entreprises', { headers: hAdmin })).body.data.find(e => e.id === cible.entrepriseId).notation);
+  const hPartenaire = { Authorization: `Bearer ${AuthService.creerJeton('gestion@test', { entrepriseId: cible.entrepriseId, superAdmin: false })}` };
+  assert.equal((await api('/api/admin/avis/partenaires', { headers: hPartenaire })).status, 403);
+});

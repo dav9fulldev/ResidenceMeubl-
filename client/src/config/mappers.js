@@ -21,6 +21,8 @@ export const fromApiResidence = (r) => ({
   // Service de notation : moyenne des avis vérifiés (aucune note sans avis)
   rating: r.note,
   reviews: r.nombreAvis || 0,
+  // Comparateur : note de la résidence et de son partenaire, pondérées par le nombre d'avis
+  recommendation: r.recommandation ?? 0,
   images: r.photos || [],
   amenities: r.equipements || [],
   active: r.actif !== false,

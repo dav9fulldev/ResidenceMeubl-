@@ -167,7 +167,9 @@ router.post('/plateforme/transfert', superAdmin, async (req, res) => {
 
 router.get('/plateforme/entreprises', superAdmin, async (req, res) => {
   try {
-    res.json({ success: true, data: await EntrepriseService.lister() });
+    // Avec la note de chaque partenaire (moyenne des avis sur ses résidences)
+    const [liste, notes] = await Promise.all([EntrepriseService.lister(), require('../services/AvisService').parEntreprise()]);
+    res.json({ success: true, data: liste.map(e => ({ ...e, notation: notes.get(e.id) || null })) });
   } catch (error) {
     gererErreur(res, error, 'lors de la récupération des entreprises');
   }
@@ -190,6 +192,12 @@ router.get('/avis', async (req, res) => {
   try {
     res.json({ success: true, data: await require('../services/AvisService').listerAdmin({ superAdmin: Boolean(req.admin.sa) }) });
   } catch (error) { erreurAvis(res, error, 'lors de la lecture des avis'); }
+});
+
+router.get('/avis/partenaires', superAdmin, async (req, res) => {
+  try {
+    res.json({ success: true, data: await require('../services/AvisService').classementPartenaires() });
+  } catch (error) { erreurAvis(res, error, 'lors du classement des partenaires'); }
 });
 
 router.put('/avis/:id/reponse', async (req, res) => {

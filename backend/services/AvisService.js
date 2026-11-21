@@ -114,6 +114,39 @@ const AvisService = {
     }]));
   },
 
+  /**
+   * Note de chaque partenaire : moyenne de tous les avis visibles sur ses résidences.
+   * Map entrepriseId → { moyenne, nombre, residences, criteres }
+   */
+  async parEntreprise() {
+    const lignes = await this.collection.aggregate([
+      { $match: { masque: null } },
+      {
+        $group: {
+          _id: '$entrepriseId', nombre: { $sum: 1 }, moyenne: { $avg: '$note' }, residences: { $addToSet: '$residenceId' },
+          ...Object.fromEntries(Object.keys(CRITERES).map(k => [k, { $avg: `$criteres.${k}` }])),
+        },
+      },
+    ]).toArray();
+    return new Map(lignes.map(l => [l._id, {
+      moyenne: arrondi(l.moyenne), nombre: l.nombre, residences: l.residences.length,
+      criteres: Object.fromEntries(Object.keys(CRITERES).map(k => [k, arrondi(l[k])])),
+    }]));
+  },
+
+  /**
+   * Plateforme : classement des partenaires par note moyenne (les mieux notés d'abord,
+   * à égalité celui qui a le plus d'avis), puis les partenaires sans avis.
+   */
+  async classementPartenaires() {
+    const EntrepriseService = require('./EntrepriseService');
+    const [entreprises, notes] = await Promise.all([EntrepriseService.lister(), this.parEntreprise()]);
+    return entreprises
+      .filter(e => !e.principale)
+      .map(e => ({ id: e.id, nom: e.nom, statut: e.statut, interne: e.interne, residencesPubliees: e.residences ?? null, notation: notes.get(e.id) || null }))
+      .sort((a, b) => (b.notation?.moyenne ?? -1) - (a.notation?.moyenne ?? -1) || (b.notation?.nombre ?? 0) - (a.notation?.nombre ?? 0) || a.nom.localeCompare(b.nom, 'fr'));
+  },
+
   /** Fiche publique : moyenne, critères et derniers avis visibles */
   async publics(residenceId, limite = 20) {
     const id = Number(residenceId);
@@ -142,6 +175,7 @@ const AvisService = {
     return liste.map(a => ({
       id: a._id.toString(), reservationId: a.reservationId, residenceId: a.residenceId, residence: residences.get(a.residenceId) || `Résidence ${a.residenceId}`,
       entreprise: superAdmin ? EntrepriseService.nom(a.entrepriseId) : undefined,
+      entrepriseId: superAdmin ? a.entrepriseId : undefined,
       auteur: a.auteur, note: a.note, criteres: a.criteres, commentaire: a.commentaire, creeLe: a.creeLe,
       reponse: a.reponse ? { texte: a.reponse.texte, le: a.reponse.le } : null,
       masque: a.masque ? { motif: a.masque.motif, le: a.masque.le } : null,

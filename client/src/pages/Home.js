@@ -90,11 +90,11 @@ const Home = () => {
   const aujourdHui = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
   const [recherche, setRecherche] = useState({ arrivee: '', depart: '', personnes: '2', quartier: '' });
 
-  // Résidences disponibles d'abord, puis les mieux notées
+  // Résidences disponibles d'abord, puis l'ordre du comparateur (partenaires les mieux notés)
   const ordre = { disponible: 0, 'réservé': 1, 'occupé': 2, maintenance: 3 };
   const vedettes = [...residences]
     .filter(r => r.availability?.status !== 'maintenance')
-    .sort((a, b) => (ordre[a.availability?.status] ?? 9) - (ordre[b.availability?.status] ?? 9) || (b.rating || 0) - (a.rating || 0))
+    .sort((a, b) => (ordre[a.availability?.status] ?? 9) - (ordre[b.availability?.status] ?? 9) || (b.recommendation || 0) - (a.recommendation || 0))
     .slice(0, 6);
   const quartiers = [...new Set(residences.map(r => r.neighborhood).filter(Boolean))].sort();
   const noteMoyenne = residences.length

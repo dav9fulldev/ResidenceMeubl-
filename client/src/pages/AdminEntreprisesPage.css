@@ -33,3 +33,6 @@
 .admin-modal textarea { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border); font: inherit; margin-bottom: 14px; }
 @media (max-width: 480px) { .ent-liste { grid-template-columns: 1fr; } }
 .admin-modal select, .admin-modal input { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border); font: inherit; margin-bottom: 8px; }
+.entreprises-page .ent-note { margin: 4px 0 0; font-size: 0.875rem; color: var(--text-muted); display: flex; align-items: center; gap: 4px; }
+.entreprises-page .ent-note svg { color: var(--gold); }
+.entreprises-page .ent-note b { color: var(--text); }

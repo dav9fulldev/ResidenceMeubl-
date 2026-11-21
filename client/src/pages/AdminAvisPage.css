@@ -18,3 +18,20 @@
 .avis-admin-form label { font-weight: 600; font-size: 0.9rem; }
 .avis-admin-form textarea, .avis-admin-form input { width: 100%; box-sizing: border-box; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); font: inherit; }
 .avis-admin-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* Plateforme : classement des partenaires par note moyenne */
+.avis-classement { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; align-items: start; }
+.avis-partenaire { padding: 18px 20px; display: grid; gap: 12px; min-width: 0; }
+.avis-partenaire.sans-note { opacity: 0.8; }
+.avis-partenaire > header { display: flex; gap: 12px; align-items: center; }
+.avis-partenaire h2 { margin: 0; font-size: 1.1rem; }
+.avis-partenaire header p { margin: 2px 0 0; color: var(--text-muted); font-size: 0.875rem; }
+.avis-rang { flex: none; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; border: 2px solid var(--gold); color: var(--text); font-variant-numeric: tabular-nums; }
+.avis-partenaire:first-child .avis-rang { background: var(--gold); color: #0F1A2E; }
+.avis-partenaire-note { margin: 0; display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+.avis-partenaire-note strong { font-size: 2.4rem; line-height: 1; font-variant-numeric: tabular-nums; }
+.avis-partenaire-note span { color: var(--text-muted); margin-right: 6px; }
+.avis-partenaire-vide { margin: 0; color: var(--text-muted); font-size: 0.9rem; }
+.avis-partenaire .avis-criteres { grid-template-columns: 1fr; gap: 8px; }
+.avis-partenaire > .adm-btn { justify-self: start; }
+.avis-partenaire .avis-admin-liste { gap: 12px; }
