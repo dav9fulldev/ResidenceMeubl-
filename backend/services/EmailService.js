@@ -320,6 +320,23 @@ class EmailService {
     }));
   }
 
+  // Vérification de l'email d'un nouveau partenaire : code à 6 chiffres
+  async sendCodeVerification(utilisateur, code) {
+    await require('./Tenant').run(require('./Tenant').PRINCIPALE, () => this.envoyer({
+      to: utilisateur.email,
+      subject: `${code} est votre code de vérification - BABI RESIDENCE`,
+      html: this.gabarit({
+        titre: 'Confirmez votre adresse email',
+        prevue: `Votre code : ${code}. Valable 15 minutes.`,
+        contenu: `<p style="margin:0 0 12px;">Bonjour ${esc(utilisateur.prenom)},</p>
+          <p style="margin:0 0 16px;">Pour activer votre espace partenaire BABI RESIDENCE, saisissez ce code sur la page d'inscription :</p>
+          <p style="margin:0 0 16px;text-align:center;"><span style="display:inline-block;padding:14px 22px;border-radius:10px;background:#F3F6FB;font-size:30px;font-weight:700;letter-spacing:8px;color:${ACCENT};font-family:'Courier New',monospace;">${esc(code)}</span></p>
+          <p style="margin:0;">Il est valable 15 minutes. Ne le communiquez à personne : BABI RESIDENCE ne vous le demandera jamais par téléphone ou message.</p>`,
+        note: 'Si vous n\'êtes pas à l\'origine de cette inscription, ignorez cet email : aucun compte ne sera activé.',
+      }),
+    }));
+  }
+
   async sendReinitialisationMotDePasse(utilisateur, jeton) {
     await require('./Tenant').run(require('./Tenant').PRINCIPALE, () => this.envoyer({
       to: utilisateur.email,

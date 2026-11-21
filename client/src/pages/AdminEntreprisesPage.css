@@ -36,3 +36,4 @@
 .entreprises-page .ent-note { margin: 4px 0 0; font-size: 0.875rem; color: var(--text-muted); display: flex; align-items: center; gap: 4px; }
 .entreprises-page .ent-note svg { color: var(--gold); }
 .entreprises-page .ent-note b { color: var(--text); }
+.entreprises-page .ent-non-verifie { color: var(--danger, #B42318); font-weight: 600; }

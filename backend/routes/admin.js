@@ -58,6 +58,11 @@ router.post('/login', loginLimiter, async (req, res) => {
     // Gestionnaire d'une entreprise
     const u = identifiant.includes('@') ? await EntrepriseService.verifierConnexion(identifiant, password) : null;
     if (!u) return res.status(401).json({ success: false, message: 'Identifiants incorrects' });
+    // Email pas encore confirmé : un nouveau code est envoyé, la connexion attend ce code
+    if (EntrepriseService.emailAVerifier(u)) {
+      await require('./entreprises').envoyerCode(u.email);
+      return res.status(403).json({ success: false, code: 'EMAIL_NON_VERIFIE', email: u.email, message: 'Confirmez d\'abord votre adresse email avec le code reçu par email.' });
+    }
     if (EntrepriseService.statut(u.entrepriseId) === 'suspendue') {
       return res.status(403).json({ success: false, message: 'Le compte de votre entreprise est suspendu. Contactez BABI RESIDENCE.' });
     }

@@ -87,6 +87,17 @@ const nouvelleReservation = (overrides = {}) => ({
   ...overrides,
 });
 
+// Vérification de l'email des partenaires : les codes « envoyés » sont notés ici
+const codesVerification = new Map();
+ReservationService.emailService.sendCodeVerification = async (u, code) => { codesVerification.set(u.email, code); };
+/** Confirme l'email d'un partenaire inscrit avec le code reçu ; retourne les en-têtes de sa session */
+const verifierEmailPartenaire = async (email) => {
+  const e = String(email).toLowerCase();
+  const r = await api('/api/entreprises/verification-email', { method: 'POST', body: { email: e, code: codesVerification.get(e) } });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  return { Authorization: `Bearer ${r.body.data.token}` };
+};
+
 test('GET /api/residences/types et /villes ne sont plus capturées par /:id', async () => {
   const types = await api('/api/residences/types');
   assert.equal(types.status, 200);
@@ -1493,13 +1504,24 @@ test('multi-entreprises : inscription, cloisonnement des données, validation et
   const ins = await api('/api/entreprises/inscription', { method: 'POST', body: inscription });
   assert.equal(ins.status, 201, JSON.stringify(ins.body));
   assert.equal(ins.body.data.entreprise.statut, 'en_attente');
-  assert.equal(ins.body.data.utilisateur.email, 'gestion@villaslagune.ci');
-  assert.ok(!('motDePasse' in ins.body.data.utilisateur), 'jamais le mot de passe');
-  assert.deepEqual(envoyes.sort(), ['sendBienvenueEntreprise', 'sendNouvelleEntrepriseAdmin']);
+  assert.equal(ins.body.data.email, 'gestion@villaslagune.ci');
+  assert.equal(ins.body.data.verificationRequise, true);
+  assert.ok(!('token' in ins.body.data), 'pas de session avant la vérification de l\'email');
   assert.equal((await api('/api/entreprises/inscription', { method: 'POST', body: inscription })).status, 409, 'email déjà utilisé');
   const enBase = await db.collection('utilisateurs').findOne({ email: 'gestion@villaslagune.ci' });
   assert.match(enBase.motDePasse, /^scrypt\$/, 'mot de passe haché');
+  assert.equal(enBase.emailVerifie, false);
+  assert.ok(enBase.verificationEmail.empreinte && !JSON.stringify(enBase).includes(codesVerification.get('gestion@villaslagune.ci')), 'code jamais stocké en clair');
   const entId = ins.body.data.entreprise.id;
+
+  // Email non vérifié : pas de connexion, pas de validation possible ; bienvenue envoyée après la vérification
+  const nonVerifie = await api('/api/admin/login', { method: 'POST', body: { email: inscription.email, password: mdp } });
+  assert.equal(nonVerifie.status, 403);
+  assert.equal(nonVerifie.body.code, 'EMAIL_NON_VERIFIE');
+  assert.equal((await api(`/api/admin/plateforme/entreprises/${entId}/statut`, { method: 'PUT', headers: await connexionAdmin(), body: { statut: 'validee' } })).status, 409);
+  assert.equal(envoyes.length, 0);
+  await verifierEmailPartenaire(inscription.email);
+  assert.deepEqual(envoyes.sort(), ['sendBienvenueEntreprise', 'sendNouvelleEntrepriseAdmin']);
 
   // Connexion par email (insensible à la casse) ; mauvais mot de passe refusé
   assert.equal((await api('/api/admin/login', { method: 'POST', body: { email: inscription.email, password: MAUVAIS_MDP } })).status, 401);
@@ -1628,8 +1650,9 @@ test('vérification des résidences : dossier, photos, décision de la plateform
     const mdp = randomBytes(9).toString('hex');
     const ins = await api('/api/entreprises/inscription', { method: 'POST', body: { entreprise: nom, prenom: 'Awa', nom: 'Test', email, telephone: '+225 07 00 00 00 09', motDePasse: mdp } });
     assert.equal(ins.status, 201, JSON.stringify(ins.body));
+    const session = await verifierEmailPartenaire(email);
     await api(`/api/admin/plateforme/entreprises/${ins.body.data.entreprise.id}/statut`, { method: 'PUT', headers: headersAdmin, body: { statut: 'validee' } });
-    return { Authorization: `Bearer ${ins.body.data.token}` };
+    return session;
   };
   const g = await entreprise('Cocotiers Verif', 'gestion@cocotiers-verif.ci');
   const autre = await entreprise('Autre Verif', 'gestion@autre-verif.ci');
@@ -1760,7 +1783,7 @@ test('module financier : commission, registre en partie double, sommes dues, rev
   const mdp = randomBytes(9).toString('hex');
   const ins = await api('/api/entreprises/inscription', { method: 'POST', body: { entreprise: 'Finance Lagune', prenom: 'Ama', nom: 'Test', email: 'finance@lagune-test.ci', telephone: '+225 07 00 00 00 77', motDePasse: mdp } });
   const entId = ins.body.data.entreprise.id;
-  const g = { Authorization: `Bearer ${ins.body.data.token}` };
+  const g = await verifierEmailPartenaire('finance@lagune-test.ci');
   await api(`/api/admin/plateforme/entreprises/${entId}/statut`, { method: 'PUT', headers: headersAdmin, body: { statut: 'validee' } });
   const res = await api('/api/admin/residences', { method: 'POST', headers: g, body: { nom: 'Villa Finance', reference: 'VF-1', typeAppartement: 'Villa', localisation: 'Rue A', ville: 'Abidjan', quartier: 'Cocody', prix: 50000, nombreChambres: 2, capacite: 4 } });
   const idRes = res.body.data.id;
@@ -1952,6 +1975,7 @@ test('super admin : supprimer une entreprise en confiant ses résidences à une 
   const mdp = randomBytes(9).toString('hex');
   const ins = await api('/api/entreprises/inscription', { method: 'POST', body: { entreprise: 'Ryder Test', prenom: 'Franck', nom: 'Test', email: 'ryder@test-transfert.ci', telephone: '+225 07 00 00 00 66', motDePasse: mdp } });
   const idRyder = ins.body.data.entreprise.id;
+  await verifierEmailPartenaire('ryder@test-transfert.ci');
   assert.equal((await api('/api/admin/plateforme/entreprises/ent_babi_gestion/suppression', { method: 'POST', headers: headersAdmin, body: { vers: idRyder } })).status, 409, 'cible non validée');
   await api(`/api/admin/plateforme/entreprises/${idRyder}/statut`, { method: 'PUT', headers: headersAdmin, body: { statut: 'validee' } });
   assert.equal((await api('/api/admin/plateforme/entreprises/babi/suppression', { method: 'POST', headers: headersAdmin, body: { vers: idRyder } })).status, 409, 'jamais la plateforme');
@@ -1985,6 +2009,7 @@ test('mot de passe oublié : lien unique, valable 1 h, sessions fermées, aucun 
     entreprise: 'Résidences Oubli', prenom: 'Awa', nom: 'Koné', email: 'awa@oubli.ci', telephone: '+225 07 00 00 00 09', motDePasse: ancien,
   } });
   assert.equal(ins.status, 201, JSON.stringify(ins.body));
+  await verifierEmailPartenaire('awa@oubli.ci');
   const sessionAvant = { Authorization: `Bearer ${(await api('/api/admin/login', { method: 'POST', body: { email: 'awa@oubli.ci', password: ancien } })).body.data.token}` };
   assert.equal((await api('/api/admin/moi', { headers: sessionAvant })).status, 200);
 
@@ -2259,7 +2284,7 @@ test('Clients du partenaire : voyageurs ayant réservé ses résidences, jamais 
     await db.collection('utilisateurs').deleteMany({ entrepriseId: autre.body.data.entreprise.id });
     await db.collection('entreprises').deleteOne({ _id: autre.body.data.entreprise.id });
   });
-  const hAutre = { Authorization: `Bearer ${autre.body.data.token}` };
+  const hAutre = await verifierEmailPartenaire('ali@autre-partenaire.ci');
   assert.ok(!(await api('/api/admin/clients', { headers: hAutre })).body.data.some(c => c.email === email));
   assert.equal((await api('/api/admin/clients', { headers: await connexionAdmin() })).status, 403);
   assert.equal((await api('/api/admin/clients')).status, 401);
@@ -2303,4 +2328,64 @@ test('Comparateur : les résidences mal notées descendent, classement des parte
   assert.ok((await api('/api/admin/plateforme/entreprises', { headers: hAdmin })).body.data.find(e => e.id === cible.entrepriseId).notation);
   const hPartenaire = { Authorization: `Bearer ${AuthService.creerJeton('gestion@test', { entrepriseId: cible.entrepriseId, superAdmin: false })}` };
   assert.equal((await api('/api/admin/avis/partenaires', { headers: hPartenaire })).status, 403);
+});
+
+test('vérification de l\'email des partenaires : code à 6 chiffres, essais limités, renvoi, session bloquée', async (t) => {
+  const AuthService = require('../services/AuthService');
+  const email = 'otp@partenaire-test.ci';
+  const mdp = randomBytes(9).toString('hex');
+  const ins = await api('/api/entreprises/inscription', { method: 'POST', body: { entreprise: 'OTP Test', prenom: 'Ines', nom: 'Diallo', email, telephone: '+225 07 00 00 00 55', motDePasse: mdp } });
+  assert.equal(ins.status, 201, JSON.stringify(ins.body));
+  const entId = ins.body.data.entreprise.id;
+  t.after(async () => {
+    await db.collection('utilisateurs').deleteMany({ entrepriseId: entId });
+    await db.collection('entreprises').deleteOne({ _id: entId });
+  });
+  const code = codesVerification.get(email);
+  assert.match(code, /^\d{6}$/);
+  const verifier = (c) => api('/api/entreprises/verification-email', { method: 'POST', body: { email, code: c } });
+  const renvoi = (e) => api('/api/entreprises/verification-email/renvoi', { method: 'POST', body: { email: e } });
+
+  // Une session forgée pour un compte non vérifié est refusée
+  const u = await db.collection('utilisateurs').findOne({ email });
+  const forge = { Authorization: `Bearer ${AuthService.creerJeton(email, { entrepriseId: entId, utilisateurId: u._id, superAdmin: false })}` };
+  assert.equal((await api('/api/admin/moi', { headers: forge })).status, 403);
+
+  // Renvoi : trop tôt (429) ; adresse inconnue : même réponse qu'une adresse connue
+  assert.equal((await renvoi(email)).status, 429);
+  const inconnue = await renvoi('personne@nulle-part.ci');
+  assert.equal(inconnue.status, 200);
+
+  // Mauvais code, format invalide ; puis 5 essais au plus
+  const faux = code === '000000' ? '111111' : '000000';
+  assert.equal((await verifier('12')).status, 400);
+  assert.equal((await verifier({ $ne: '' })).status, 400, 'injection');
+  for (let i = 0; i < 5; i += 1) assert.equal((await verifier(faux)).status, 400);
+  assert.equal((await verifier(code)).status, 429, 'trop d\'essais, même avec le bon code');
+
+  // Nouveau code (délai de renvoi écoulé) : l'ancien ne sert plus
+  await db.collection('utilisateurs').updateOne({ email }, { $set: { 'verificationEmail.envois': [new Date(Date.now() - 2 * 60 * 1000)] } });
+  assert.equal((await renvoi(email)).status, 200);
+  const nouveau = codesVerification.get(email);
+  if (nouveau !== code) assert.equal((await verifier(code)).status, 400, 'ancien code invalide');
+
+  // Code expiré
+  await db.collection('utilisateurs').updateOne({ email }, { $set: { 'verificationEmail.expireLe': new Date(Date.now() - 1000) } });
+  assert.equal((await verifier(nouveau)).status, 400);
+
+  // Code valide : session ouverte, compte vérifié, usage unique
+  await db.collection('utilisateurs').updateOne({ email }, { $set: { 'verificationEmail.envois': [new Date(Date.now() - 2 * 60 * 1000)] } });
+  assert.equal((await renvoi(email)).status, 200);
+  const ok = await verifier(` ${codesVerification.get(email).slice(0, 3)} ${codesVerification.get(email).slice(3)} `);
+  assert.equal(ok.status, 200, JSON.stringify(ok.body));
+  assert.equal(ok.body.data.utilisateur.emailVerifie, true);
+  assert.equal((await api('/api/admin/moi', { headers: { Authorization: `Bearer ${ok.body.data.token}` } })).status, 200);
+  assert.equal((await verifier(codesVerification.get(email))).status, 409, 'déjà vérifié');
+  assert.equal((await api('/api/admin/login', { method: 'POST', body: { email, password: mdp } })).status, 200);
+  const enBase = await db.collection('utilisateurs').findOne({ email });
+  assert.equal(enBase.verificationEmail, undefined);
+
+  // Les comptes créés avant la vérification d'email (sans le champ) restent utilisables
+  await db.collection('utilisateurs').updateOne({ email }, { $unset: { emailVerifie: '' } });
+  assert.equal((await api('/api/admin/login', { method: 'POST', body: { email, password: mdp } })).status, 200);
 });

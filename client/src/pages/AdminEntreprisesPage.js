@@ -112,7 +112,7 @@ const AdminEntreprisesPage = () => {
 
               {g && (
                 <div className="ent-contact">
-                  <span>{g.prenom} {g.nom}</span>
+                  <span>{g.prenom} {g.nom}{g.emailVerifie === false && <b className="ent-non-verifie"> · email non vérifié</b>}</span>
                   <a href={`mailto:${g.email}`}><FaEnvelope aria-hidden="true" /> {g.email}</a>
                   {g.telephone && <a href={`tel:${g.telephone.replace(/\s/g, '')}`}><FaPhone aria-hidden="true" /> {g.telephone}</a>}
                 </div>
