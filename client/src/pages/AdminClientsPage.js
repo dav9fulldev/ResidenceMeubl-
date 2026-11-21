@@ -52,7 +52,7 @@ const AdminClientsPage = () => {
         <div className="fin-kpis">
           <div className="adm-carte fin-kpi"><p>Clients</p><strong>{liste.length}</strong><small>au moins une réservation</small></div>
           <div className="adm-carte fin-kpi vert"><p>Fidèles</p><strong>{fideles}</strong><small>plus d'un séjour confirmé</small></div>
-          <div className="adm-carte fin-kpi or"><p>Arrivées à venir</p><strong>{aVenir}</strong><small>clients avec un séjour prévu</small></div>
+          <div className="adm-carte fin-kpi or"><p>Séjours à venir</p><strong>{aVenir}</strong><small>{aVenir > 1 ? 'clients avec une réservation à venir' : 'client avec une réservation à venir'}</small></div>
         </div>
       )}
 
