@@ -4,6 +4,7 @@ import { FaEye, FaEyeSlash } from 'react-icons/fa';
 import { API_ENDPOINTS, apiRequest } from '../config/api';
 import { useResidences } from '../context/ResidencesContext';
 import PanneauMarque from '../components/PanneauMarque';
+import VerificationEmail from '../components/VerificationEmail';
 import './AdminLogin.css';
 
 const MIN_MDP = 10;
@@ -16,6 +17,7 @@ const AdminInscription = () => {
   const [voir, setVoir] = useState(false);
   const [erreur, setErreur] = useState('');
   const [enCours, setEnCours] = useState(false);
+  const [aVerifier, setAVerifier] = useState(null); // email à confirmer avec le code reçu
 
   useEffect(() => { document.title = 'Devenir partenaire · BABI RESIDENCE'; }, []);
   useEffect(() => { if (isAdmin) navigate('/admin/dashboard', { replace: true }); }, [isAdmin, navigate]);
@@ -30,13 +32,29 @@ const AdminInscription = () => {
     try {
       const { confirmation, ...corps } = f;
       const res = await apiRequest(API_ENDPOINTS.companies.signup, { method: 'POST', body: corps });
-      connectWithToken(res.data.token);
-      navigate('/admin/dashboard', { replace: true });
+      // Le compte s'ouvre seulement après la saisie du code envoyé par email
+      setAVerifier(res.data.email);
+      setEnCours(false);
     } catch (error) {
       setErreur(error.message);
       setEnCours(false);
     }
   };
+
+  if (aVerifier) {
+    return (
+      <div className="admin-login-page">
+        <div className="admin-login-container">
+          <PanneauMarque mention="Espace partenaires">
+            <p>Dernière étape : confirmez votre adresse email pour accéder à votre espace.</p>
+          </PanneauMarque>
+          <div className="admin-login-form">
+            <VerificationEmail email={aVerifier} onVerifie={(token) => { connectWithToken(token); navigate('/admin/dashboard', { replace: true }); }} />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="admin-login-page">

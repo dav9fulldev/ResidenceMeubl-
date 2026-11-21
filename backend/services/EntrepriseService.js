@@ -47,6 +47,13 @@ function verifierHash(motDePasse, stocke) {
 const HASH_FACTICE = hacher(crypto.randomBytes(16).toString('hex'));
 
 const DUREE_REINITIALISATION_MS = 60 * 60 * 1000;
+
+// Vérification de l'email à l'inscription : code à 6 chiffres envoyé par email
+const CODE_DUREE_MS = 15 * 60 * 1000;
+const CODE_ESSAIS_MAX = 5;
+const CODE_DELAI_RENVOI_MS = 60 * 1000;
+const CODE_ENVOIS_PAR_HEURE = 5;
+const empreinteCode = (utilisateurId, code) => crypto.createHash('sha256').update(`${utilisateurId}:${code}`).digest('hex');
 const empreinte = (jeton) => crypto.createHash('sha256').update(String(jeton)).digest('hex');
 
 const texte = (v, max) => String(v ?? '').trim().slice(0, max);
@@ -134,7 +141,8 @@ class EntrepriseService {
     const id = nouvelId();
     const maintenant = new Date();
     await this.entreprises.insertOne({ _id: id, nom: entreprise, statut: 'en_attente', telephone, creeLe: maintenant });
-    const utilisateur = { _id: crypto.randomUUID(), entrepriseId: id, email, prenom, nom, telephone, role: 'proprietaire', motDePasse: hacher(motDePasse), creeLe: maintenant };
+    // Email à confirmer avec le code reçu (les comptes créés avant n'ont pas ce champ : vérifiés)
+    const utilisateur = { _id: crypto.randomUUID(), entrepriseId: id, email, prenom, nom, telephone, role: 'proprietaire', motDePasse: hacher(motDePasse), emailVerifie: false, creeLe: maintenant };
     try {
       await this.utilisateurs.insertOne(utilisateur);
     } catch (error) {
@@ -169,6 +177,61 @@ class EntrepriseService {
       throw new ErreurEntreprise(`Le nouveau mot de passe doit contenir au moins ${MOT_DE_PASSE_MIN} caractères`);
     }
     await this.utilisateurs.updateOne({ _id: u._id }, { $set: { motDePasse: hacher(nouveau), motDePasseLe: new Date() } });
+  }
+
+  // ---------- Vérification de l'email (code à 6 chiffres) ----------
+  // Le code n'est jamais stocké en clair ; 15 minutes, 5 essais, un envoi par minute et 5 par heure.
+
+  /** Le compte doit-il encore confirmer son email ? (les comptes antérieurs n'ont pas le champ) */
+  emailAVerifier(u) {
+    return Boolean(u) && u.emailVerifie === false;
+  }
+
+  /**
+   * Prépare un nouveau code pour un compte dont l'email n'est pas vérifié. Retourne le code à envoyer.
+   * Refuse (429) si un code vient d'être envoyé ou si trop de codes ont été demandés.
+   */
+  async nouveauCodeVerification(u) {
+    if (!this.emailAVerifier(u)) throw new ErreurEntreprise('Adresse email déjà vérifiée', 409);
+    const maintenant = Date.now();
+    const v = u.verificationEmail || {};
+    const envois = (v.envois || []).map(d => new Date(d).getTime()).filter(t => maintenant - t < 60 * 60 * 1000);
+    if (envois.length && maintenant - Math.max(...envois) < CODE_DELAI_RENVOI_MS) {
+      throw new ErreurEntreprise('Un code vient d\'être envoyé. Patientez une minute avant d\'en demander un autre.', 429);
+    }
+    if (envois.length >= CODE_ENVOIS_PAR_HEURE) throw new ErreurEntreprise('Trop de codes demandés. Réessayez dans une heure.', 429);
+    const code = String(crypto.randomInt(0, 1000000)).padStart(6, '0');
+    await this.utilisateurs.updateOne({ _id: u._id }, { $set: { verificationEmail: {
+      empreinte: empreinteCode(u._id, code), expireLe: new Date(maintenant + CODE_DUREE_MS), essais: 0,
+      envois: [...envois.map(t => new Date(t)), new Date(maintenant)],
+    } } });
+    return code;
+  }
+
+  /** Vérifie le code saisi. Retourne l'utilisateur vérifié ; lève une erreur explicite sinon. */
+  async verifierCodeEmail(email, code) {
+    const u = await this.utilisateurs.findOne({ email: { $eq: texte(email, 254).toLowerCase() } });
+    const invalide = new ErreurEntreprise('Code incorrect ou expiré. Vérifiez le dernier email reçu ou demandez un nouveau code.');
+    if (!u) throw invalide;
+    if (!this.emailAVerifier(u)) throw new ErreurEntreprise('Adresse email déjà vérifiée : vous pouvez vous connecter.', 409);
+    const v = u.verificationEmail;
+    const saisi = String(code ?? '').replace(/\s/g, '');
+    if (!v || !/^\d{6}$/.test(saisi) || new Date(v.expireLe) < new Date()) throw invalide;
+    if (v.essais >= CODE_ESSAIS_MAX) throw new ErreurEntreprise('Trop d\'essais avec ce code. Demandez un nouveau code.', 429);
+    const attendu = Buffer.from(v.empreinte, 'hex');
+    const calcule = Buffer.from(empreinteCode(u._id, saisi), 'hex');
+    if (!crypto.timingSafeEqual(attendu, calcule)) {
+      await this.utilisateurs.updateOne({ _id: u._id }, { $inc: { 'verificationEmail.essais': 1 } });
+      throw invalide;
+    }
+    // Usage unique : le code disparaît dans l'opération qui confirme l'email
+    const r = await this.utilisateurs.findOneAndUpdate(
+      { _id: u._id, emailVerifie: false, 'verificationEmail.empreinte': v.empreinte },
+      { $set: { emailVerifie: true, emailVerifieLe: new Date() }, $unset: { verificationEmail: '' } },
+      { returnDocument: 'after' }
+    );
+    if (!r) throw invalide;
+    return r;
   }
 
   // ---------- Mot de passe oublié ----------
@@ -209,7 +272,7 @@ class EntrepriseService {
   }
 
   publicUtilisateur(u) {
-    return u ? { id: u._id, prenom: u.prenom, nom: u.nom, email: u.email, telephone: u.telephone, role: u.role } : null;
+    return u ? { id: u._id, prenom: u.prenom, nom: u.nom, email: u.email, telephone: u.telephone, role: u.role, emailVerifie: u.emailVerifie !== false } : null;
   }
 
   // ---------- Administration de la plateforme ----------
@@ -220,7 +283,7 @@ class EntrepriseService {
       this.entreprises.find({}).sort({ creeLe: -1 }).toArray(),
       db.collection('residences').aggregate([{ $group: { _id: '$entrepriseId', total: { $sum: 1 } } }]).toArray(),
       db.collection('reservations').aggregate([{ $group: { _id: '$entrepriseId', total: { $sum: 1 } } }]).toArray(),
-      this.utilisateurs.find({}, { projection: { motDePasse: 0, reinitialisation: 0 } }).toArray(),
+      this.utilisateurs.find({}, { projection: { motDePasse: 0, reinitialisation: 0, verificationEmail: 0 } }).toArray(),
     ]);
     const compte = (liste, id) => liste.find(x => x._id === id)?.total || 0;
     return entreprises.map(e => ({
@@ -244,6 +307,10 @@ class EntrepriseService {
     const e = await this.trouver(id);
     if (!e) throw new ErreurEntreprise('Entreprise introuvable', 404);
     if (e.principale || e.interne) throw new ErreurEntreprise('Les entreprises de la plateforme ne changent pas de statut', 409);
+    // Valider une entreprise suppose qu'au moins un gestionnaire a confirmé son email
+    if (statut === 'validee' && !(await this.utilisateurs.findOne({ entrepriseId: { $eq: e._id }, emailVerifie: { $ne: false } }))) {
+      throw new ErreurEntreprise('Le gestionnaire n\'a pas encore confirmé son adresse email : validation impossible pour l\'instant.', 409);
+    }
     const maj = { statut, motif: texte(motif, 500) || null, statutLe: new Date() };
     if (statut === 'validee') maj.valideeLe = new Date();
     await this.entreprises.updateOne({ _id: e._id }, { $set: maj });
@@ -338,7 +405,7 @@ class EntrepriseService {
   }
 
   async gestionnaires(entrepriseId) {
-    return this.utilisateurs.find({ entrepriseId: { $eq: String(entrepriseId) } }, { projection: { motDePasse: 0, reinitialisation: 0 } }).toArray();
+    return this.utilisateurs.find({ entrepriseId: { $eq: String(entrepriseId) } }, { projection: { motDePasse: 0, reinitialisation: 0, verificationEmail: 0 } }).toArray();
   }
 }
 

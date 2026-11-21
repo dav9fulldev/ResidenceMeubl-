@@ -41,6 +41,8 @@ export const API_ENDPOINTS = {
   },
   companies: {
     signup: `${API_BASE_URL}/entreprises/inscription`,
+    verifyEmail: `${API_BASE_URL}/entreprises/verification-email`,
+    resendCode: `${API_BASE_URL}/entreprises/verification-email/renvoi`,
     forgotPassword: `${API_BASE_URL}/entreprises/mot-de-passe/oubli`,
     resetPassword: `${API_BASE_URL}/entreprises/mot-de-passe/reinitialisation`,
   },
@@ -103,9 +105,11 @@ export const setAdminToken = (token) => {
 };
 
 export class ApiError extends Error {
-  constructor(message, status) {
+  constructor(message, status, corps = null) {
     super(message);
     this.status = status;
+    this.code = corps?.code || null; // ex. EMAIL_NON_VERIFIE
+    this.corps = corps;
   }
 }
 
@@ -163,7 +167,7 @@ export const apiRequest = async (url, { auth = false, token, body, ...options } 
   }
 
   if (!response.ok) {
-    throw new ApiError(data?.message || `Erreur du serveur (${response.status})`, response.status);
+    throw new ApiError(data?.message || `Erreur du serveur (${response.status})`, response.status, data);
   }
   return data;
 };

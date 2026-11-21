@@ -138,7 +138,8 @@ export const ResidencesProvider = ({ children }) => {
       setIsAdmin(true);
       return { success: true };
     } catch (error) {
-      return { success: false, message: error.message };
+      // EMAIL_NON_VERIFIE : la page de connexion demande le code reçu par email
+      return { success: false, message: error.message, code: error.code, email: error.corps?.email };
     }
   }, []);
 

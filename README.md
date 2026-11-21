@@ -39,6 +39,7 @@ Mise en ligne : voir [DEPLOIEMENT.md](DEPLOIEMENT.md).
 
 ### Pour les entreprises de gestion (`/admin`)
 - **Inscription** sur `/admin/inscription` (lien « Vous gérez des résidences ? Publiez-les » en pied de page) : nom de l'entreprise, gestionnaire, email, mot de passe.
+- **Vérification de l'email** : après l'inscription, un **code à 6 chiffres** est envoyé par email (valable 15 minutes, 5 essais, un renvoi par minute et 5 par heure, seule son empreinte est stockée). Sans ce code, pas d'accès à l'espace partenaire ni de validation possible par la plateforme ; une connexion avant vérification renvoie un nouveau code. Les comptes créés avant cette étape restent utilisables.
 - L'entreprise est **vérifiée par la plateforme** : en attendant, le gestionnaire prépare ses résidences, ses règles d'acompte et ses moyens de paiement ; rien n'est visible sur le site.
 - Chaque entreprise ne voit **que ses données** : résidences, réservations, calendrier, statistiques, paramètres.
 - **Clients** : les voyageurs qui ont réservé ses résidences (séjours, montant, dernier et prochain séjour, coordonnées), construits à partir de ses seules réservations.

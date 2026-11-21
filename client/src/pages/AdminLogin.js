@@ -4,10 +4,12 @@ import { FaLock, FaUser, FaEye, FaEyeSlash } from 'react-icons/fa';
 import { useResidences } from '../context/ResidencesContext';
 import './AdminLogin.css';
 import PanneauMarque from '../components/PanneauMarque';
+import VerificationEmail from '../components/VerificationEmail';
 
 const AdminLogin = () => {
   const navigate = useNavigate();
-  const { loginAdmin, isAdmin } = useResidences();
+  const { loginAdmin, isAdmin, connectWithToken } = useResidences();
+  const [aVerifier, setAVerifier] = useState(null); // compte partenaire dont l'email n'est pas encore confirmé
 
   // Déjà connecté (application installée rouverte) : aller directement au back-office
   useEffect(() => {
@@ -40,6 +42,8 @@ const AdminLogin = () => {
 
     if (result.success) {
       navigate('/admin/dashboard');
+    } else if (result.code === 'EMAIL_NON_VERIFIE') {
+      setAVerifier(result.email || credentials.username.trim());
     } else {
       setError(result.message || 'Identifiants incorrects. Veuillez réessayer.');
     }
@@ -48,6 +52,20 @@ const AdminLogin = () => {
   const togglePasswordVisibility = () => {
     setShowPassword(prev => !prev);
   };
+
+  if (aVerifier) {
+    return (
+      <div className="admin-login-page">
+        <div className="admin-login-container">
+          <PanneauMarque />
+          <div className="admin-login-form">
+            <VerificationEmail email={aVerifier} onRetour={() => setAVerifier(null)}
+              onVerifie={(token) => { connectWithToken(token); navigate('/admin/dashboard', { replace: true }); }} />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="admin-login-page">
