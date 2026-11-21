@@ -148,6 +148,14 @@ Super admin    ──► Avis : masquer (motif)       PUT /api/admin/avis/:id/ma
 
 Fichiers : `backend/services/AvisService.js`, `client/src/components/Avis.js`, `client/src/pages/AdminAvisPage.js`.
 
+**Comparateur : les partenaires les mieux notés d'abord.**
+- **Note d'un partenaire** = moyenne des avis visibles sur toutes ses résidences (`AvisService.parEntreprise`).
+- **Score de recommandation** d'une résidence = 60 % sa note + 40 % la note de son partenaire, chacune en *moyenne bayésienne* : `(3 × 4 + n × moyenne) / (3 + n)`. Avec peu d'avis, le score reste proche de 4 (neutre) : un seul 5/5 ne dépasse pas 40 avis à 4,7, et une résidence sans avis n'est ni pénalisée ni favorisée.
+- Le **catalogue** (`GET /api/residences`) est trié par ce score ; l'accueil met en avant les résidences disponibles dans cet ordre.
+- **« Partenaire recommandé »** (badge sur les cartes et la fiche) : au moins 5 avis et 4,5 de moyenne.
+- **Plateforme** : la page *Avis* classe les partenaires en cartes (rang, moyenne, nombre d'avis et de résidences notées, critères) ; *Entreprises* affiche la note de chacun.
+- Prévu plus tard : un **booster** payant (visibilité achetée par le partenaire), qui s'ajoutera à ce score.
+
 ### Mot de passe oublié (partenaires)
 
 ```

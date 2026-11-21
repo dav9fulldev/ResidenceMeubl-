@@ -35,10 +35,32 @@ const publique = (residence) => {
   };
 };
 
-/** Note affichée = moyenne des avis des voyageurs (service de notation) ; aucune note sans avis. */
+/**
+ * Service de notation et comparateur.
+ *  - note affichée = moyenne des avis de la résidence ; aucune note sans avis ;
+ *  - recommandation = 60 % note de la résidence + 40 % note de son partenaire (toutes ses
+ *    résidences), chacune pondérée par le nombre d'avis (moyenne bayésienne : peu d'avis, score
+ *    proche de la valeur neutre). Le catalogue est trié par recommandation : les résidences des
+ *    partenaires les mieux notés sont proposées en premier.
+ *  - partenaire recommandé : au moins 5 avis et 4,5 de moyenne.
+ */
+const NOTE_NEUTRE = 4;
+const POIDS_NEUTRE = 3;
+const bayes = (r) => (r ? (POIDS_NEUTRE * NOTE_NEUTRE + r.nombre * r.moyenne) / (POIDS_NEUTRE + r.nombre) : NOTE_NEUTRE);
 async function avecNotes(residences) {
-  const resumes = await require('./AvisService').resumes(residences.map(r => r.id));
-  return residences.map(r => ({ ...r, note: resumes.get(r.id)?.moyenne ?? null, nombreAvis: resumes.get(r.id)?.nombre || 0 }));
+  const Avis = require('./AvisService');
+  const [resumes, partenaires] = await Promise.all([Avis.resumes(residences.map(r => r.id)), Avis.parEntreprise()]);
+  return residences.map((r) => {
+    const n = resumes.get(r.id);
+    const p = partenaires.get(r.entrepriseId);
+    return {
+      ...r,
+      note: n?.moyenne ?? null,
+      nombreAvis: n?.nombre || 0,
+      recommandation: Math.round((0.6 * bayes(n) + 0.4 * bayes(p)) * 1000) / 1000,
+      entreprise: { ...r.entreprise, note: p?.moyenne ?? null, nombreAvis: p?.nombre || 0, recommande: Boolean(p && p.nombre >= 5 && p.moyenne >= 4.5) },
+    };
+  });
 }
 
 /** Conditions de réservation propres à l'entreprise d'une résidence (acompte, moyens de paiement). */
@@ -116,7 +138,9 @@ class ResidenceService {
   // Résidences visibles sur le site public
   async getAllResidences() {
     const docs = await this.collection.find(PUBLIQUES(), SANS_ID_MONGO).sort({ id: 1 }).toArray();
-    return avecNotes((await this.avecStatutReel(docs)).map(publique));
+    // Comparateur : les résidences des partenaires les mieux notés d'abord
+    return (await avecNotes((await this.avecStatutReel(docs)).map(publique)))
+      .sort((x, y) => y.recommandation - x.recommandation || x.id - y.id);
   }
 
   // Toutes les résidences de l'entreprise, y compris inactives (admin)

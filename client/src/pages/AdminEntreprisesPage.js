@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Navigate } from 'react-router-dom';
-import { FaCheck, FaBan, FaUndo, FaTrash, FaEnvelope, FaPhone, FaHome, FaCalendarAlt } from 'react-icons/fa';
+import { FaCheck, FaBan, FaUndo, FaTrash, FaEnvelope, FaPhone, FaHome, FaCalendarAlt, FaStar } from 'react-icons/fa';
 import { API_ENDPOINTS } from '../config/api';
 import { useResidences } from '../context/ResidencesContext';
 import { useCompte } from '../context/CompteContext';
@@ -103,6 +103,9 @@ const AdminEntreprisesPage = () => {
                 <div>
                   <h2>{e.nom}{e.principale && <small> · compte de la plateforme</small>}{e.interne && <small> · résidences de la plateforme</small>}</h2>
                   <p className="ent-date">Inscrite le {date(e.creeLe)}{e.valideeLe ? ` · validée le ${date(e.valideeLe)}` : ''}</p>
+                  <p className="ent-note">{e.notation
+                    ? <><FaStar aria-hidden="true" /> <b>{e.notation.moyenne.toLocaleString('fr-FR')}</b> / 5 · {e.notation.nombre} avis sur {e.notation.residences} résidence{e.notation.residences > 1 ? 's' : ''}</>
+                    : 'Pas encore d\'avis'}</p>
                 </div>
                 <span className={`ent-statut ${s.classe}`}>{s.libelle}</span>
               </div>

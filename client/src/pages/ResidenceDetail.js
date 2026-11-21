@@ -120,6 +120,8 @@ const ResidenceDetail = () => {
             <p className="rd-proprietaire">
               <span className="rd-verifiee"><FaShieldAlt aria-hidden="true" /> Résidence vérifiée</span>
               {residence.company?.nom && <>Proposé par <b>{residence.company.nom}</b></>}
+              {residence.company?.note ? <span className="rd-partenaire-note"><FaStar aria-hidden="true" /> {Number(residence.company.note).toLocaleString('fr-FR')} sur l'ensemble de ses résidences ({residence.company.nombreAvis} avis)</span> : null}
+              {residence.company?.recommande && <span className="rc-recommande">Partenaire recommandé</span>}
             </p>
           </div>
           <button

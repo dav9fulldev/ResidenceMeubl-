@@ -604,3 +604,6 @@
 .rd-verifiee { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; background: rgba(22, 163, 74, 0.1); color: #15803d; font-size: 0.8rem; font-weight: 700; }
 :root[data-theme="dark"] .rd-verifiee { color: #4ade80; }
 .rd-hors-plateforme { margin: 14px 0 0; padding: 10px 12px; border-radius: 10px; background: var(--surface-2); font-size: 0.8rem; line-height: 1.5; color: var(--text-muted); }
+.residence-detail-page .rd-partenaire-note { display: inline-flex; align-items: center; gap: 4px; color: var(--text-muted); font-size: 0.9rem; }
+.residence-detail-page .rd-partenaire-note svg { color: var(--gold); }
+.residence-detail-page .rc-recommande { display: inline-flex; padding: 3px 10px; border-radius: 999px; background: var(--gold-soft); color: var(--text); font-size: 0.75rem; font-weight: 700; }
