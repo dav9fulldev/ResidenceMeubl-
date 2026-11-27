@@ -19,6 +19,7 @@ const db = require('../../db');
  *   COMMISSION_BABI     produit : commissions de la plateforme
  *   REVENU_PLATEFORME   produit : séjours des résidences propres de BABI RESIDENCE
  *   TROP_PERCU_CLIENT   passif : paiements reçus en double, à rendre aux clients
+ *   REVENU_VISIBILITE   produit : boosters de visibilité payés en ligne par les partenaires
  * Ces soldes sont des montants COMPTABILISÉS : ils ne prouvent pas que l'argent est disponible
  * sur un compte (voir le rapprochement, services/finance/Rapprochement.js).
  */
@@ -29,6 +30,7 @@ const COMPTES = {
   COMMISSION_BABI: { libelle: 'Commissions BABI RESIDENCE', nature: 'produit' },
   REVENU_PLATEFORME: { libelle: 'Séjours des résidences BABI RESIDENCE', nature: 'produit' },
   TROP_PERCU_CLIENT: { libelle: 'Trop-perçus à rendre aux clients', nature: 'passif' },
+  REVENU_VISIBILITE: { libelle: 'Boosters de visibilité payés par les partenaires', nature: 'produit' },
 };
 
 class ErreurLedger extends Error {

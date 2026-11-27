@@ -414,6 +414,11 @@ class PaymentService {
   async traiterEvenementGeniusPay(corps) {
     const d = corps?.data || {};
     if (!String(corps?.event || '').startsWith('payment.')) return;
+    // Booster de visibilité payé par un partenaire : relu chez GeniusPay puis activé
+    if (d.metadata?.booster) {
+      await require('../BoosterService').verifierPaiement(String(d.metadata.booster));
+      return;
+    }
     const filtre = d.metadata?.txId ? { 'paiements.txId': { $eq: String(d.metadata.txId) } } : { 'paiements.reference': { $eq: String(d.reference || '') } };
     const r = await this.collection.findOne(filtre, { projection: { _id: 0, paiements: 1 } });
     const p = r?.paiements?.find(x => (d.metadata?.txId ? x.txId === String(d.metadata.txId) : x.reference === String(d.reference)));
@@ -449,6 +454,7 @@ class PaymentService {
     this.minuterie = setInterval(() => {
       this.verifierEnAttente().catch(e => console.error('⚠️ Vérification des paiements :', e.message));
       require('./RefundService').verifierEnCours().catch(e => console.error('⚠️ Vérification des remboursements :', e.message));
+      require('../BoosterService').verifierEnAttente().catch(e => console.error('⚠️ Vérification des boosters :', e.message));
     }, intervalleMs);
     this.minuterie.unref?.();
   }

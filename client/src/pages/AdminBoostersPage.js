@@ -9,7 +9,9 @@ import { STATUTS_BOOSTER } from './AdminVisibilitePage';
 import './AdminFinances.css';
 import './AdminBoosters.css';
 
+// Activation manuelle (paiement hors plateforme) ; « geniuspay » = payé en ligne, activé automatiquement
 const MOYENS = { mobile_money: 'Mobile Money', virement: 'Virement', especes: 'Espèces', autre: 'Autre' };
+const LIBELLES_MOYENS = { ...MOYENS, geniuspay: 'GeniusPay (en ligne)' };
 
 /**
  * Plateforme : boosters de visibilité. Le partenaire paie hors plateforme ; on active après réception
@@ -67,7 +69,7 @@ const AdminBoostersPage = () => {
       <td><code>{b.reference}</code><small>{dateCourte(b.demandeLe)}</small></td>
       <td><b>{b.entreprise}</b><small>{b.residenceNom}</small></td>
       <td>{b.duree} j · {fcfa(b.montant)}</td>
-      <td>{b.debut ? `${dateCourte(b.debut)} → ${dateCourte(b.fin)}` : '—'}{b.paiement && <small>{MOYENS[b.paiement.moyen]} · {b.paiement.reference}</small>}</td>
+      <td>{b.debut ? `${dateCourte(b.debut)} → ${dateCourte(b.fin)}` : '—'}{b.paiement && <small>{LIBELLES_MOYENS[b.paiement.moyen] || b.paiement.moyen} · {b.paiement.reference}</small>}</td>
       <td><Badge table={STATUTS_BOOSTER} valeur={b.statut} />{b.motif && <small>{b.motif}</small>}</td>
       <td className="booster-actions">
         {b.statut === 'en_attente' && <>
@@ -84,7 +86,7 @@ const AdminBoostersPage = () => {
       <header className="admin-page-header">
         <div>
           <h1>Boosters</h1>
-          <p>Visibilité payée par les partenaires. Activez un booster après réception du paiement : la résidence remonte (bonus limité, jamais pour une résidence mal notée) avec la mention « Sponsorisé ».</p>
+          <p>Visibilité payée par les partenaires. Payés en ligne (GeniusPay), les boosters s’activent seuls ; payés par virement ou en espèces, activez-les ici après réception. La résidence remonte (bonus limité, jamais pour une résidence mal notée) avec la mention « Sponsorisé ».</p>
         </div>
       </header>
       {msg.erreur && <p className="params-msg erreur" role="alert"><FaExclamationTriangle /> {msg.erreur}</p>}
