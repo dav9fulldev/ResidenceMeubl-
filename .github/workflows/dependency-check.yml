@@ -57,13 +57,18 @@ jobs:
           NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
         run: |
           NVD_API_KEY="$(printf '%s' "$NVD_API_KEY" | tr -d '[:space:]')"
+          # Les PR de Dependabot n'ont pas accès aux secrets du dépôt : sans clé, la variable ne doit
+          # pas être transmise vide (l'outil la refuse et s'arrête). L'analyse tourne alors sans clé,
+          # à partir de la base en cache (mise à jour plus lente, mais complète).
+          CLE_DOCKER=()
+          if [ -n "$NVD_API_KEY" ]; then CLE_DOCKER=(-e NVD_API_KEY); export NVD_API_KEY; else unset NVD_API_KEY; echo "::notice::Analyse sans clé NVD (PR Dependabot ou secret absent)."; fi
           mkdir -p reports ~/.dependency-check-data
           docker run --rm \
             --user "$(id -u):$(id -g)" \
             -v "$GITHUB_WORKSPACE:/src:z" \
             -v "$HOME/.dependency-check-data:/usr/share/dependency-check/data:z" \
             -v "$GITHUB_WORKSPACE/reports:/report:z" \
-            -e NVD_API_KEY \
+            "${CLE_DOCKER[@]}" \
             owasp/dependency-check:${DC_VERSION} \
             --project "BABI RESIDENCE" \
             --scan /src/backend --scan /src/client \
