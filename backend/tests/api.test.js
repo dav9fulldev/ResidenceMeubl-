@@ -2588,3 +2588,45 @@ test('Booster payé en ligne (GeniusPay) : activation automatique, registre, web
   const hAutre = { Authorization: `Bearer ${AuthService.creerJeton('autre@test', { entrepriseId: 'babi_inexistante', superAdmin: false })}` };
   assert.notEqual((await api(`/api/admin/boosters/${d3.id}/paiement`, { headers: hAutre })).status, 200);
 });
+test('Booster : prolongation d\'un ancien booster (formule 15 jours) payée en ligne, enchaînée à la fin', async (t) => {
+  const AuthService = require('../services/AuthService');
+  const GeniusPay = require('../services/paiement/GeniusPayClient');
+  const es = ReservationService.emailService;
+  const original = es.sendAlerteFinance;
+  es.sendAlerteFinance = async () => {};
+  t.after(async () => {
+    es.sendAlerteFinance = original;
+    await db.collection('boosters').deleteMany({});
+    await db.collection('ledger_entries').deleteMany({ type: 'BOOSTER' });
+    await db.collection('ledger_transactions').deleteMany({ type: 'BOOSTER' });
+  });
+  const etat = {};
+  t.mock.method(GeniusPay, 'estConfigure', () => true);
+  t.mock.method(GeniusPay, 'creerPaiement', async (a) => { etat.ref = { status: 'pending', amount: a.montant }; return { reference: 'ref', checkout_url: 'https://pay.test/ref' }; });
+  t.mock.method(GeniusPay, 'lirePaiement', async () => etat.ref);
+
+  // Booster actif créé avec les anciennes formules : 15 jours, 9 000 FCFA, sans budget par jour
+  const residence = await db.collection('residences').findOne({ id: 1 });
+  const finAncien = new Date(Date.now() + 5 * 86400000);
+  await db.collection('boosters').insertOne({
+    reference: 'BST-ANCIEN', entrepriseId: residence.entrepriseId, residenceId: 1, residenceNom: residence.nom, duree: 15, montant: 9000,
+    statut: 'actif', demandeLe: new Date(), debut: new Date(Date.now() - 10 * 86400000), fin: finAncien, paiement: { moyen: 'geniuspay', reference: 'old', montant: 9000 },
+  });
+  const h = { Authorization: `Bearer ${AuthService.creerJeton('gestion@test', { entrepriseId: residence.entrepriseId, superAdmin: false })}` };
+  const ancien = (await api('/api/admin/boosters', { headers: h })).body.data.boosters.find(b => b.reference === 'BST-ANCIEN');
+  assert.equal(ancien.budgetJour, 600, 'ancien format lu');
+  assert.equal(ancien.audience, 'tout');
+
+  // Les valeurs d'origine sont refusées (le site les ramène à 14 jours et 500 FCFA)
+  const creer = (body) => api('/api/admin/boosters', { method: 'POST', headers: h, body: { residenceId: 1, objectif: 'visites', audience: 'tout', ...body } });
+  assert.equal((await creer({ budgetJour: 600, duree: 15 })).status, 400);
+  const p = await creer({ budgetJour: 500, duree: 14 });
+  assert.equal(p.status, 201, 'prolongation possible pendant un booster actif');
+  const pay = await api(`/api/admin/boosters/${p.body.data.id}/paiement`, { method: 'POST', headers: h });
+  assert.equal(pay.status, 200, JSON.stringify(pay.body));
+  etat.ref.status = 'completed';
+  const actif = (await api(`/api/admin/boosters/${p.body.data.id}/paiement`, { headers: h })).body.data;
+  assert.equal(actif.statut, 'actif');
+  assert.equal(new Date(actif.debut).getTime(), finAncien.getTime(), 'commence à la fin du booster en cours');
+  assert.equal(Math.round((new Date(actif.fin) - new Date(actif.debut)) / 86400000), 14);
+});
