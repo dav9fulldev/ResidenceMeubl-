@@ -607,3 +607,4 @@
 .residence-detail-page .rd-partenaire-note { display: inline-flex; align-items: center; gap: 4px; color: var(--text-muted); font-size: 0.9rem; }
 .residence-detail-page .rd-partenaire-note svg { color: var(--gold); }
 .residence-detail-page .rc-recommande { display: inline-flex; padding: 3px 10px; border-radius: 999px; background: var(--gold-soft); color: var(--text); font-size: 0.75rem; font-weight: 700; }
+.residence-detail-page .rd-sponsorise { display: inline-flex; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--border); color: var(--text-muted); font-size: 0.75rem; font-weight: 600; }

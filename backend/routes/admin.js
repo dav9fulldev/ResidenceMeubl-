@@ -222,6 +222,74 @@ router.put('/avis/:id/masquage', superAdmin, async (req, res) => {
 });
 
 /**
+ * Booster de visibilité (paiement hors plateforme, activation manuelle par la plateforme)
+ * @route   GET    /api/admin/boosters                      partenaire : tarifs, ses résidences, ses boosters
+ * @route   POST   /api/admin/boosters                      { residenceId, duree }   demande
+ * @route   DELETE /api/admin/boosters/:id                  annuler une demande en attente
+ * @route   GET    /api/admin/plateforme/boosters           plateforme : toutes les demandes, tarifs
+ * @route   PUT    /api/admin/plateforme/boosters/tarifs    { tarifs: { 7, 15, 30 } }
+ * @route   PUT    /api/admin/plateforme/boosters/:id       { action: activer|refuser|arreter, moyen, reference, motif }
+ */
+const erreurBooster = (res, error, contexte) => {
+  const Booster = require('../services/BoosterService');
+  if (error instanceof Booster.ErreurBooster) return res.status(error.status).json({ success: false, message: error.message });
+  return gererErreur(res, error, contexte);
+};
+const auteur = (req) => (req.admin.uid ? `utilisateur:${req.admin.uid}` : `plateforme:${req.admin.sub}`);
+
+router.get('/boosters', async (req, res) => {
+  if (req.admin.sa) return res.status(403).json({ success: false, message: 'Réservé aux partenaires' });
+  try {
+    const Booster = require('../services/BoosterService');
+    const residences = (await ResidenceService.getAllResidencesAdmin())
+      .filter(r => r.statutVerification === 'verifiee' && r.actif !== false)
+      .map(r => ({ id: r.id, nom: r.nom }));
+    res.json({ success: true, data: { tarifs: await Booster.tarifs(), durees: Booster.DUREES, residences, boosters: await Booster.listerEntreprise(Tenant.courante()) } });
+  } catch (error) { erreurBooster(res, error, 'lors de la lecture des boosters'); }
+});
+
+router.post('/boosters', async (req, res) => {
+  if (req.admin.sa) return res.status(403).json({ success: false, message: 'Réservé aux partenaires' });
+  try {
+    const Booster = require('../services/BoosterService');
+    const b = await Booster.demander(Tenant.courante(), req.body || {}, auteur(req));
+    ReservationService.emailService.sendAlerteFinance(
+      `Demande de booster : ${EntrepriseService.nom(b.entrepriseId)}`,
+      `${EntrepriseService.nom(b.entrepriseId)} demande un booster de ${b.duree} jours pour « ${b.residenceNom} » (${b.montant.toLocaleString('fr-FR')} FCFA, référence ${b.reference}). Activez-le après réception du paiement.`
+    ).catch(e => console.error('⚠️ Alerte booster non envoyée :', String(e?.message).replace(/\n|\r/g, '')));
+    res.status(201).json({ success: true, message: `Demande enregistrée (référence ${b.reference}). Le booster démarre dès que BABI RESIDENCE a reçu le paiement.`, data: Booster.vue(b) });
+  } catch (error) { erreurBooster(res, error, 'lors de la demande de booster'); }
+});
+
+router.delete('/boosters/:id', async (req, res) => {
+  if (req.admin.sa) return res.status(403).json({ success: false, message: 'Réservé aux partenaires' });
+  try {
+    res.json({ success: true, data: await require('../services/BoosterService').annuler(Tenant.courante(), req.params.id, auteur(req)) });
+  } catch (error) { erreurBooster(res, error, 'lors de l\'annulation'); }
+});
+
+router.get('/plateforme/boosters', superAdmin, async (req, res) => {
+  try {
+    const Booster = require('../services/BoosterService');
+    res.json({ success: true, data: { tarifs: await Booster.tarifs(), durees: Booster.DUREES, moyens: Booster.MOYENS, boosters: await Booster.listerPlateforme() } });
+  } catch (error) { erreurBooster(res, error, 'lors de la lecture des boosters'); }
+});
+
+router.put('/plateforme/boosters/tarifs', superAdmin, async (req, res) => {
+  try {
+    res.json({ success: true, data: await require('../services/BoosterService').changerTarifs(req.body?.tarifs || {}, auteur(req)) });
+  } catch (error) { erreurBooster(res, error, 'lors du changement des tarifs'); }
+});
+
+router.put('/plateforme/boosters/:id', superAdmin, async (req, res) => {
+  try {
+    const b = req.body || {};
+    const action = typeof b.action === 'string' ? b.action : '';
+    res.json({ success: true, data: await require('../services/BoosterService').agir(req.params.id, { action, moyen: b.moyen, reference: typeof b.reference === 'string' ? b.reference : '', motif: typeof b.motif === 'string' ? b.motif : '' }, auteur(req)) });
+  } catch (error) { erreurBooster(res, error, 'lors du traitement du booster'); }
+});
+
+/**
  * @route   GET /api/admin/clients
  * @desc    Partenaire : ses clients (voyageurs qui ont réservé ses résidences)
  */

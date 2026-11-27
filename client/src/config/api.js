@@ -53,6 +53,9 @@ export const API_ENDPOINTS = {
     companies: `${API_BASE_URL}/admin/plateforme/entreprises`,
     reviews: (chemin = '') => `${API_BASE_URL}/admin/avis${chemin}`,
     // Utilisateurs de la plateforme (comptes du Service client), clients des partenaires
+    // Booster de visibilité : partenaire (demandes) et plateforme (activation, tarifs)
+    boosters: (chemin = '') => `${API_BASE_URL}/admin/boosters${chemin}`,
+    platformBoosters: (chemin = '') => `${API_BASE_URL}/admin/plateforme/boosters${chemin}`,
     // Partenaire : ses clients (voyageurs qui ont réservé ses résidences)
     partnerClients: `${API_BASE_URL}/admin/clients`,
     users: (q = '') => `${API_BASE_URL}/admin/plateforme/utilisateurs${q ? `?q=${encodeURIComponent(q)}` : ''}`,
