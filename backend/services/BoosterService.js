@@ -81,11 +81,13 @@ const BoosterService = {
   /** Statut affiché : un booster actif dont la fin est passée est « terminé ». */
   vue(b0, maintenant = new Date()) {
     const b = this.normaliser(b0);
-    const statut = b.statut === 'actif' && b.fin && new Date(b.fin) <= maintenant ? 'termine' : b.statut;
+    // Actif dont la fin est passée : terminé ; actif qui n'a pas encore commencé (prolongation) : programmé
+    const statut = b.statut === 'actif' && b.fin && new Date(b.fin) <= maintenant ? 'termine'
+      : b.statut === 'actif' && b.debut && new Date(b.debut) > maintenant ? 'programme' : b.statut;
     return {
       id: b._id.toString(), reference: b.reference, entrepriseId: b.entrepriseId, residenceId: b.residenceId, residenceNom: b.residenceNom,
       duree: b.duree, montant: b.montant, statut, objectif: b.objectif, audience: b.audience, budgetJour: b.budgetJour,
-      cible: b.cible || null, bonus: b.bonus ?? null, demandeLe: b.demandeLe, debut: b.debut || null, fin: b.fin || null,
+      cible: b.cible || null, bonus: b.bonus ?? null, prolongationDe: b.prolongationDe || null, demandeLe: b.demandeLe, debut: b.debut || null, fin: b.fin || null,
       paiement: b.paiement || null, motif: b.motif || null,
       paiementEnLigne: b.paiementEnLigne ? { statut: b.paiementEnLigne.statut, raison: b.paiementEnLigne.raison || null, creeLe: b.paiementEnLigne.creeLe } : null,
     };
@@ -185,11 +187,11 @@ const BoosterService = {
     const debut = enCours[0] ? new Date(enCours[0].fin) : maintenant;
     const fin = new Date(debut.getTime() + b.duree * 86400000);
     const r = await this.collection.updateOne({ _id: b._id, statut: 'en_attente' }, { $set: {
-      statut: 'actif', debut, fin, activeLe: maintenant, activePar: par, paiement,
+      statut: 'actif', debut, fin, activeLe: maintenant, activePar: par, paiement, prolongationDe: enCours[0]?.reference || null,
     } });
     if (!r.modifiedCount) return null;
     await require('./finance').journaliser(par, 'BOOSTER_ACTIVE', { booster: b.reference, entrepriseId: b.entrepriseId, montant: paiement.montant, moyen: paiement.moyen, reference: paiement.reference, fin });
-    return this.vue({ ...b, statut: 'actif', debut, fin, paiement });
+    return this.vue({ ...b, statut: 'actif', debut, fin, paiement, prolongationDe: enCours[0]?.reference || null });
   },
 
   // ---------- Paiement en ligne (GeniusPay) ----------
@@ -316,8 +318,8 @@ const BoosterService = {
 
   /** Résultats d'un booster : sur sa période (jusqu'à aujourd'hui) */
   async resultats(b) {
-    if (!b.debut) return null;
     const maintenant = new Date();
+    if (!b.debut || new Date(b.debut) > maintenant) return null; // pas encore commencé
     const fin = new Date(Math.min(new Date(b.fin).getTime(), maintenant.getTime()));
     if (fin <= new Date(b.debut)) return { affichages: 0, affichagesSponsorises: 0, visites: 0, reservations: 0, montantReservations: 0 };
     const [s] = await this.stats.aggregate([

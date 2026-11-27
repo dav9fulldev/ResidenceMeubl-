@@ -2626,7 +2626,9 @@ test('Booster : prolongation d\'un ancien booster (formule 15 jours) payée en l
   assert.equal(pay.status, 200, JSON.stringify(pay.body));
   etat.ref.status = 'completed';
   const actif = (await api(`/api/admin/boosters/${p.body.data.id}/paiement`, { headers: h })).body.data;
-  assert.equal(actif.statut, 'actif');
+  assert.equal(actif.statut, 'programme', 'payé, il démarre à la fin du booster en cours');
+  assert.equal(actif.prolongationDe, 'BST-ANCIEN');
+  assert.equal((await api('/api/admin/boosters', { headers: h })).body.data.boosters.find(b => b.reference === p.body.data.reference).resultats, null, 'pas de résultats avant le début');
   assert.equal(new Date(actif.debut).getTime(), finAncien.getTime(), 'commence à la fin du booster en cours');
   assert.equal(Math.round((new Date(actif.fin) - new Date(actif.debut)) / 86400000), 14);
 });

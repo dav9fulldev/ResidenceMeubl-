@@ -61,8 +61,8 @@ const AdminBoostersPage = () => {
 
   const liste = d?.boosters || [];
   const attente = liste.filter(b => b.statut === 'en_attente');
-  const actifs = liste.filter(b => b.statut === 'actif');
-  const autres = liste.filter(b => !['en_attente', 'actif'].includes(b.statut));
+  const actifs = liste.filter(b => ['actif', 'programme'].includes(b.statut)); // programmé = prolongation à venir
+  const autres = liste.filter(b => !['en_attente', 'actif', 'programme'].includes(b.statut));
   const encaisse = liste.filter(b => b.paiement).reduce((s, b) => s + b.paiement.montant, 0);
 
   const ligne = (b) => (
@@ -71,13 +71,13 @@ const AdminBoostersPage = () => {
       <td><b>{b.entreprise}</b><small>{b.residenceNom}</small></td>
       <td>{fcfa(b.montant)}<small>{fcfa(b.budgetJour)}/jour × {b.duree} j · {d.objectifs[b.objectif]} · {d.audiences[b.audience]}{b.cible ? ` : ${b.cible}` : ''}</small></td>
       <td>{b.debut ? `${dateCourte(b.debut)} → ${dateCourte(b.fin)}` : '—'}{b.paiement && <small>{LIBELLES_MOYENS[b.paiement.moyen] || b.paiement.moyen} · {b.paiement.reference}</small>}</td>
-      <td><Badge table={STATUTS_BOOSTER} valeur={b.statut} />{b.motif && <small>{b.motif}</small>}</td>
+      <td><Badge table={STATUTS_BOOSTER} valeur={b.statut} />{b.motif && <small>{b.motif}</small>}{b.prolongationDe && <small>Prolongation de {b.prolongationDe}</small>}</td>
       <td className="booster-actions">
         {b.statut === 'en_attente' && <>
           <button type="button" className="adm-btn principal" onClick={() => setSaisie({ id: b.id, action: 'activer', moyen: 'mobile_money', reference: '', motif: '' })}>Activer</button>
           <button type="button" className="adm-btn" onClick={() => setSaisie({ id: b.id, action: 'refuser', motif: '' })}>Refuser</button>
         </>}
-        {b.statut === 'actif' && <button type="button" className="adm-btn" onClick={() => setSaisie({ id: b.id, action: 'arreter', motif: '' })}>Arrêter</button>}
+        {['actif', 'programme'].includes(b.statut) && <button type="button" className="adm-btn" onClick={() => setSaisie({ id: b.id, action: 'arreter', motif: '' })}>Arrêter</button>}
       </td>
     </tr>
   );
