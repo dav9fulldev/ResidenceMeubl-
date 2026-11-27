@@ -54,7 +54,7 @@ const AdminVisibilitePage = () => {
   const [d, setD] = useState(null);
   const [f, setF] = useState({ residenceId: '', objectif: 'visites', audience: 'tout', budgetJour: 1000, duree: 7 });
   const [msg, setMsg] = useState({ ok: '', erreur: '' });
-  const [paiement, setPaiement] = useState(null); // { booster?: vue existante, moyen: 'en_ligne' | 'hors_ligne' }
+  const [paiement, setPaiement] = useState(null); // { booster?: vue existante, moyen: 'en_ligne' | 'hors_ligne', erreur? }
   const [enCours, setEnCours] = useState(false);
   const [retour, setRetour] = useState(null);
   const [ouvert, setOuvert] = useState(null); // booster dont on lit les résultats
@@ -115,7 +115,12 @@ const AdminVisibilitePage = () => {
   const cibleAudience = (a) => (a === 'quartier' ? residence?.quartier : a === 'ville' ? residence?.ville : null);
 
   const prolonger = (b) => {
-    setF({ residenceId: String(b.residenceId), objectif: b.objectif, audience: b.audience, budgetJour: b.budgetJour, duree: b.duree });
+    // Un booster des anciennes formules (ex. 15 jours, 600 FCFA par jour) est ramené aux valeurs
+    // proposées aujourd'hui : durée la plus proche, budget au pas de 500 dans les bornes
+    const r = d.reglages;
+    const duree = r.durees.reduce((m, n) => (Math.abs(n - b.duree) < Math.abs(m - b.duree) ? n : m), r.durees[0]);
+    const budgetJour = Math.min(r.budgetMax, Math.max(r.budgetMin, Math.round(b.budgetJour / r.pas) * r.pas));
+    setF({ residenceId: String(b.residenceId), objectif: b.objectif, audience: b.audience, budgetJour, duree });
     setMsg({ ok: 'Campagne préremplie : vérifiez puis payez. Le nouveau booster commencera à la fin de l’actuel.', erreur: '' });
     haut.current?.scrollIntoView({ behavior: 'smooth' });
   };
@@ -138,8 +143,9 @@ const AdminVisibilitePage = () => {
       setMsg({ ok: `Demande ${b.reference} enregistrée. Réglez ${fcfa(b.montant)} par virement ou en espèces : BABI RESIDENCE active le booster dès réception.`, erreur: '' });
       await charger();
     } catch (err) {
-      setMsg({ ok: '', erreur: err.message });
-      setPaiement(null);
+      // L'erreur reste visible dans la fenêtre de paiement (la page peut être loin du haut)
+      setPaiement(p => (p ? { ...p, erreur: err.message } : p));
+      await charger();
     }
     setEnCours(false);
   };
@@ -354,16 +360,17 @@ const AdminVisibilitePage = () => {
               {paiement.booster ? `${paiement.booster.residenceNom} · ${paiement.booster.duree} jours` : `${residence?.nom} · ${fcfa(f.budgetJour)} par jour × ${f.duree} jours`}
             </p>
             <div className="booster-montant"><span>Montant à payer</span><strong>{fcfa(montantPaiement)}</strong></div>
+            {paiement.erreur && <p className="params-msg erreur" role="alert"><FaExclamationTriangle /> {paiement.erreur}</p>}
 
             <h3>Sélectionnez le moyen de paiement</h3>
             <div className="booster-moyens" role="radiogroup" aria-label="Moyen de paiement">
               <label className={`booster-moyen${paiement.moyen === 'en_ligne' ? ' choisi' : ''}${d.paiementEnLigne ? '' : ' indisponible'}`}>
-                <input type="radio" name="moyen" checked={paiement.moyen === 'en_ligne'} disabled={!d.paiementEnLigne} onChange={() => setPaiement(p => ({ ...p, moyen: 'en_ligne' }))} />
+                <input type="radio" name="moyen" checked={paiement.moyen === 'en_ligne'} disabled={!d.paiementEnLigne} onChange={() => setPaiement(p => ({ ...p, moyen: 'en_ligne', erreur: null }))} />
                 <FaMobileAlt aria-hidden="true" />
                 <span><b>Mobile Money ou carte bancaire</b><small>Wave, Orange Money, MTN, Moov, Visa, Mastercard · activation immédiate</small>{!d.paiementEnLigne && <small>Indisponible pour le moment</small>}</span>
               </label>
               <label className={`booster-moyen${paiement.moyen === 'hors_ligne' ? ' choisi' : ''}`}>
-                <input type="radio" name="moyen" checked={paiement.moyen === 'hors_ligne'} onChange={() => setPaiement(p => ({ ...p, moyen: 'hors_ligne' }))} />
+                <input type="radio" name="moyen" checked={paiement.moyen === 'hors_ligne'} onChange={() => setPaiement(p => ({ ...p, moyen: 'hors_ligne', erreur: null }))} />
                 <FaUniversity aria-hidden="true" />
                 <span><b>Virement ou espèces</b><small>BABI RESIDENCE active le booster après réception du paiement</small></span>
               </label>
