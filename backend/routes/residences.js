@@ -256,6 +256,33 @@ router.get('/:id/similaires', async (req, res) => {
  * @desc    Obtenir une résidence par ID
  * @access  Public
  */
+// Statistiques d'audience : au plus 60 envois par minute et par visiteur
+const statsLimiter = require('express-rate-limit')({
+  keyGenerator: require('../middleware/clientIp').cleLimite,
+  skip: () => process.env.NODE_ENV === 'test',
+  windowMs: 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false },
+});
+
+/**
+ * @route   POST /api/residences/statistiques   { affichages: [{ id, s }], visite? }
+ * @desc    Affichages des annonces (s = sponsorisé) et visites des fiches : résultats des boosters
+ */
+router.post('/statistiques', statsLimiter, async (req, res) => {
+  try {
+    const corps = req.body && typeof req.body === 'object' ? req.body : {};
+    const affichages = Array.isArray(corps.affichages) ? corps.affichages : [];
+    await require('../services/BoosterService').enregistrerStatistiques({ affichages, visite: corps.visite });
+    res.status(204).end();
+  } catch (error) {
+    console.error('Erreur statistiques :', error.message);
+    res.status(204).end(); // jamais bloquant pour le visiteur
+  }
+});
+
 /**
  * @route   GET /api/residences/:id/avis
  * @desc    Service de notation : moyenne, critères et derniers avis des voyageurs

@@ -1,6 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
-import { FaCheckCircle, FaExclamationTriangle, FaRocket, FaTimes, FaMobileAlt, FaUniversity, FaBed, FaUsers, FaMapMarkerAlt } from 'react-icons/fa';
+import {
+  FaCheckCircle, FaExclamationTriangle, FaRocket, FaTimes, FaMobileAlt, FaUniversity, FaBed, FaUsers, FaMapMarkerAlt,
+  FaEye, FaCalendarCheck, FaGlobeAfrica, FaMapPin, FaCity, FaChevronDown, FaChevronUp, FaRedo,
+} from 'react-icons/fa';
 import { API_ENDPOINTS } from '../config/api';
 import { useResidences } from '../context/ResidencesContext';
 import { useCompte } from '../context/CompteContext';
@@ -12,13 +15,36 @@ export const STATUTS_BOOSTER = {
   en_attente: ['En attente du paiement', 'attente'], actif: ['Actif', 'confirmee'], termine: ['Terminé', 'neutre'],
   refuse: ['Refusé', 'annulee'], annule: ['Annulé', 'neutre'], arrete: ['Arrêté', 'annulee'],
 };
+const ICONES_OBJECTIF = { visites: <FaEye />, reservations: <FaCalendarCheck /> };
+const AIDES_OBJECTIF = {
+  visites: 'Faire découvrir la résidence : on mesure les visites de sa fiche.',
+  reservations: 'Remplir le calendrier : on mesure les réservations reçues pendant le booster.',
+};
+const ICONES_AUDIENCE = { tout: <FaGlobeAfrica />, quartier: <FaMapPin />, ville: <FaCity /> };
+const FACTEUR_AUDIENCE = { tout: 1, ville: 0.6, quartier: 0.35 };
+const nombre = (n) => Math.round(n).toLocaleString('fr-FR');
 const jourLong = (d) => d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
 
+/** Bonus de classement selon le budget par jour (même règle que le serveur) */
+const bonusPour = (budget, r) => {
+  const t = Math.min(1, Math.max(0, (budget - r.budgetMin) / ((r.budgetMax - r.budgetMin) || 1)));
+  return r.bonusMin + (r.bonusMax - r.bonusMin) * t;
+};
+
+/** Estimation (fourchette) des affichages et des visites, d'après la fréquentation des 14 derniers jours */
+const estimer = (residence, audience, budget, duree, reglages) => {
+  if (!residence) return null;
+  const base = residence.affichagesJour > 0 ? residence.affichagesJour : 30;
+  const parJour = base * FACTEUR_AUDIENCE[audience] * (1 + bonusPour(budget, reglages) * 2.5);
+  const taux = residence.tauxVisite > 0 ? residence.tauxVisite : 0.05;
+  const total = parJour * duree;
+  return { affichages: [total * 0.75, total * 1.25], visites: [total * taux * 0.75, total * taux * 1.25], donnees: residence.affichagesJour > 0 };
+};
+
 /**
- * Partenaire : booster de visibilité, sur le modèle des publicités Facebook.
- * Création à gauche (résidence, durée, récapitulatif), aperçu de l'annonce à droite,
- * puis « Payer et booster » : paiement en ligne GeniusPay (Mobile Money, carte), activation
- * automatique ; ou virement / espèces, activé par BABI RESIDENCE après réception.
+ * Partenaire : booster de visibilité, sur le modèle du « Booster la publication » de Facebook.
+ * Résidence → objectif → audience → budget par jour et durée (estimation) → récapitulatif et aperçu
+ * → paiement (GeniusPay, ou virement / espèces) → résultats de chaque booster → prolonger.
  */
 const AdminVisibilitePage = () => {
   const { adminRequest } = useResidences();
@@ -26,19 +52,25 @@ const AdminVisibilitePage = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [d, setD] = useState(null);
-  const [f, setF] = useState({ residenceId: '', duree: 7 });
+  const [f, setF] = useState({ residenceId: '', objectif: 'visites', audience: 'tout', budgetJour: 1000, duree: 7 });
   const [msg, setMsg] = useState({ ok: '', erreur: '' });
   const [paiement, setPaiement] = useState(null); // { booster?: vue existante, moyen: 'en_ligne' | 'hors_ligne' }
   const [enCours, setEnCours] = useState(false);
-  const [retour, setRetour] = useState(null); // vérification au retour de GeniusPay
+  const [retour, setRetour] = useState(null);
+  const [ouvert, setOuvert] = useState(null); // booster dont on lit les résultats
   const dialogue = useRef(null);
+  const haut = useRef(null);
 
   const charger = useCallback(async () => {
-    try { setD((await adminRequest(API_ENDPOINTS.admin.boosters())).data); } catch (e) { setMsg({ ok: '', erreur: e.message }); }
+    try {
+      const r = (await adminRequest(API_ENDPOINTS.admin.boosters())).data;
+      setD(r);
+      setF(v => ({ ...v, budgetJour: Math.min(Math.max(v.budgetJour, r.reglages.budgetMin), r.reglages.budgetMax) }));
+    } catch (e) { setMsg({ ok: '', erreur: e.message }); }
   }, [adminRequest]);
   useEffect(() => { if (compte && !compte.superAdmin) charger(); }, [charger, compte]);
 
-  // Retour de la page de paiement GeniusPay : on vérifie auprès du serveur (qui relit chez GeniusPay)
+  // Retour de la page de paiement GeniusPay : le serveur relit le paiement chez GeniusPay
   useEffect(() => {
     const id = searchParams.get('booster');
     if (searchParams.get('paiement') !== 'geniuspay' || !id || !compte || compte.superAdmin) return undefined;
@@ -50,7 +82,7 @@ const AdminVisibilitePage = () => {
       for (let i = 0; i < 12 && actif; i += 1) {
         try {
           const b = (await adminRequest(API_ENDPOINTS.admin.boosters(`/${id}/paiement`))).data;
-          if (b.statut === 'actif') { if (actif) setRetour({ etat: 'ok', message: `Paiement reçu : « ${b.residenceNom} » est boostée jusqu’au ${dateCourte(b.fin)}.` }); charger(); return; }
+          if (b.statut === 'actif') { if (actif) setRetour({ etat: 'ok', message: `Paiement reçu : « ${b.residenceNom} » est boostée du ${dateCourte(b.debut)} au ${dateCourte(b.fin)}.` }); charger(); return; }
           if (b.paiementEnLigne?.statut === 'echec') { if (actif) setRetour({ etat: 'echec', message: `${b.paiementEnLigne.raison}. Vous pouvez réessayer depuis « Mes boosters ».` }); charger(); return; }
         } catch { /* réseau : nouvel essai */ }
         await new Promise(r => setTimeout(r, 3000));
@@ -65,7 +97,6 @@ const AdminVisibilitePage = () => {
     return () => { actif = false; };
   }, [searchParams, compte, adminRequest, navigate, charger]);
 
-  // Fenêtre de paiement : Échap pour fermer, focus à l'ouverture
   useEffect(() => {
     if (!paiement) return undefined;
     dialogue.current?.focus();
@@ -75,22 +106,28 @@ const AdminVisibilitePage = () => {
   }, [paiement, enCours]);
 
   const residence = useMemo(() => d?.residences.find(r => String(r.id) === String(f.residenceId)) || null, [d, f.residenceId]);
+  const estimation = useMemo(() => (d ? estimer(residence, f.audience, f.budgetJour, f.duree, d.reglages) : null), [d, residence, f]);
 
   if (compte?.superAdmin) return <Navigate to="/admin/boosters" replace />;
 
-  const ouvrirPaiement = (booster = null) => {
-    setMsg({ ok: '', erreur: '' });
-    setPaiement({ booster, moyen: d?.paiementEnLigne ? 'en_ligne' : 'hors_ligne' });
+  const champ = (k, v) => setF(x => ({ ...x, [k]: v }));
+  const total = f.budgetJour * f.duree;
+  const cibleAudience = (a) => (a === 'quartier' ? residence?.quartier : a === 'ville' ? residence?.ville : null);
+
+  const prolonger = (b) => {
+    setF({ residenceId: String(b.residenceId), objectif: b.objectif, audience: b.audience, budgetJour: b.budgetJour, duree: b.duree });
+    setMsg({ ok: 'Campagne préremplie : vérifiez puis payez. Le nouveau booster commencera à la fin de l’actuel.', erreur: '' });
+    haut.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
   const payer = async () => {
     setEnCours(true); setMsg({ ok: '', erreur: '' });
     try {
-      // Demande existante (bouton « Payer » d'un booster en attente) ou nouvelle demande
       let b = paiement.booster;
       if (!b) {
-        const deja = d.boosters.find(x => x.statut === 'en_attente' && x.residenceId === Number(f.residenceId) && x.duree === Number(f.duree));
-        b = deja || (await adminRequest(API_ENDPOINTS.admin.boosters(), { method: 'POST', body: { residenceId: Number(f.residenceId), duree: Number(f.duree) } })).data;
+        b = (await adminRequest(API_ENDPOINTS.admin.boosters(), { method: 'POST', body: {
+          residenceId: Number(f.residenceId), objectif: f.objectif, audience: f.audience, budgetJour: Number(f.budgetJour), duree: Number(f.duree),
+        } })).data;
       }
       if (paiement.moyen === 'en_ligne') {
         const r = await adminRequest(API_ENDPOINTS.admin.boosters(`/${b.id}/paiement`), { method: 'POST' });
@@ -112,16 +149,15 @@ const AdminVisibilitePage = () => {
     try { await adminRequest(API_ENDPOINTS.admin.boosters(`/${id}`), { method: 'DELETE' }); setMsg({ ok: 'Demande annulée.', erreur: '' }); await charger(); } catch (err) { setMsg({ ok: '', erreur: err.message }); }
   };
 
-  const montant = paiement?.booster ? paiement.booster.montant : d?.tarifs[f.duree];
-  const duree = paiement?.booster ? paiement.booster.duree : Number(f.duree);
-  const finEstimee = new Date(Date.now() + Number(f.duree) * 86400000);
+  const enAttente = residence && d?.boosters.find(b => b.statut === 'en_attente' && b.residenceId === residence.id);
+  const montantPaiement = paiement?.booster ? paiement.booster.montant : total;
 
   return (
-    <div className="finances-page boosters-page">
+    <div className="finances-page boosters-page" ref={haut}>
       <header className="admin-page-header">
         <div>
           <h1>Visibilité</h1>
-          <p>Boostez une résidence : elle est proposée plus haut aux voyageurs, en plus de sa note, avec la mention « Sponsorisé ».</p>
+          <p>Boostez une résidence : elle est proposée plus haut aux voyageurs que vous ciblez, en plus de sa note, avec la mention « Sponsorisé ».</p>
         </div>
       </header>
       {msg.erreur && <p className="params-msg erreur" role="alert"><FaExclamationTriangle /> {msg.erreur}</p>}
@@ -137,9 +173,9 @@ const AdminVisibilitePage = () => {
           <div className="booster-creation">
             <div className="booster-etapes">
               <section className="adm-carte fin-bloc">
-                <h2>Résidence</h2>
+                <h2><span className="booster-num">1</span> Résidence</h2>
                 <label className="sr-seul" htmlFor="booster-residence">Résidence à booster</label>
-                <select id="booster-residence" value={f.residenceId} onChange={(e) => setF(v => ({ ...v, residenceId: e.target.value }))}>
+                <select id="booster-residence" value={f.residenceId} onChange={(e) => champ('residenceId', e.target.value)}>
                   <option value="">Choisir une résidence publiée</option>
                   {d.residences.map(r => <option key={r.id} value={r.id}>{r.nom}</option>)}
                 </select>
@@ -147,27 +183,74 @@ const AdminVisibilitePage = () => {
               </section>
 
               <section className="adm-carte fin-bloc">
-                <h2>Durée et budget</h2>
-                <div className="booster-formules" role="radiogroup" aria-label="Durée du booster">
-                  {d.durees.map(n => (
-                    <label key={n} className={`booster-formule${Number(f.duree) === n ? ' choisie' : ''}`}>
-                      <input type="radio" name="duree" value={n} checked={Number(f.duree) === n} onChange={() => setF(v => ({ ...v, duree: n }))} />
-                      <span className="booster-duree">{n} jours</span>
-                      <strong>{fcfa(d.tarifs[n])}</strong>
-                      <small>{fcfa(Math.round(d.tarifs[n] / n))} par jour</small>
+                <h2><span className="booster-num">2</span> Objectif</h2>
+                <p className="verif-aide">Quel résultat attendez-vous de ce booster ?</p>
+                <div className="booster-choix" role="radiogroup" aria-label="Objectif">
+                  {Object.entries(d.objectifs).map(([k, libelle]) => (
+                    <label key={k} className={`booster-option${f.objectif === k ? ' choisie' : ''}`}>
+                      <input type="radio" name="objectif" checked={f.objectif === k} onChange={() => champ('objectif', k)} />
+                      <span className="booster-option-icone" aria-hidden="true">{ICONES_OBJECTIF[k]}</span>
+                      <span><b>{libelle}</b><small>{AIDES_OBJECTIF[k]}</small></span>
                     </label>
                   ))}
                 </div>
               </section>
 
+              <section className="adm-carte fin-bloc">
+                <h2><span className="booster-num">3</span> Audience</h2>
+                <p className="verif-aide">Qui doit voir votre résidence plus haut ?</p>
+                <div className="booster-choix" role="radiogroup" aria-label="Audience">
+                  {Object.entries(d.audiences).map(([k, libelle]) => {
+                    const cible = cibleAudience(k);
+                    const indispo = k !== 'tout' && residence && !cible;
+                    return (
+                      <label key={k} className={`booster-option${f.audience === k ? ' choisie' : ''}${indispo ? ' indisponible' : ''}`}>
+                        <input type="radio" name="audience" checked={f.audience === k} disabled={indispo} onChange={() => champ('audience', k)} />
+                        <span className="booster-option-icone" aria-hidden="true">{ICONES_AUDIENCE[k]}</span>
+                        <span>
+                          <b>{libelle}{cible ? ` : ${cible}` : ''}</b>
+                          <small>{k === 'tout' ? 'Accueil, catalogue et toutes les recherches.' : 'Seulement quand un voyageur cherche dans cette zone : plus ciblé.'}</small>
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </section>
+
+              <section className="adm-carte fin-bloc">
+                <h2><span className="booster-num">4</span> Budget et durée</h2>
+                <div className="booster-budget">
+                  <label htmlFor="booster-budget">Budget par jour <strong>{fcfa(f.budgetJour)}</strong></label>
+                  <input id="booster-budget" type="range" min={d.reglages.budgetMin} max={d.reglages.budgetMax} step={d.reglages.pas}
+                    value={f.budgetJour} onChange={(e) => champ('budgetJour', Number(e.target.value))} />
+                  <p className="booster-bornes"><span>{fcfa(d.reglages.budgetMin)}</span><span>Plus le budget est élevé, plus la résidence remonte</span><span>{fcfa(d.reglages.budgetMax)}</span></p>
+                </div>
+                <p className="booster-sous-titre">Durée</p>
+                <div className="booster-durees" role="radiogroup" aria-label="Durée">
+                  {d.reglages.durees.map(n => (
+                    <label key={n} className={`booster-duree-choix${f.duree === n ? ' choisie' : ''}`}>
+                      <input type="radio" name="duree" checked={f.duree === n} onChange={() => champ('duree', n)} />
+                      {n} jours
+                    </label>
+                  ))}
+                </div>
+                {estimation && (
+                  <div className="booster-estimation" aria-live="polite">
+                    <p><FaEye aria-hidden="true" /> <b>{nombre(estimation.affichages[0])} à {nombre(estimation.affichages[1])}</b> affichages estimés</p>
+                    <p><FaMapMarkerAlt aria-hidden="true" /> <b>{nombre(estimation.visites[0])} à {nombre(estimation.visites[1])}</b> visites de la fiche estimées</p>
+                    <small>{estimation.donnees ? 'D’après la fréquentation de la résidence sur les 14 derniers jours.' : 'Estimation de départ : la fréquentation de la résidence n’est pas encore mesurée.'} Ce n’est pas une garantie.</small>
+                  </div>
+                )}
+              </section>
+
               <section className="adm-carte fin-bloc booster-recap">
                 <h2>Récapitulatif</h2>
                 <dl>
-                  <div><dt>Durée</dt><dd>{f.duree} jours</dd></div>
-                  <div><dt>Début</dt><dd>dès la confirmation du paiement</dd></div>
-                  <div><dt>Fin estimée</dt><dd>{jourLong(finEstimee)}</dd></div>
-                  <div><dt>Placement</dt><dd>plus haut dans les résultats, mention « Sponsorisé »</dd></div>
-                  <div className="total"><dt>Total</dt><dd>{fcfa(d.tarifs[f.duree])}</dd></div>
+                  <div><dt>Objectif</dt><dd>{d.objectifs[f.objectif]}</dd></div>
+                  <div><dt>Audience</dt><dd>{d.audiences[f.audience]}{cibleAudience(f.audience) ? ` : ${cibleAudience(f.audience)}` : ''}</dd></div>
+                  <div><dt>Budget</dt><dd>{fcfa(f.budgetJour)} par jour × {f.duree} jours</dd></div>
+                  <div><dt>Période</dt><dd>dès le paiement, jusqu’au {jourLong(new Date(Date.now() + f.duree * 86400000))} environ</dd></div>
+                  <div className="total"><dt>Total</dt><dd>{fcfa(total)}</dd></div>
                 </dl>
                 <p className="verif-aide">Une résidence avec de mauvaises notes reste « Sponsorisé » mais ne remonte pas : la qualité passe d’abord.</p>
               </section>
@@ -193,42 +276,67 @@ const AdminVisibilitePage = () => {
                     </div>
                   </article>
                 ) : <p className="booster-annonce-vide">Choisissez une résidence pour voir l’aperçu de son annonce.</p>}
-                <p className="verif-aide">C’est ainsi que les voyageurs verront votre résidence, placée plus haut dans l’accueil et le catalogue.</p>
+                <p className="verif-aide">{f.audience === 'tout' ? 'Visible plus haut dans l’accueil, le catalogue et les recherches.' : `Visible plus haut quand un voyageur cherche « ${cibleAudience(f.audience) || '…'} ».`}</p>
               </div>
             </aside>
           </div>
 
           <div className="booster-barre">
-            <p>En cliquant sur « Payer et booster », vous acceptez que la mention « Sponsorisé » apparaisse sur l’annonce pendant la durée choisie.</p>
-            <button type="button" className="adm-btn principal" disabled={!f.residenceId} onClick={() => ouvrirPaiement()}><FaRocket /> Payer et booster</button>
+            <p>{enAttente ? `Une demande (${enAttente.reference}) attend déjà un paiement pour cette résidence : payez-la ou annulez-la dans « Mes boosters ».` : 'En cliquant sur « Payer et booster », vous acceptez que la mention « Sponsorisé » apparaisse sur l’annonce pendant la durée choisie.'}</p>
+            <button type="button" className="adm-btn principal" disabled={!f.residenceId || Boolean(enAttente)} onClick={() => setPaiement({ booster: null, moyen: d.paiementEnLigne ? 'en_ligne' : 'hors_ligne' })}>
+              <FaRocket /> Payer et booster · {fcfa(total)}
+            </button>
           </div>
 
           <div className="adm-carte fin-tableau">
             <h2>Mes boosters</h2>
             <table>
-              <thead><tr><th>Référence</th><th>Résidence</th><th>Durée</th><th>Montant</th><th>Période</th><th>Statut</th><th><span className="sr-seul">Actions</span></th></tr></thead>
+              <thead><tr><th>Référence</th><th>Résidence</th><th>Campagne</th><th>Montant</th><th>Période</th><th>Statut</th><th><span className="sr-seul">Actions</span></th></tr></thead>
               <tbody>
                 {d.boosters.length === 0 && <tr><td colSpan={7} className="ent-vide">Aucun booster pour l’instant.</td></tr>}
-                {d.boosters.map(b => (
-                  <tr key={b.id}>
-                    <td><code>{b.reference}</code></td>
-                    <td>{b.residenceNom}</td>
-                    <td>{b.duree} jours</td>
-                    <td>{fcfa(b.montant)}</td>
-                    <td>{b.debut ? `${dateCourte(b.debut)} → ${dateCourte(b.fin)}` : <small>demandé le {dateCourte(b.demandeLe)}</small>}</td>
-                    <td>
-                      <Badge table={STATUTS_BOOSTER} valeur={b.statut} />
-                      {b.motif && <small>{b.motif}</small>}
-                      {b.statut === 'en_attente' && b.paiementEnLigne?.statut === 'echec' && <small>{b.paiementEnLigne.raison}</small>}
-                    </td>
-                    <td className="booster-actions">
-                      {b.statut === 'en_attente' && <>
-                        <button type="button" className="adm-btn principal" onClick={() => ouvrirPaiement(b)}>Payer</button>
-                        <button type="button" className="adm-btn" onClick={() => annuler(b.id)}>Annuler</button>
-                      </>}
-                    </td>
-                  </tr>
-                ))}
+                {d.boosters.map(b => {
+                  const r = b.resultats;
+                  const resultat = b.objectif === 'reservations' ? r?.reservations : r?.visites;
+                  return (
+                    <React.Fragment key={b.id}>
+                      <tr>
+                        <td><code>{b.reference}</code></td>
+                        <td>{b.residenceNom}</td>
+                        <td>{d.objectifs[b.objectif]}<small>{d.audiences[b.audience]}{b.cible ? ` : ${b.cible}` : ''} · {fcfa(b.budgetJour)}/jour</small></td>
+                        <td>{fcfa(b.montant)}<small>{b.duree} jours</small></td>
+                        <td>{b.debut ? `${dateCourte(b.debut)} → ${dateCourte(b.fin)}` : <small>demandé le {dateCourte(b.demandeLe)}</small>}</td>
+                        <td>
+                          <Badge table={STATUTS_BOOSTER} valeur={b.statut} />
+                          {b.motif && <small>{b.motif}</small>}
+                          {b.statut === 'en_attente' && b.paiementEnLigne?.statut === 'echec' && <small>{b.paiementEnLigne.raison}</small>}
+                        </td>
+                        <td className="booster-actions">
+                          {b.statut === 'en_attente' && <>
+                            <button type="button" className="adm-btn principal" onClick={() => setPaiement({ booster: b, moyen: d.paiementEnLigne ? 'en_ligne' : 'hors_ligne' })}>Payer</button>
+                            <button type="button" className="adm-btn" onClick={() => annuler(b.id)}>Annuler</button>
+                          </>}
+                          {r && <button type="button" className="adm-btn" aria-expanded={ouvert === b.id} onClick={() => setOuvert(o => (o === b.id ? null : b.id))}>
+                            {ouvert === b.id ? <FaChevronUp aria-hidden="true" /> : <FaChevronDown aria-hidden="true" />} Résultats
+                          </button>}
+                          {['actif', 'termine'].includes(b.statut) && <button type="button" className="adm-btn" onClick={() => prolonger(b)}><FaRedo aria-hidden="true" /> Prolonger</button>}
+                        </td>
+                      </tr>
+                      {ouvert === b.id && r && (
+                        <tr className="booster-resultats-ligne">
+                          <td colSpan={7}>
+                            <div className="booster-resultats">
+                              <div><span>Affichages</span><strong>{nombre(r.affichages)}</strong><small>dont {nombre(r.affichagesSponsorises)} avec « Sponsorisé »</small></div>
+                              <div><span>Visites de la fiche</span><strong>{nombre(r.visites)}</strong><small>taux de clic {r.affichages ? `${((r.visites / r.affichages) * 100).toLocaleString('fr-FR', { maximumFractionDigits: 1 })} %` : '—'}</small></div>
+                              <div><span>Réservations</span><strong>{nombre(r.reservations)}</strong><small>{fcfa(r.montantReservations)} de séjours</small></div>
+                              <div className="principal"><span>Coût par {b.objectif === 'reservations' ? 'réservation' : 'visite'}</span><strong>{resultat ? fcfa(Math.round(b.montant / resultat)) : '—'}</strong><small>objectif : {d.objectifs[b.objectif].toLowerCase()}</small></div>
+                            </div>
+                            <small className="booster-resultats-note">Résultats mesurés pendant la période du booster{b.statut === 'actif' ? ', jusqu’à aujourd’hui' : ''}. Les réservations comptées sont celles reçues pour cette résidence pendant cette période.</small>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -242,8 +350,10 @@ const AdminVisibilitePage = () => {
               <h2 id="booster-dialogue-titre">Payer le booster</h2>
               <button type="button" className="booster-fermer" aria-label="Fermer" disabled={enCours} onClick={() => setPaiement(null)}><FaTimes /></button>
             </header>
-            <p className="booster-dialogue-objet">{paiement.booster ? paiement.booster.residenceNom : residence?.nom} · {duree} jours</p>
-            <div className="booster-montant"><span>Montant à payer</span><strong>{fcfa(montant)}</strong></div>
+            <p className="booster-dialogue-objet">
+              {paiement.booster ? `${paiement.booster.residenceNom} · ${paiement.booster.duree} jours` : `${residence?.nom} · ${fcfa(f.budgetJour)} par jour × ${f.duree} jours`}
+            </p>
+            <div className="booster-montant"><span>Montant à payer</span><strong>{fcfa(montantPaiement)}</strong></div>
 
             <h3>Sélectionnez le moyen de paiement</h3>
             <div className="booster-moyens" role="radiogroup" aria-label="Moyen de paiement">

@@ -25,6 +25,8 @@ export const fromApiResidence = (r) => ({
   recommendation: r.recommandation ?? 0,
   // Booster de visibilité actif (mention « Sponsorisé »)
   sponsored: Boolean(r.sponsorise),
+  // Booster ciblé (quartier ou ville) : appliqué seulement aux recherches de cette zone
+  boost: r.boost || null,
   images: r.photos || [],
   amenities: r.equipements || [],
   active: r.actif !== false,

@@ -223,11 +223,11 @@ router.put('/avis/:id/masquage', superAdmin, async (req, res) => {
 
 /**
  * Booster de visibilité (paiement hors plateforme, activation manuelle par la plateforme)
- * @route   GET    /api/admin/boosters                      partenaire : tarifs, ses résidences, ses boosters
- * @route   POST   /api/admin/boosters                      { residenceId, duree }   demande
+ * @route   GET    /api/admin/boosters                      partenaire : réglages, ses résidences (avec moyennes), ses boosters et leurs résultats
+ * @route   POST   /api/admin/boosters                      { residenceId, objectif, audience, budgetJour, duree }   campagne
  * @route   DELETE /api/admin/boosters/:id                  annuler une demande en attente
- * @route   GET    /api/admin/plateforme/boosters           plateforme : toutes les demandes, tarifs
- * @route   PUT    /api/admin/plateforme/boosters/tarifs    { tarifs: { 7, 15, 30 } }
+ * @route   GET    /api/admin/plateforme/boosters           plateforme : toutes les demandes, réglages
+ * @route   PUT    /api/admin/plateforme/boosters/reglages  { budgetMin, budgetMax }   budget par jour
  * @route   PUT    /api/admin/plateforme/boosters/:id       { action: activer|refuser|arreter, moyen, reference, motif }
  */
 const erreurBooster = (res, error, contexte) => {
@@ -242,11 +242,18 @@ router.get('/boosters', async (req, res) => {
   try {
     const Booster = require('../services/BoosterService');
     // Résidences publiées, avec de quoi afficher l'aperçu de l'annonce
-    const residences = (await ResidenceService.getAllResidencesAdmin())
-      .filter(r => r.statutVerification === 'verifiee' && r.actif !== false)
-      .map(r => ({ id: r.id, nom: r.nom, photo: r.photos?.[0] || null, localisation: [r.quartier, r.ville].filter(Boolean).join(', ') || r.localisation, prix: r.prix, capacite: r.capacite, nombreChambres: r.nombreChambres }));
+    const publiees = (await ResidenceService.getAllResidencesAdmin()).filter(r => r.statutVerification === 'verifiee' && r.actif !== false);
+    const moyennes = await Booster.moyennes(publiees.map(r => r.id));
+    const residences = publiees.map(r => ({
+      id: r.id, nom: r.nom, photo: r.photos?.[0] || null, ville: r.ville || '', quartier: r.quartier || '',
+      localisation: [r.quartier, r.ville].filter(Boolean).join(', ') || r.localisation, prix: r.prix, capacite: r.capacite, nombreChambres: r.nombreChambres,
+      affichagesJour: moyennes.get(r.id)?.affichagesJour ?? null, tauxVisite: moyennes.get(r.id)?.tauxVisite ?? null,
+    }));
     const enLigne = require('../services/paiement/GeniusPayClient').estConfigure();
-    res.json({ success: true, data: { tarifs: await Booster.tarifs(), durees: Booster.DUREES, residences, paiementEnLigne: enLigne, boosters: await Booster.listerEntreprise(Tenant.courante()) } });
+    res.json({ success: true, data: {
+      reglages: await Booster.reglages(), objectifs: Booster.OBJECTIFS, audiences: Booster.AUDIENCES,
+      residences, paiementEnLigne: enLigne, boosters: await Booster.listerEntreprise(Tenant.courante()),
+    } });
   } catch (error) { erreurBooster(res, error, 'lors de la lecture des boosters'); }
 });
 
@@ -254,10 +261,13 @@ router.post('/boosters', async (req, res) => {
   if (req.admin.sa) return res.status(403).json({ success: false, message: 'Réservé aux partenaires' });
   try {
     const Booster = require('../services/BoosterService');
-    const b = await Booster.demander(Tenant.courante(), req.body || {}, auteur(req));
+    const b = await Booster.demander(Tenant.courante(), {
+      residenceId: req.body?.residenceId, objectif: String(req.body?.objectif || 'visites'), audience: String(req.body?.audience || 'tout'),
+      budgetJour: req.body?.budgetJour, duree: req.body?.duree,
+    }, auteur(req));
     ReservationService.emailService.sendAlerteFinance(
       `Demande de booster : ${EntrepriseService.nom(b.entrepriseId)}`,
-      `${EntrepriseService.nom(b.entrepriseId)} demande un booster de ${b.duree} jours pour « ${b.residenceNom} » (${b.montant.toLocaleString('fr-FR')} FCFA, référence ${b.reference}). Activez-le après réception du paiement.`
+      `${EntrepriseService.nom(b.entrepriseId)} crée un booster de ${b.duree} jours pour « ${b.residenceNom} » (${b.budgetJour.toLocaleString('fr-FR')} FCFA par jour, total ${b.montant.toLocaleString('fr-FR')} FCFA, référence ${b.reference}). Payé en ligne, il s'active seul ; sinon activez-le après réception du paiement.`
     ).catch(e => console.error('⚠️ Alerte booster non envoyée :', String(e?.message).replace(/\n|\r/g, '')));
     res.status(201).json({ success: true, message: `Demande enregistrée (référence ${b.reference}). Le booster démarre dès que BABI RESIDENCE a reçu le paiement.`, data: Booster.vue(b) });
   } catch (error) { erreurBooster(res, error, 'lors de la demande de booster'); }
@@ -292,14 +302,14 @@ router.delete('/boosters/:id', async (req, res) => {
 router.get('/plateforme/boosters', superAdmin, async (req, res) => {
   try {
     const Booster = require('../services/BoosterService');
-    res.json({ success: true, data: { tarifs: await Booster.tarifs(), durees: Booster.DUREES, moyens: Booster.MOYENS, boosters: await Booster.listerPlateforme() } });
+    res.json({ success: true, data: { reglages: await Booster.reglages(), objectifs: Booster.OBJECTIFS, audiences: Booster.AUDIENCES, moyens: Booster.MOYENS, boosters: await Booster.listerPlateforme() } });
   } catch (error) { erreurBooster(res, error, 'lors de la lecture des boosters'); }
 });
 
-router.put('/plateforme/boosters/tarifs', superAdmin, async (req, res) => {
+router.put('/plateforme/boosters/reglages', superAdmin, async (req, res) => {
   try {
-    res.json({ success: true, data: await require('../services/BoosterService').changerTarifs(req.body?.tarifs || {}, auteur(req)) });
-  } catch (error) { erreurBooster(res, error, 'lors du changement des tarifs'); }
+    res.json({ success: true, data: await require('../services/BoosterService').changerReglages(req.body || {}, auteur(req)) });
+  } catch (error) { erreurBooster(res, error, 'lors du changement des réglages'); }
 });
 
 router.put('/plateforme/boosters/:id', superAdmin, async (req, res) => {

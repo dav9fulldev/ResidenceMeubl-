@@ -2390,8 +2390,9 @@ test('vérification de l\'email des partenaires : code à 6 chiffres, essais lim
   assert.equal((await api('/api/admin/login', { method: 'POST', body: { email, password: mdp } })).status, 200);
 });
 
-test('Booster de visibilité : demande du partenaire, activation manuelle, bonus limité, mention Sponsorisé', async (t) => {
+test('Booster de visibilité : campagne (objectif, audience, budget par jour), activation, ciblage, résultats, prolongation', async (t) => {
   const AuthService = require('../services/AuthService');
+  const Booster = require('../services/BoosterService');
   const es = ReservationService.emailService;
   const original = es.sendAlerteFinance;
   const alertes = [];
@@ -2401,86 +2402,113 @@ test('Booster de visibilité : demande du partenaire, activation manuelle, bonus
     await db.collection('boosters').deleteMany({});
     await db.collection('parametres').deleteOne({ _id: 'booster' });
     await db.collection('avis').deleteMany({ reservationId: /^BOOSTER_/ });
+    await db.collection('statistiques_residences').deleteMany({});
   });
 
   const residence = await db.collection('residences').findOne({ id: 1 });
   const hPartenaire = { Authorization: `Bearer ${AuthService.creerJeton('gestion@test', { entrepriseId: residence.entrepriseId, superAdmin: false })}` };
   const hAdmin = await connexionAdmin();
-  const score = async () => (await api('/api/residences')).body.data.find(r => r.id === 1);
+  const publique = async () => (await api('/api/residences')).body.data.find(r => r.id === 1);
 
-  // Le partenaire voit les tarifs et ses résidences publiées
-  const accueil = await api('/api/admin/boosters', { headers: hPartenaire });
-  assert.equal(accueil.status, 200);
-  assert.deepEqual(accueil.body.data.tarifs, { 7: 5000, 15: 9000, 30: 15000 });
-  assert.ok(accueil.body.data.residences.some(r => r.id === 1));
-  assert.equal((await api('/api/admin/boosters', { headers: hAdmin })).status, 403, 'la plateforme ne demande pas de booster');
+  // Réglages et résidences publiées (avec ville et quartier pour l'audience)
+  const accueil = (await api('/api/admin/boosters', { headers: hPartenaire })).body.data;
+  assert.equal(accueil.reglages.budgetMin, 500);
+  assert.equal(accueil.reglages.budgetMax, 10000);
+  assert.deepEqual(accueil.reglages.durees, [3, 7, 14, 30]);
+  assert.ok(accueil.residences.find(r => r.id === 1).quartier !== undefined);
+  assert.equal((await api('/api/admin/boosters', { headers: hAdmin })).status, 403);
 
-  // Demande : durée et résidence contrôlées, une seule à la fois
-  const demander = (body) => api('/api/admin/boosters', { method: 'POST', headers: hPartenaire, body });
-  assert.equal((await demander({ residenceId: 1, duree: 10 })).status, 400);
-  assert.equal((await demander({ residenceId: 999999, duree: 7 })).status, 404);
-  const d = await demander({ residenceId: 1, duree: 7 });
-  assert.equal(d.status, 201, JSON.stringify(d.body));
-  assert.equal(d.body.data.statut, 'en_attente');
-  assert.equal(d.body.data.montant, 5000);
-  assert.match(d.body.data.reference, /^BST-\d{4}-\d{6}$/);
-  assert.equal(alertes.length, 1, 'plateforme prévenue');
-  assert.equal((await demander({ residenceId: 1, duree: 15 })).status, 409, 'une demande à la fois');
-  const avant = await score();
-  assert.equal(avant.sponsorise, false, 'pas d\'effet avant activation');
+  // Contrôles de la campagne
+  const creer = (body) => api('/api/admin/boosters', { method: 'POST', headers: hPartenaire, body: { residenceId: 1, objectif: 'visites', audience: 'tout', budgetJour: 1000, duree: 7, ...body } });
+  assert.equal((await creer({ duree: 10 })).status, 400);
+  assert.equal((await creer({ budgetJour: 100 })).status, 400, 'sous le minimum');
+  assert.equal((await creer({ budgetJour: 1250 })).status, 400, 'pas de 500');
+  assert.equal((await creer({ objectif: 'likes' })).status, 400);
+  assert.equal((await creer({ audience: 'monde' })).status, 400);
+  assert.equal((await creer({ residenceId: 999999 })).status, 404);
+  const c = await creer({ budgetJour: 2000, duree: 7 });
+  assert.equal(c.status, 201, JSON.stringify(c.body));
+  assert.equal(c.body.data.montant, 14000, '2 000 × 7 jours');
+  assert.equal(c.body.data.statut, 'en_attente');
+  assert.ok(c.body.data.bonus > 0.3 && c.body.data.bonus < 0.8, 'bonus selon le budget');
+  assert.equal(Booster.bonusPour(500), 0.3);
+  assert.equal(Booster.bonusPour(10000), 0.8);
+  assert.equal(alertes.length, 1);
+  assert.equal((await creer({})).status, 409, 'une demande en attente à la fois');
+  const avant = await publique();
+  assert.equal(avant.sponsorise, false);
 
-  // Activation par la plateforme seulement, avec moyen et référence du paiement
+  // Activation manuelle (plateforme), journal financier, effet partout
   const agir = (id, body, headers = hAdmin) => api(`/api/admin/plateforme/boosters/${id}`, { method: 'PUT', headers, body });
-  assert.equal((await agir(d.body.data.id, { action: 'activer', moyen: 'mobile_money', reference: 'WAVE-123' }, hPartenaire)).status, 403);
-  assert.equal((await agir(d.body.data.id, { action: 'activer', moyen: 'mobile_money' })).status, 400, 'référence obligatoire');
-  assert.equal((await agir(d.body.data.id, { action: 'activer', moyen: 'cheque-en-bois', reference: 'X-1' })).status, 400);
-  const actif = await agir(d.body.data.id, { action: 'activer', moyen: 'mobile_money', reference: 'WAVE-123' });
-  assert.equal(actif.status, 200, JSON.stringify(actif.body));
-  assert.equal(actif.body.data.statut, 'actif');
-  assert.equal(Math.round((new Date(actif.body.data.fin) - new Date(actif.body.data.debut)) / 86400000), 7);
-  assert.equal((await agir(d.body.data.id, { action: 'activer', moyen: 'mobile_money', reference: 'WAVE-123' })).status, 409, 'pas deux fois');
-  assert.ok(await db.collection('financial_audit_logs').findOne({ action: 'BOOSTER_ACTIVE', 'details.reference': 'WAVE-123' }), 'inscrit au journal financier');
-
-  // Effet : mention Sponsorisé et bonus de 0,5 sur le score
-  const pendant = await score();
+  assert.equal((await agir(c.body.data.id, { action: 'activer', moyen: 'mobile_money', reference: 'WAVE-1' }, hPartenaire)).status, 403);
+  assert.equal((await agir(c.body.data.id, { action: 'activer', moyen: 'mobile_money' })).status, 400);
+  const actif = await agir(c.body.data.id, { action: 'activer', moyen: 'mobile_money', reference: 'WAVE-1' });
+  assert.equal(actif.body.data.statut, 'actif', JSON.stringify(actif.body));
+  assert.ok(await db.collection('financial_audit_logs').findOne({ action: 'BOOSTER_ACTIVE', 'details.reference': 'WAVE-1' }));
+  const pendant = await publique();
   assert.equal(pendant.sponsorise, true);
-  assert.equal(Math.round((pendant.recommandation - avant.recommandation) * 1000) / 1000, 0.5);
+  assert.equal(pendant.boost, null, 'tout le site : appliqué côté serveur');
+  assert.equal(Math.round((pendant.recommandation - avant.recommandation) * 100) / 100, c.body.data.bonus);
 
-  // Une résidence mal notée reste « Sponsorisé » mais sans bonus
-  const ids = [];
+  // Prolongation : nouvelle campagne pendant le booster, elle commence à sa fin
+  const p = await creer({ budgetJour: 500, duree: 3 });
+  assert.equal(p.status, 201, JSON.stringify(p.body));
+  const prolonge = (await agir(p.body.data.id, { action: 'activer', moyen: 'especes', reference: 'CAISSE-1' })).body.data;
+  assert.equal(new Date(prolonge.debut).getTime(), new Date(actif.body.data.fin).getTime(), 'enchaîné après le premier');
+  await db.collection('boosters').deleteOne({ reference: p.body.data.reference });
+
+  // Résidence mal notée : « Sponsorisé » mais sans bonus
   for (let i = 0; i < 8; i += 1) {
-    ids.push(`BOOSTER_${i}`);
     await db.collection('avis').insertOne({ reservationId: `BOOSTER_${i}`, residenceId: 1, entrepriseId: residence.entrepriseId, clientEmail: `b${i}@example.com`, auteur: 'Test T.', note: 1, criteres: { proprete: 1, conformite: 1, accueil: 1, qualitePrix: 1 }, commentaire: '', creeLe: new Date(), reponse: null, masque: null });
   }
-  const malNotee = await score();
+  const malNotee = await publique();
+  await db.collection('boosters').updateOne({ reference: c.body.data.reference }, { $set: { statut: 'arrete' } });
   assert.equal(malNotee.sponsorise, true);
-  await db.collection('boosters').updateOne({ reference: d.body.data.reference }, { $set: { statut: 'arrete' } });
-  const sansBooster = await score();
-  assert.equal(malNotee.recommandation, sansBooster.recommandation, 'aucun bonus sous la note minimale');
-  await db.collection('avis').deleteMany({ reservationId: { $in: ids } });
-  await db.collection('boosters').updateOne({ reference: d.body.data.reference }, { $set: { statut: 'actif' } });
+  assert.equal(malNotee.recommandation, (await publique()).recommandation, 'aucun bonus sous la note minimale');
+  await db.collection('avis').deleteMany({ reservationId: /^BOOSTER_/ });
 
-  // Arrêt par la plateforme (motif obligatoire) : plus d'effet
-  assert.equal((await agir(d.body.data.id, { action: 'arreter' })).status, 400);
-  assert.equal((await agir(d.body.data.id, { action: 'arreter', motif: 'Demande du partenaire' })).status, 200);
-  assert.equal((await score()).sponsorise, false);
+  // Audience ciblée (quartier) : pas de bonus global, le site l'applique aux recherches de la zone
+  if (residence.quartier) {
+    const z = await creer({ audience: 'quartier', budgetJour: 10000, duree: 3 });
+    assert.equal(z.body.data.cible, residence.quartier);
+    await agir(z.body.data.id, { action: 'activer', moyen: 'virement', reference: 'VIR-1' });
+    const cible = await publique();
+    assert.equal(cible.sponsorise, false, 'pas partout');
+    assert.deepEqual(cible.boost, { audience: 'quartier', cible: residence.quartier, bonus: 0.8 });
+    assert.equal(cible.recommandation, avant.recommandation, 'classement général inchangé');
+    await agir(z.body.data.id, { action: 'arreter', motif: 'Fin du test' });
+  }
 
-  // Annulation d'une demande en attente par le partenaire ; refus par la plateforme
-  const d2 = await demander({ residenceId: 1, duree: 30 });
-  assert.equal(d2.body.data.montant, 15000);
+  // Statistiques d'audience et résultats du booster
+  const stats = (body) => fetch(`${baseUrl}/api/residences/statistiques`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  assert.equal((await stats({ affichages: [{ id: 1, s: true }, { id: 1, s: false }, { id: 'x' }], visite: 1 })).status, 204);
+  await stats({ affichages: [{ id: 1, s: true }] });
+  assert.equal((await stats({ affichages: { $gt: 1 } })).status, 204, 'entrée invalide ignorée');
+  const jour = new Date().toISOString().slice(0, 10);
+  const st = await db.collection('statistiques_residences').findOne({ _id: `1:${jour}` });
+  assert.deepEqual([st.affichages, st.affichagesSponsorises, st.visites], [3, 2, 1]);
+  await db.collection('boosters').updateOne({ reference: c.body.data.reference }, { $set: { statut: 'actif', debut: new Date(Date.now() - 3600000) } });
+  const mesBoosters = (await api('/api/admin/boosters', { headers: hPartenaire })).body.data.boosters;
+  const res = mesBoosters.find(b => b.reference === c.body.data.reference).resultats;
+  assert.equal(res.affichages, 3);
+  assert.equal(res.visites, 1);
+  assert.equal(typeof res.reservations, 'number');
+  assert.ok((await api('/api/admin/boosters', { headers: hPartenaire })).body.data.residences.find(r => r.id === 1).affichagesJour >= 0);
+  await db.collection('boosters').updateOne({ reference: c.body.data.reference }, { $set: { statut: 'arrete' } });
+
+  // Annulation et refus
+  const d2 = await creer({ duree: 30 });
   assert.equal((await api(`/api/admin/boosters/${d2.body.data.id}`, { method: 'DELETE', headers: hPartenaire })).status, 200);
-  assert.equal((await api(`/api/admin/boosters/${d2.body.data.id}`, { method: 'DELETE', headers: hPartenaire })).status, 409);
-  const d3 = await demander({ residenceId: 1, duree: 15 });
+  const d3 = await creer({ duree: 3 });
   assert.equal((await agir(d3.body.data.id, { action: 'refuser', motif: 'Paiement non reçu' })).body.data.statut, 'refuse');
 
-  // Tarifs réglés par la plateforme
-  const put = (tarifs, headers = hAdmin) => api('/api/admin/plateforme/boosters/tarifs', { method: 'PUT', headers, body: { tarifs } });
-  assert.equal((await put({ 7: -1, 15: 9000, 30: 15000 })).status, 400);
-  assert.equal((await put({ 7: 4000, 15: 7000, 30: 12000 }, hPartenaire)).status, 403);
-  assert.equal((await put({ 7: 4000, 15: 7000, 30: 12000 })).status, 200);
-  assert.equal((await api('/api/admin/boosters', { headers: hPartenaire })).body.data.tarifs[7], 4000);
-  const liste = (await api('/api/admin/plateforme/boosters', { headers: hAdmin })).body.data.boosters;
-  assert.deepEqual(liste.map(b => b.statut).sort(), ['annule', 'arrete', 'refuse']);
+  // Réglages de la plateforme
+  const regler = (body, headers = hAdmin) => api('/api/admin/plateforme/boosters/reglages', { method: 'PUT', headers, body });
+  assert.equal((await regler({ budgetMin: 1000, budgetMax: 500 })).status, 400);
+  assert.equal((await regler({ budgetMin: 1000, budgetMax: 20000 }, hPartenaire)).status, 403);
+  assert.equal((await regler({ budgetMin: 1000, budgetMax: 20000 })).status, 200);
+  assert.equal((await api('/api/admin/boosters', { headers: hPartenaire })).body.data.reglages.budgetMin, 1000);
+  assert.equal((await creer({ budgetJour: 500 })).status, 400, 'nouveau minimum');
 });
 
 test('Booster payé en ligne (GeniusPay) : activation automatique, registre, webhook, échec', async (t) => {
@@ -2511,7 +2539,7 @@ test('Booster payé en ligne (GeniusPay) : activation automatique, registre, web
   const residence = await db.collection('residences').findOne({ id: 1 });
   const h = { Authorization: `Bearer ${AuthService.creerJeton('gestion@test', { entrepriseId: residence.entrepriseId, superAdmin: false })}` };
   assert.equal((await api('/api/admin/boosters', { headers: h })).body.data.paiementEnLigne, true);
-  const d = (await api('/api/admin/boosters', { method: 'POST', headers: h, body: { residenceId: 1, duree: 15 } })).body.data;
+  const d = (await api('/api/admin/boosters', { method: 'POST', headers: h, body: { residenceId: 1, objectif: 'reservations', audience: 'tout', budgetJour: 1000, duree: 14 } })).body.data;
 
   // Page de paiement GeniusPay au montant du booster
   const p = await api(`/api/admin/boosters/${d.id}/paiement`, { method: 'POST', headers: h });
@@ -2537,7 +2565,7 @@ test('Booster payé en ligne (GeniusPay) : activation automatique, registre, web
   await db.collection('boosters').updateOne({ _id: new (require('mongodb').ObjectId)(d.id) }, { $set: { statut: 'arrete' } });
 
   // Webhook : même chemin de vérification
-  const d2 = (await api('/api/admin/boosters', { method: 'POST', headers: h, body: { residenceId: 1, duree: 7 } })).body.data;
+  const d2 = (await api('/api/admin/boosters', { method: 'POST', headers: h, body: { residenceId: 1, budgetJour: 500, duree: 7 } })).body.data;
   await api(`/api/admin/boosters/${d2.id}/paiement`, { method: 'POST', headers: h });
   etat['GP-BST-2'].status = 'completed';
   await PaymentService.traiterEvenementGeniusPay({ event: 'payment.success', data: { reference: 'GP-BST-2', metadata: { booster: d2.id } } });
@@ -2545,7 +2573,7 @@ test('Booster payé en ligne (GeniusPay) : activation automatique, registre, web
   await db.collection('boosters').updateOne({ reference: d2.reference }, { $set: { statut: 'arrete' } });
 
   // Paiement refusé : la demande reste en attente, nouvel essai possible ; montant insuffisant : rien
-  const d3 = (await api('/api/admin/boosters', { method: 'POST', headers: h, body: { residenceId: 1, duree: 7 } })).body.data;
+  const d3 = (await api('/api/admin/boosters', { method: 'POST', headers: h, body: { residenceId: 1, budgetJour: 500, duree: 7 } })).body.data;
   await api(`/api/admin/boosters/${d3.id}/paiement`, { method: 'POST', headers: h });
   etat['GP-BST-3'].status = 'failed';
   const refuse = (await api(`/api/admin/boosters/${d3.id}/paiement`, { headers: h })).body.data;

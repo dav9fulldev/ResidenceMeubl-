@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { FaStar, FaBed, FaBath, FaUsers, FaMapMarkerAlt, FaHeart, FaRegHeart } from 'react-icons/fa';
 import { useFavorites } from '../context/FavoritesContext';
+import { sponsoriseIci } from '../utils/booster';
+import { compterAffichage } from '../utils/statistiques';
 import './ResidenceCard.css';
 
 const STATUTS = {
@@ -14,12 +16,25 @@ const STATUTS = {
 /**
  * Carte de résidence commune (accueil, liste, favoris).
  * Toute la carte mène à la fiche ; le cœur et « Réserver » restent cliquables séparément.
- * @param badge  texte facultatif affiché sur la photo (ex. correspondance de la recherche IA)
+ * @param badge     texte facultatif affiché sur la photo (ex. correspondance de la recherche IA)
+ * @param contexte  recherche en cours { ville, quartier, texte } : booster ciblé et mention « Sponsorisé »
  */
-const ResidenceCard = ({ residence, badge, eager = false, requete = '', libreAuxDates = false }) => {
+const ResidenceCard = ({ residence, badge, eager = false, requete = '', libreAuxDates = false, contexte }) => {
   const { addToFavorites, removeFromFavorites, isFavorite } = useFavorites();
   const [imageKo, setImageKo] = useState(false);
   const favori = isFavorite(residence.id);
+  const sponsorise = sponsoriseIci(residence, contexte);
+  // Affichage compté quand la moitié de la carte est visible (résultats des boosters)
+  const carte = useRef(null);
+  useEffect(() => {
+    const el = carte.current;
+    if (!el || typeof IntersectionObserver === 'undefined') return undefined;
+    const obs = new IntersectionObserver(([e]) => {
+      if (e.isIntersecting) { compterAffichage(residence.id, sponsorise); obs.disconnect(); }
+    }, { threshold: 0.5 });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [residence.id, sponsorise]);
   const statut = residence.availability?.status;
   const lien = `/residence/${residence.id}${requete ? `?${requete}` : ''}`;
 
@@ -29,7 +44,7 @@ const ResidenceCard = ({ residence, badge, eager = false, requete = '', libreAux
   };
 
   return (
-    <article className="rc">
+    <article className="rc" ref={carte}>
       <div className="rc-media">
         {!imageKo && residence.images?.[0] ? (
           <img
@@ -64,9 +79,9 @@ const ResidenceCard = ({ residence, badge, eager = false, requete = '', libreAux
             <span className="rc-note" aria-label={`Note ${residence.rating} sur 5, ${residence.reviews} avis`}><FaStar aria-hidden="true" /> {Number(residence.rating).toLocaleString('fr-FR')}{residence.reviews ? <small> ({residence.reviews})</small> : null}</span>
           ) : null}
         </div>
-        {(residence.sponsored || residence.company?.recommande) && (
+        {(sponsorise || residence.company?.recommande) && (
           <p className="rc-mentions">
-            {residence.sponsored && <span className="rc-sponsorise">Sponsorisé</span>}
+            {sponsorise && <span className="rc-sponsorise">Sponsorisé</span>}
             {residence.company?.recommande && <span className="rc-recommande">Partenaire recommandé</span>}
           </p>
         )}

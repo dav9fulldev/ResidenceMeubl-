@@ -26,6 +26,7 @@ async function connect(uri = process.env.MONGODB_URI, dbName = process.env.MONGO
     db.collection('utilisateurs').createIndex({ email: 1 }, { unique: true }),
     db.collection('clients').createIndex({ email: 1 }, { unique: true }),
     db.collection('avis').createIndex({ reservationId: 1 }, { unique: true }),
+    db.collection('statistiques_residences').createIndex({ residenceId: 1, jour: 1 }),
     db.collection('avis').createIndex({ residenceId: 1, creeLe: -1 }),
     db.collection('avis').createIndex({ entrepriseId: 1, creeLe: -1 }),
     db.collection('reservations').createIndex({ 'client.email': 1 }),

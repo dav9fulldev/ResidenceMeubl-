@@ -54,15 +54,19 @@ async function avecNotes(residences) {
   return residences.map((r) => {
     const n = resumes.get(r.id);
     const p = partenaires.get(r.entrepriseId);
-    // Booster de visibilité : bonus limité, refusé à une résidence mal notée ; mention « Sponsorisé »
-    const sponsorise = boostees.has(r.id);
-    const bonus = sponsorise && bayes(n) >= Booster.NOTE_MINIMALE ? Booster.BONUS : 0;
+    // Booster de visibilité : bonus selon le budget, refusé à une résidence mal notée ; mention « Sponsorisé ».
+    // Audience « tout le site » : appliqué ici, partout. Audience quartier / ville : le site l'applique
+    // seulement aux recherches de cette zone (champ boost).
+    const b = boostees.get(r.id);
+    const bonus = b && bayes(n) >= Booster.NOTE_MINIMALE ? b.bonus : 0;
+    const partout = Boolean(b && b.audience === 'tout');
     return {
       ...r,
       note: n?.moyenne ?? null,
       nombreAvis: n?.nombre || 0,
-      sponsorise,
-      recommandation: Math.round((0.6 * bayes(n) + 0.4 * bayes(p) + bonus) * 1000) / 1000,
+      sponsorise: partout,
+      boost: b && !partout ? { audience: b.audience, cible: b.cible, bonus } : null,
+      recommandation: Math.round((0.6 * bayes(n) + 0.4 * bayes(p) + (partout ? bonus : 0)) * 1000) / 1000,
       entreprise: { ...r.entreprise, note: p?.moyenne ?? null, nombreAvis: p?.nombre || 0, recommande: Boolean(p && p.nombre >= 5 && p.moyenne >= 4.5) },
     };
   });
