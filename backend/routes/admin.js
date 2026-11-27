@@ -241,10 +241,12 @@ router.get('/boosters', async (req, res) => {
   if (req.admin.sa) return res.status(403).json({ success: false, message: 'Réservé aux partenaires' });
   try {
     const Booster = require('../services/BoosterService');
+    // Résidences publiées, avec de quoi afficher l'aperçu de l'annonce
     const residences = (await ResidenceService.getAllResidencesAdmin())
       .filter(r => r.statutVerification === 'verifiee' && r.actif !== false)
-      .map(r => ({ id: r.id, nom: r.nom }));
-    res.json({ success: true, data: { tarifs: await Booster.tarifs(), durees: Booster.DUREES, residences, boosters: await Booster.listerEntreprise(Tenant.courante()) } });
+      .map(r => ({ id: r.id, nom: r.nom, photo: r.photos?.[0] || null, localisation: [r.quartier, r.ville].filter(Boolean).join(', ') || r.localisation, prix: r.prix, capacite: r.capacite, nombreChambres: r.nombreChambres }));
+    const enLigne = require('../services/paiement/GeniusPayClient').estConfigure();
+    res.json({ success: true, data: { tarifs: await Booster.tarifs(), durees: Booster.DUREES, residences, paiementEnLigne: enLigne, boosters: await Booster.listerEntreprise(Tenant.courante()) } });
   } catch (error) { erreurBooster(res, error, 'lors de la lecture des boosters'); }
 });
 
@@ -259,6 +261,25 @@ router.post('/boosters', async (req, res) => {
     ).catch(e => console.error('⚠️ Alerte booster non envoyée :', String(e?.message).replace(/\n|\r/g, '')));
     res.status(201).json({ success: true, message: `Demande enregistrée (référence ${b.reference}). Le booster démarre dès que BABI RESIDENCE a reçu le paiement.`, data: Booster.vue(b) });
   } catch (error) { erreurBooster(res, error, 'lors de la demande de booster'); }
+});
+
+// Paiement en ligne (GeniusPay) d'une demande : création de la page de paiement, puis vérification au retour
+router.post('/boosters/:id/paiement', async (req, res) => {
+  if (req.admin.sa) return res.status(403).json({ success: false, message: 'Réservé aux partenaires' });
+  try {
+    const u = req.admin.uid ? await EntrepriseService.utilisateur(req.admin.uid) : null;
+    const payeur = u ? { nom: `${u.prenom} ${u.nom}`.trim(), email: u.email, telephone: u.telephone } : {};
+    res.json({ success: true, data: await require('../services/BoosterService').payerEnLigne(Tenant.courante(), req.params.id, payeur) });
+  } catch (error) { erreurBooster(res, error, 'lors de la création du paiement'); }
+});
+
+router.get('/boosters/:id/paiement', async (req, res) => {
+  if (req.admin.sa) return res.status(403).json({ success: false, message: 'Réservé aux partenaires' });
+  try {
+    const Booster = require('../services/BoosterService');
+    await Booster.trouver(req.params.id, { entrepriseId: Tenant.courante() }); // le sien uniquement
+    res.json({ success: true, data: await Booster.verifierPaiement(req.params.id) });
+  } catch (error) { erreurBooster(res, error, 'lors de la vérification du paiement'); }
 });
 
 router.delete('/boosters/:id', async (req, res) => {

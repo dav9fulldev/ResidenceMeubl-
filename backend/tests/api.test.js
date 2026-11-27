@@ -2482,3 +2482,81 @@ test('Booster de visibilité : demande du partenaire, activation manuelle, bonus
   const liste = (await api('/api/admin/plateforme/boosters', { headers: hAdmin })).body.data.boosters;
   assert.deepEqual(liste.map(b => b.statut).sort(), ['annule', 'arrete', 'refuse']);
 });
+
+test('Booster payé en ligne (GeniusPay) : activation automatique, registre, webhook, échec', async (t) => {
+  const AuthService = require('../services/AuthService');
+  const GeniusPay = require('../services/paiement/GeniusPayClient');
+  const Booster = require('../services/BoosterService');
+  const PaymentService = require('../services/paiement/PaymentService');
+  const es = ReservationService.emailService;
+  const original = es.sendAlerteFinance;
+  es.sendAlerteFinance = async () => {};
+  t.after(async () => {
+    es.sendAlerteFinance = original;
+    await db.collection('boosters').deleteMany({});
+    await db.collection('ledger_entries').deleteMany({ type: 'BOOSTER' });
+    await db.collection('ledger_transactions').deleteMany({ type: 'BOOSTER' });
+  });
+  let n = 0;
+  const etat = {}; // reference GeniusPay → { status, amount }
+  t.mock.method(GeniusPay, 'estConfigure', () => true);
+  t.mock.method(GeniusPay, 'creerPaiement', async (args) => {
+    n += 1;
+    const reference = `GP-BST-${n}`;
+    etat[reference] = { status: 'pending', amount: args.montant, metadata: args.metadata };
+    return { reference, checkout_url: `https://pay.test/${reference}`, expires_at: new Date(Date.now() + 3600000).toISOString() };
+  });
+  t.mock.method(GeniusPay, 'lirePaiement', async (reference) => ({ reference, ...etat[reference] }));
+
+  const residence = await db.collection('residences').findOne({ id: 1 });
+  const h = { Authorization: `Bearer ${AuthService.creerJeton('gestion@test', { entrepriseId: residence.entrepriseId, superAdmin: false })}` };
+  assert.equal((await api('/api/admin/boosters', { headers: h })).body.data.paiementEnLigne, true);
+  const d = (await api('/api/admin/boosters', { method: 'POST', headers: h, body: { residenceId: 1, duree: 15 } })).body.data;
+
+  // Page de paiement GeniusPay au montant du booster
+  const p = await api(`/api/admin/boosters/${d.id}/paiement`, { method: 'POST', headers: h });
+  assert.equal(p.status, 200, JSON.stringify(p.body));
+  assert.equal(p.body.data.checkoutUrl, 'https://pay.test/GP-BST-1');
+  assert.equal(etat['GP-BST-1'].amount, d.montant);
+  assert.equal(etat['GP-BST-1'].metadata.booster, d.id);
+
+  // Pas encore payé : toujours en attente
+  const verifier = () => api(`/api/admin/boosters/${d.id}/paiement`, { headers: h });
+  assert.equal((await verifier()).body.data.statut, 'en_attente');
+
+  // Payé : activé seul, inscrit au registre (une seule fois), effet sur le site
+  etat['GP-BST-1'].status = 'completed';
+  const ok = await verifier();
+  assert.equal(ok.body.data.statut, 'actif', JSON.stringify(ok.body));
+  assert.equal(ok.body.data.paiement.moyen, 'geniuspay');
+  assert.equal((await verifier()).body.data.statut, 'actif');
+  assert.equal(await db.collection('ledger_transactions').countDocuments({ type: 'BOOSTER' }), 1, 'une seule écriture');
+  const ecritures = await db.collection('ledger_entries').find({ type: 'BOOSTER' }).toArray();
+  assert.deepEqual(ecritures.map(e => `${e.compte}:${e.sens}:${e.montant}`).sort(), [`FONDS_PRESTATAIRE:DEBIT:${d.montant}`, `REVENU_VISIBILITE:CREDIT:${d.montant}`]);
+  assert.equal((await api('/api/residences')).body.data.find(r => r.id === 1).sponsorise, true);
+  await db.collection('boosters').updateOne({ _id: new (require('mongodb').ObjectId)(d.id) }, { $set: { statut: 'arrete' } });
+
+  // Webhook : même chemin de vérification
+  const d2 = (await api('/api/admin/boosters', { method: 'POST', headers: h, body: { residenceId: 1, duree: 7 } })).body.data;
+  await api(`/api/admin/boosters/${d2.id}/paiement`, { method: 'POST', headers: h });
+  etat['GP-BST-2'].status = 'completed';
+  await PaymentService.traiterEvenementGeniusPay({ event: 'payment.success', data: { reference: 'GP-BST-2', metadata: { booster: d2.id } } });
+  assert.equal((await db.collection('boosters').findOne({ reference: d2.reference })).statut, 'actif');
+  await db.collection('boosters').updateOne({ reference: d2.reference }, { $set: { statut: 'arrete' } });
+
+  // Paiement refusé : la demande reste en attente, nouvel essai possible ; montant insuffisant : rien
+  const d3 = (await api('/api/admin/boosters', { method: 'POST', headers: h, body: { residenceId: 1, duree: 7 } })).body.data;
+  await api(`/api/admin/boosters/${d3.id}/paiement`, { method: 'POST', headers: h });
+  etat['GP-BST-3'].status = 'failed';
+  const refuse = (await api(`/api/admin/boosters/${d3.id}/paiement`, { headers: h })).body.data;
+  assert.equal(refuse.statut, 'en_attente');
+  assert.equal(refuse.paiementEnLigne.statut, 'echec');
+  await api(`/api/admin/boosters/${d3.id}/paiement`, { method: 'POST', headers: h });
+  Object.assign(etat['GP-BST-4'], { status: 'completed', amount: 10 });
+  await Booster.verifierEnAttente();
+  assert.equal((await db.collection('boosters').findOne({ reference: d3.reference })).statut, 'en_attente', 'montant insuffisant');
+
+  // Un partenaire ne vérifie que ses propres boosters
+  const hAutre = { Authorization: `Bearer ${AuthService.creerJeton('autre@test', { entrepriseId: 'babi_inexistante', superAdmin: false })}` };
+  assert.notEqual((await api(`/api/admin/boosters/${d3.id}/paiement`, { headers: hAutre })).status, 200);
+});
