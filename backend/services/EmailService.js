@@ -410,6 +410,94 @@ class EmailService {
     }))));
   }
 
+  // ---------- Booster de visibilité ----------
+
+  /** Lignes communes : campagne, période ; et résultats (affichages, visites, réservations, coût par résultat). */
+  lignesBooster(b) {
+    const OBJ = { visites: 'Plus de visites de la fiche', reservations: 'Plus de réservations' };
+    return [
+      ['Référence', esc(b.reference)],
+      ['Résidence', esc(b.residenceNom)],
+      ['Campagne', `${esc(OBJ[b.objectif] || b.objectif)} · ${fcfa(b.budgetJour)} par jour × ${esc(b.duree)} jours`],
+      ['Période', `du ${date(b.debut)} au ${date(b.fin)}`],
+    ];
+  }
+
+  lignesResultats(b, r) {
+    if (!r) return [];
+    const resultat = b.objectif === 'reservations' ? r.reservations : r.visites;
+    return [
+      ['Affichages', esc(r.affichages.toLocaleString('fr-FR'))],
+      ['Visites de la fiche', esc(r.visites.toLocaleString('fr-FR'))],
+      ['Réservations', `${esc(r.reservations)}${r.montantReservations ? ` (${fcfa(r.montantReservations)})` : ''}`],
+      [`Coût par ${b.objectif === 'reservations' ? 'réservation' : 'visite'}`, resultat ? fcfa(Math.round(b.montant / resultat)) : '—'],
+    ];
+  }
+
+  envoyerAuxMembres(membres, message) {
+    return require('./Tenant').run(require('./Tenant').PRINCIPALE, () => Promise.all((membres || []).map(u => this.envoyer({ to: u.email, ...message(u) }))));
+  }
+
+  // Reçu : paiement reçu, booster actif (ou prolongation programmée)
+  async sendBoosterActive(b, membres) {
+    const MOYENS = { geniuspay: 'Paiement en ligne (GeniusPay)', mobile_money: 'Mobile Money', virement: 'Virement', especes: 'Espèces', autre: 'Autre' };
+    const programme = b.statut === 'programme';
+    await this.envoyerAuxMembres(membres, (u) => ({
+      subject: `Reçu ${b.reference} - booster ${programme ? 'programmé' : 'actif'} pour ${b.residenceNom}`,
+      html: this.gabarit({
+        titre: programme ? 'Prolongation programmée' : 'Votre booster est actif',
+        prevue: `Paiement de ${fcfa(b.montant)} reçu pour ${b.residenceNom}.`,
+        contenu: `<p style="margin:0 0 12px;">Bonjour ${esc(u.prenom)},</p>
+          <p style="margin:0 0 12px;">Nous avons bien reçu votre paiement. ${programme
+            ? `La prolongation commencera le <strong>${date(b.debut)}</strong>, à la fin du booster en cours.`
+            : `<strong>${esc(b.residenceNom)}</strong> est mise en avant sur BABI RESIDENCE avec la mention « Sponsorisé » jusqu'au <strong>${date(b.fin)}</strong>.`}</p>
+          ${this.details([
+            ...this.lignesBooster(b),
+            ['Montant payé', `<strong>${fcfa(b.montant)}</strong>`],
+            ['Moyen de paiement', esc(MOYENS[b.paiement?.moyen] || b.paiement?.moyen || '—')],
+            ['Référence du paiement', esc(b.paiement?.reference || '—')],
+          ])}
+          <p style="margin:0;">Conservez cet email : il vaut reçu. Les résultats de la campagne sont visibles à tout moment dans votre espace.</p>`,
+        bouton: { texte: 'Voir mes boosters', url: `${urlSite()}/admin/visibilite` },
+      }),
+    }));
+  }
+
+  // 2 jours avant la fin : résultats et proposition de prolonger
+  async sendBoosterFinProche(b, resultats, membres) {
+    await this.envoyerAuxMembres(membres, (u) => ({
+      subject: `Votre booster se termine le ${date(b.fin)} - ${b.residenceNom}`,
+      html: this.gabarit({
+        titre: 'Votre booster se termine bientôt',
+        prevue: `${b.residenceNom} : ${resultats?.visites || 0} visites et ${resultats?.reservations || 0} réservations depuis le début.`,
+        contenu: `<p style="margin:0 0 12px;">Bonjour ${esc(u.prenom)},</p>
+          <p style="margin:0 0 12px;">Le booster de <strong>${esc(b.residenceNom)}</strong> se termine le <strong>${date(b.fin)}</strong>. Voici ses résultats jusqu'ici :</p>
+          ${this.details([...this.lignesResultats(b, resultats), ['Période', `du ${date(b.debut)} au ${date(b.fin)}`]])}
+          <p style="margin:0;">Prolongez maintenant : la nouvelle période commencera exactement à la fin de celle-ci, sans interruption de la mise en avant.</p>`,
+        bouton: { texte: 'Prolonger le booster', url: `${urlSite()}/admin/visibilite` },
+        note: 'Vous recevez cet email parce que vous gérez cette résidence sur BABI RESIDENCE.',
+      }),
+    }));
+  }
+
+  // Fin de campagne : bilan
+  async sendBoosterBilan(b, resultats, membres, suite) {
+    await this.envoyerAuxMembres(membres, (u) => ({
+      subject: `Bilan du booster ${b.reference} - ${b.residenceNom}`,
+      html: this.gabarit({
+        titre: 'Bilan de votre booster',
+        prevue: `${resultats?.affichages || 0} affichages, ${resultats?.visites || 0} visites, ${resultats?.reservations || 0} réservations.`,
+        contenu: `<p style="margin:0 0 12px;">Bonjour ${esc(u.prenom)},</p>
+          <p style="margin:0 0 12px;">La campagne de <strong>${esc(b.residenceNom)}</strong> est terminée. Voici son bilan :</p>
+          ${this.details([...this.lignesBooster(b), ['Montant', fcfa(b.montant)], ...this.lignesResultats(b, resultats)])}
+          <p style="margin:0;">${suite
+            ? `La prolongation ${esc(suite.reference)} a pris le relais : la résidence reste mise en avant jusqu'au <strong>${date(suite.fin)}</strong>.`
+            : 'La résidence n\'est plus mise en avant. Vous pouvez relancer une campagne à tout moment depuis votre espace.'}</p>`,
+        bouton: { texte: suite ? 'Voir mes boosters' : 'Relancer un booster', url: `${urlSite()}/admin/visibilite` },
+      }),
+    }));
+  }
+
   // ---------- Module financier ----------
 
   async sendAlerteFinance(sujet, message) {

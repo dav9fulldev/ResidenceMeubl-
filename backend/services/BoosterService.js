@@ -23,6 +23,12 @@ const db = require('../db');
  * Collection boosters { _id, reference, entrepriseId, residenceId, residenceNom, duree, montant, statut,
  *   demandeLe, demandePar, debut?, fin?, activeLe?, activePar?, paiement?, motif?, arreteLe? }
  * Statuts : en_attente, actif (terminé une fois la fin passée), refuse, annule, arrete.
+ *
+ * Emails aux comptes actifs de l'entreprise (envoyerRappels, chaque heure) :
+ *   - à l'activation : reçu du paiement (ou prolongation programmée) ;
+ *   - 2 jours avant la fin (1 jour pour un booster de 3 jours) : résultats et « Prolonger »,
+ *     sauf si une prolongation est déjà programmée (rappelFinLe) ;
+ *   - à la fin : bilan de la campagne (bilanLe), seulement pour les campagnes finies depuis moins de 7 jours.
  */
 const DUREES = [3, 7, 14, 30];
 const REGLAGES_DEFAUT = { budgetMin: 500, budgetMax: 10000 }; // FCFA par jour, réglés par la plateforme
@@ -191,7 +197,71 @@ const BoosterService = {
     } });
     if (!r.modifiedCount) return null;
     await require('./finance').journaliser(par, 'BOOSTER_ACTIVE', { booster: b.reference, entrepriseId: b.entrepriseId, montant: paiement.montant, moyen: paiement.moyen, reference: paiement.reference, fin });
-    return this.vue({ ...b, statut: 'actif', debut, fin, paiement, prolongationDe: enCours[0]?.reference || null });
+    const vue = this.vue({ ...b, statut: 'actif', debut, fin, paiement, prolongationDe: enCours[0]?.reference || null });
+    // Reçu par email (sans bloquer l'activation)
+    const emails = require('./ReservationService').emailService;
+    if (emails?.sendBoosterActive) {
+      this.destinataires(b.entrepriseId).then(m => emails.sendBoosterActive(vue, m))
+        .catch(e => console.error('⚠️ Reçu du booster non envoyé (%s) :', b.reference, String(e?.message).replace(/\n|\r/g, '')));
+    }
+    return vue;
+  },
+
+  /** Comptes actifs de l'entreprise (pas les invitations en attente). */
+  async destinataires(entrepriseId) {
+    return require('./EntrepriseService').gestionnaires(entrepriseId);
+  },
+
+  // ---------- Rappels et bilans ----------
+
+  /** Réserve un envoi (champ posé une seule fois, même avec plusieurs serveurs). */
+  async reserverEnvoi(b, champ, maintenant) {
+    const r = await this.collection.updateOne({ _id: b._id, [champ]: { $exists: false } }, { $set: { [champ]: maintenant } });
+    return r.modifiedCount === 1;
+  },
+
+  /**
+   * Rappel avant la fin et bilan de fin de campagne. Retourne { rappels, bilans } (emails envoyés).
+   * Appelé chaque heure ; en cas d'échec d'envoi, le champ est retiré pour réessayer à l'heure suivante.
+   */
+  async envoyerRappels(emails = require('./ReservationService').emailService, maintenant = new Date()) {
+    const compte = { rappels: 0, bilans: 0 };
+    const H = 3600 * 1000;
+    const envoyer = async (b, champ, fn) => {
+      if (!(await this.reserverEnvoi(b, champ, maintenant))) return false;
+      try {
+        await fn();
+        return true;
+      } catch (e) {
+        console.error('⚠️ Email du booster non envoyé (%s) :', b.reference, String(e?.message).replace(/\n|\r/g, ''));
+        await this.collection.updateOne({ _id: b._id }, { $unset: { [champ]: '' } });
+        return false;
+      }
+    };
+
+    // 1. Fin proche : 48 h avant (24 h pour un booster de 3 jours), sauf prolongation déjà programmée
+    const proches = await this.collection.find({ statut: 'actif', debut: { $lte: maintenant }, fin: { $gt: maintenant, $lte: new Date(maintenant.getTime() + 48 * H) }, rappelFinLe: { $exists: false } }).toArray();
+    for (const b of proches) {
+      const delai = (b.duree <= 3 ? 24 : 48) * H;
+      if (new Date(b.fin).getTime() - maintenant.getTime() > delai) continue;
+      const suite = await this.collection.findOne({ residenceId: b.residenceId, statut: 'actif', debut: { $gte: new Date(b.fin) } });
+      if (suite) { await this.reserverEnvoi(b, 'rappelFinLe', maintenant); continue; }
+      if (await envoyer(b, 'rappelFinLe', async () => {
+        const [membres, resultats] = await Promise.all([this.destinataires(b.entrepriseId), this.resultats(b)]);
+        await emails.sendBoosterFinProche(this.vue(b, maintenant), resultats, membres);
+      })) compte.rappels += 1;
+    }
+
+    // 2. Bilan : campagnes finies depuis moins de 7 jours (les plus anciennes ne sont pas rattrapées)
+    const finies = await this.collection.find({ statut: 'actif', fin: { $lte: maintenant, $gt: new Date(maintenant.getTime() - 7 * 24 * H) }, bilanLe: { $exists: false } }).toArray();
+    for (const b of finies) {
+      if (await envoyer(b, 'bilanLe', async () => {
+        const suite = await this.collection.findOne({ residenceId: b.residenceId, statut: 'actif', debut: { $gte: new Date(b.fin) } }, { projection: { reference: 1, fin: 1 } });
+        const [membres, resultats] = await Promise.all([this.destinataires(b.entrepriseId), this.resultats(b)]);
+        await emails.sendBoosterBilan(this.vue(b, maintenant), resultats, membres, suite ? { reference: suite.reference, fin: suite.fin } : null);
+      })) compte.bilans += 1;
+    }
+    return compte;
   },
 
   // ---------- Paiement en ligne (GeniusPay) ----------

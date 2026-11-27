@@ -98,3 +98,16 @@
 .boosters-page .booster-resultats span { font-size: 0.8rem; color: var(--text-muted); }
 .boosters-page .booster-resultats strong { font-size: 1.3rem; font-variant-numeric: tabular-nums; }
 .boosters-page .booster-resultats small, .boosters-page .booster-resultats-note { color: var(--text-muted); font-size: 0.78rem; }
+
+/* Reçu d'un booster payé (imprimable seul) */
+.boosters-page .booster-recu-lignes { margin: 0; display: grid; gap: 10px; }
+.boosters-page .booster-recu-lignes div { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+.boosters-page .booster-recu-lignes dt { color: var(--text-muted); }
+.boosters-page .booster-recu-lignes dd { margin: 0; text-align: right; font-weight: 600; }
+.boosters-page .booster-recu-lignes .total { border-bottom: 0; font-size: 1.1rem; }
+@media print {
+  body.impression-recu * { visibility: hidden; }
+  body.impression-recu .booster-recu, body.impression-recu .booster-recu * { visibility: visible; }
+  body.impression-recu .booster-recu { position: absolute; inset: 0 auto auto 0; width: 100%; max-width: none; max-height: none; overflow: visible; box-shadow: none; color: #000; background: #fff; }
+  body.impression-recu .booster-recu .sans-impression { display: none; }
+}

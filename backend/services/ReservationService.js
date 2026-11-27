@@ -487,6 +487,7 @@ class ReservationService {
     const lancer = () => {
       this.envoyerRappelsSolde().catch(e => console.error('⚠️ Rappels de solde :', e.message));
       require('./AvisService').envoyerInvitations(this.emailService).catch(e => console.error('⚠️ Invitations à noter :', e.message));
+      require('./BoosterService').envoyerRappels(this.emailService).catch(e => console.error('⚠️ Rappels des boosters :', e.message));
     };
     lancer();
     this.minuterieRappels = setInterval(lancer, intervalleMs);

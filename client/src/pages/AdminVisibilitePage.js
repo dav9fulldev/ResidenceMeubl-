@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   FaCheckCircle, FaExclamationTriangle, FaRocket, FaTimes, FaMobileAlt, FaUniversity, FaBed, FaUsers, FaMapMarkerAlt,
-  FaEye, FaCalendarCheck, FaGlobeAfrica, FaMapPin, FaCity, FaChevronDown, FaChevronUp, FaRedo,
+  FaEye, FaCalendarCheck, FaGlobeAfrica, FaMapPin, FaCity, FaChevronDown, FaChevronUp, FaRedo, FaReceipt, FaPrint,
 } from 'react-icons/fa';
 import { API_ENDPOINTS } from '../config/api';
 import { useResidences } from '../context/ResidencesContext';
@@ -23,6 +23,7 @@ const AIDES_OBJECTIF = {
 const ICONES_AUDIENCE = { tout: <FaGlobeAfrica />, quartier: <FaMapPin />, ville: <FaCity /> };
 const FACTEUR_AUDIENCE = { tout: 1, ville: 0.6, quartier: 0.35 };
 const nombre = (n) => Math.round(n).toLocaleString('fr-FR');
+const MOYENS_PAIEMENT = { geniuspay: 'Paiement en ligne (GeniusPay)', mobile_money: 'Mobile Money', virement: 'Virement', especes: 'Espèces', autre: 'Autre' };
 const jourLong = (d) => d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
 
 /** Bonus de classement selon le budget par jour (même règle que le serveur) */
@@ -58,6 +59,7 @@ const AdminVisibilitePage = () => {
   const [enCours, setEnCours] = useState(false);
   const [retour, setRetour] = useState(null);
   const [ouvert, setOuvert] = useState(null); // booster dont on lit les résultats
+  const [recu, setRecu] = useState(null); // booster dont on affiche le reçu
   const dialogue = useRef(null);
   const haut = useRef(null);
 
@@ -129,6 +131,14 @@ const AdminVisibilitePage = () => {
     setF({ residenceId: String(b.residenceId), objectif: b.objectif, audience: b.audience, budgetJour, duree });
     setMsg({ ok: 'Campagne préremplie : vérifiez puis payez. Le nouveau booster commencera à la fin de l’actuel.', erreur: '' });
     haut.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  // Impression du reçu seul (le reste de la page est masqué pendant l'impression)
+  const imprimerRecu = () => {
+    document.body.classList.add('impression-recu');
+    const fin = () => { document.body.classList.remove('impression-recu'); window.removeEventListener('afterprint', fin); };
+    window.addEventListener('afterprint', fin);
+    window.print();
   };
 
   const payer = async () => {
@@ -335,6 +345,7 @@ const AdminVisibilitePage = () => {
                           {r && <button type="button" className="adm-btn" aria-expanded={ouvert === b.id} onClick={() => setOuvert(o => (o === b.id ? null : b.id))}>
                             {ouvert === b.id ? <FaChevronUp aria-hidden="true" /> : <FaChevronDown aria-hidden="true" />} Résultats
                           </button>}
+                          {b.paiement && <button type="button" className="adm-btn" onClick={() => setRecu(b)}><FaReceipt aria-hidden="true" /> Reçu</button>}
                           {['actif', 'programme', 'termine'].includes(b.statut) && dernier && !suite && <button type="button" className="adm-btn" onClick={() => prolonger(b)}><FaRedo aria-hidden="true" /> Prolonger</button>}
                         </td>
                       </tr>
@@ -358,6 +369,31 @@ const AdminVisibilitePage = () => {
             </table>
           </div>
         </>
+      )}
+
+      {recu && (
+        <div className="booster-voile" onClick={(e) => { if (e.target === e.currentTarget) setRecu(null); }}>
+          <div className="booster-dialogue booster-recu" role="dialog" aria-modal="true" aria-labelledby="booster-recu-titre">
+            <header>
+              <h2 id="booster-recu-titre">Reçu {recu.reference}</h2>
+              <button type="button" className="booster-fermer sans-impression" aria-label="Fermer" autoFocus onClick={() => setRecu(null)}><FaTimes /></button>
+            </header>
+            <p className="booster-dialogue-objet">BABI RESIDENCE · SimplTech Group, Abidjan</p>
+            <dl className="booster-recu-lignes">
+              <div><dt>Client</dt><dd>{compte?.entreprise?.nom}</dd></div>
+              <div><dt>Objet</dt><dd>Booster de visibilité · {recu.residenceNom}</dd></div>
+              <div><dt>Campagne</dt><dd>{d?.objectifs?.[recu.objectif]} · {fcfa(recu.budgetJour)} par jour × {recu.duree} jours</dd></div>
+              <div><dt>Période</dt><dd>du {jourLong(new Date(recu.debut))} au {jourLong(new Date(recu.fin))}</dd></div>
+              <div><dt>Moyen de paiement</dt><dd>{MOYENS_PAIEMENT[recu.paiement.moyen] || recu.paiement.moyen}</dd></div>
+              <div><dt>Référence du paiement</dt><dd><code>{recu.paiement.reference}</code></dd></div>
+              <div className="total"><dt>Montant payé</dt><dd>{fcfa(recu.paiement.montant ?? recu.montant)}</dd></div>
+            </dl>
+            <footer className="sans-impression">
+              <small>Ce reçu est aussi envoyé par email au moment du paiement.</small>
+              <button type="button" className="adm-btn principal" onClick={imprimerRecu}><FaPrint aria-hidden="true" /> Imprimer ou enregistrer en PDF</button>
+            </footer>
+          </div>
+        </div>
       )}
 
       {paiement && d && (
