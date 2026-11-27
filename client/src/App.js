@@ -25,6 +25,8 @@ const AdminInscription = lazy(() => import(/* webpackChunkName: "admininscriptio
 const AdminEntreprisesPage = lazy(() => import(/* webpackChunkName: "adminentreprises" */ './pages/AdminEntreprisesPage'));
 const AdminAvisPage = lazy(() => import(/* webpackChunkName: "adminavis" */ './pages/AdminAvisPage'));
 const AdminVisibilitePage = lazy(() => import(/* webpackChunkName: "adminvisibilite" */ './pages/AdminVisibilitePage'));
+const AdminEquipePage = lazy(() => import(/* webpackChunkName: "adminequipe" */ './pages/AdminEquipePage'));
+const AdminInvitation = lazy(() => import(/* webpackChunkName: "admininvitation" */ './pages/AdminInvitation'));
 const AdminBoostersPage = lazy(() => import(/* webpackChunkName: "adminboosters" */ './pages/AdminBoostersPage'));
 const AdminClientsPage = lazy(() => import(/* webpackChunkName: "adminclients" */ './pages/AdminClientsPage'));
 const AdminUtilisateursPage = lazy(() => import(/* webpackChunkName: "adminutilisateurs" */ './pages/AdminUtilisateursPage'));
@@ -100,6 +102,7 @@ function App() {
             {/* Back-office : application à part, sans les onglets du site public */}
             <Route path="/admin/login" element={<AdminLogin />} />
             <Route path="/admin/mot-de-passe" element={<AdminMotDePasse />} />
+            <Route path="/admin/invitation" element={<AdminInvitation />} />
             <Route path="/admin/inscription" element={<AdminInscription />} />
             <Route
               path="/admin"
@@ -122,6 +125,7 @@ function App() {
               <Route path="avis" element={<AdminAvisPage />} />
               <Route path="visibilite" element={<AdminVisibilitePage />} />
               <Route path="boosters" element={<AdminBoostersPage />} />
+              <Route path="equipe" element={<AdminEquipePage />} />
               <Route path="verifications" element={<AdminVerificationsPage />} />
               <Route path="finances" element={<AdminFinancesPage />} />
               <Route path="plateforme" element={<AdminPlateformePage />} />

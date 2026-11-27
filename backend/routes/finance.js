@@ -182,7 +182,7 @@ entreprise.get('/', async (req, res) => {
   try { res.json({ success: true, data: await Finance.revenusEntreprise(Tenant.courante()) }); } catch (e) { erreur(res, e, 'lors de la lecture des revenus'); }
 });
 
-entreprise.put('/beneficiaire', async (req, res) => {
+entreprise.put('/beneficiaire', requireAdmin.proprietaire, async (req, res) => {
   if (Tenant.estPrincipale()) return res.status(409).json({ success: false, message: 'Réservé aux entreprises' });
   try {
     await Finance.enregistrerBeneficiaire(Tenant.courante(), req.body || {}, qui(req));

@@ -47,6 +47,8 @@ function verifierHash(motDePasse, stocke) {
 const HASH_FACTICE = hacher(crypto.randomBytes(16).toString('hex'));
 
 const DUREE_REINITIALISATION_MS = 60 * 60 * 1000;
+const DUREE_INVITATION_MS = 7 * 24 * 60 * 60 * 1000;
+const ROLES = ['proprietaire', 'gestionnaire'];
 
 // Vérification de l'email à l'inscription : code à 6 chiffres envoyé par email
 const CODE_DUREE_MS = 15 * 60 * 1000;
@@ -163,7 +165,8 @@ class EntrepriseService {
   async verifierConnexion(email, motDePasse) {
     const u = await this.utilisateurs.findOne({ email: { $eq: texte(email, 254).toLowerCase() } });
     const ok = verifierHash(String(motDePasse ?? ''), u?.motDePasse || HASH_FACTICE);
-    return u && ok ? u : null;
+    // Invitation pas encore acceptée : pas de connexion (le mot de passe se choisit depuis l'invitation)
+    return u && ok && u.statut !== 'invite' ? u : null;
   }
 
   async utilisateur(id) {
@@ -244,7 +247,7 @@ class EntrepriseService {
    */
   async demanderReinitialisation(email) {
     const u = await this.utilisateurs.findOne({ email: { $eq: texte(email, 254).toLowerCase() } });
-    if (!u) return null;
+    if (!u || u.statut === 'invite') return null; // un invité utilise son lien d'invitation
     const jeton = crypto.randomBytes(32).toString('base64url');
     await this.utilisateurs.updateOne({ _id: u._id }, {
       $set: { reinitialisation: { empreinte: empreinte(jeton), expireLe: new Date(Date.now() + DUREE_REINITIALISATION_MS) } },
@@ -272,7 +275,124 @@ class EntrepriseService {
   }
 
   publicUtilisateur(u) {
-    return u ? { id: u._id, prenom: u.prenom, nom: u.nom, email: u.email, telephone: u.telephone, role: u.role, emailVerifie: u.emailVerifie !== false } : null;
+    return u ? { id: u._id, prenom: u.prenom, nom: u.nom, email: u.email, telephone: u.telephone, role: u.role || 'proprietaire', emailVerifie: u.emailVerifie !== false, invite: u.statut === 'invite' } : null;
+  }
+
+  // ---------- Équipe d'une entreprise (plusieurs comptes) ----------
+  // Rôles : proprietaire (gère l'équipe et le compte de reversement) et gestionnaire (travail courant).
+  // Invitation par email : lien valable 7 jours, à usage unique, seule son empreinte est stockée.
+  // Une entreprise garde toujours au moins un propriétaire actif.
+
+  async equipe(entrepriseId) {
+    const membres = await this.utilisateurs.find({ entrepriseId: { $eq: String(entrepriseId) } }, { projection: { motDePasse: 0, reinitialisation: 0, verificationEmail: 0, 'invitation.empreinte': 0 } }).sort({ creeLe: 1 }).toArray();
+    const maintenant = new Date();
+    return membres.map(u => ({
+      ...this.publicUtilisateur(u),
+      statut: u.statut === 'invite' ? (new Date(u.invitation?.expireLe) > maintenant ? 'invitation' : 'invitation_expiree') : 'actif',
+      creeLe: u.creeLe, invitationExpireLe: u.invitation?.expireLe || null, invitePar: u.invitePar || null,
+    }));
+  }
+
+  /** Le propriétaire invite un collègue. Retourne { utilisateur, jeton } (jeton à envoyer par email). */
+  async inviter(entrepriseId, donnees = {}, parUid) {
+    const prenom = texte(donnees.prenom, 60);
+    const nom = texte(donnees.nom, 60);
+    const email = texte(donnees.email, 254).toLowerCase();
+    const role = ROLES.includes(donnees.role) ? donnees.role : 'gestionnaire';
+    if (prenom.length < 2 || nom.length < 2) throw new ErreurEntreprise('Indiquez le prénom et le nom de la personne');
+    if (!EMAIL.test(email)) throw new ErreurEntreprise('Adresse email invalide');
+    if (await this.utilisateurs.findOne({ email: { $eq: email } })) {
+      throw new ErreurEntreprise('Cette adresse a déjà un compte BABI RESIDENCE (dans votre entreprise ou une autre)', 409);
+    }
+    const jeton = crypto.randomBytes(32).toString('base64url');
+    const utilisateur = {
+      _id: crypto.randomUUID(), entrepriseId: String(entrepriseId), email, prenom, nom, telephone: '', role,
+      statut: 'invite', invitation: { empreinte: empreinte(jeton), expireLe: new Date(Date.now() + DUREE_INVITATION_MS) },
+      invitePar: parUid || null, creeLe: new Date(),
+    };
+    try {
+      await this.utilisateurs.insertOne(utilisateur);
+    } catch (error) {
+      if (error.code === 11000) throw new ErreurEntreprise('Cette adresse a déjà un compte BABI RESIDENCE', 409);
+      throw error;
+    }
+    return { utilisateur, jeton };
+  }
+
+  /** Nouveau lien pour une invitation en attente (l'ancien ne sert plus). */
+  async renouvelerInvitation(entrepriseId, id) {
+    const u = await this.membre(entrepriseId, id);
+    if (u.statut !== 'invite') throw new ErreurEntreprise('Cette personne a déjà accepté l\'invitation', 409);
+    const jeton = crypto.randomBytes(32).toString('base64url');
+    await this.utilisateurs.updateOne({ _id: u._id }, { $set: { invitation: { empreinte: empreinte(jeton), expireLe: new Date(Date.now() + DUREE_INVITATION_MS) } } });
+    return { utilisateur: u, jeton };
+  }
+
+  /** Ce qu'affiche la page d'invitation (sans rien modifier). */
+  async lireInvitation(jeton) {
+    const u = await this.invitationValide(jeton);
+    const e = await this.trouver(u.entrepriseId);
+    return { email: u.email, prenom: u.prenom, nom: u.nom, role: u.role, entreprise: e?.nom || '' };
+  }
+
+  /** L'invité choisit son mot de passe : compte actif, email vérifié (le lien le prouve). */
+  async accepterInvitation(jeton, donnees = {}) {
+    const motDePasse = String(donnees.motDePasse ?? '');
+    const telephone = texte(donnees.telephone, 30);
+    if (motDePasse.length < MOT_DE_PASSE_MIN || motDePasse.length > 200) throw new ErreurEntreprise(`Le mot de passe doit contenir au moins ${MOT_DE_PASSE_MIN} caractères`);
+    if (telephone && !TEL.test(telephone)) throw new ErreurEntreprise('Numéro de téléphone invalide');
+    const u = await this.invitationValide(jeton);
+    const prenom = texte(donnees.prenom, 60) || u.prenom;
+    const nom = texte(donnees.nom, 60) || u.nom;
+    const maintenant = new Date();
+    // Usage unique : l'invitation disparaît dans l'opération qui active le compte
+    const r = await this.utilisateurs.findOneAndUpdate(
+      { _id: u._id, statut: 'invite', 'invitation.empreinte': u.invitation.empreinte },
+      { $set: { prenom, nom, telephone, motDePasse: hacher(motDePasse), motDePasseLe: maintenant, emailVerifie: true, emailVerifieLe: maintenant, activeLe: maintenant }, $unset: { statut: '', invitation: '' } },
+      { returnDocument: 'after' }
+    );
+    if (!r) throw new ErreurEntreprise('Cette invitation n\'est plus valable. Demandez-en une nouvelle.');
+    return r;
+  }
+
+  async invitationValide(jeton) {
+    const j = String(jeton ?? '');
+    const invalide = new ErreurEntreprise('Cette invitation n\'est plus valable. Demandez à votre responsable de vous en envoyer une nouvelle.');
+    if (!/^[\w-]{20,100}$/.test(j)) throw invalide;
+    const u = await this.utilisateurs.findOne({ statut: 'invite', 'invitation.empreinte': { $eq: empreinte(j) }, 'invitation.expireLe': { $gt: new Date() } });
+    if (!u) throw invalide;
+    return u;
+  }
+
+  async membre(entrepriseId, id) {
+    const u = await this.utilisateurs.findOne({ _id: { $eq: String(id) }, entrepriseId: { $eq: String(entrepriseId) } });
+    if (!u) throw new ErreurEntreprise('Membre introuvable', 404);
+    return u;
+  }
+
+  async proprietairesActifs(entrepriseId) {
+    return this.utilisateurs.countDocuments({ entrepriseId: { $eq: String(entrepriseId) }, role: 'proprietaire', statut: { $ne: 'invite' } });
+  }
+
+  async changerRole(entrepriseId, id, role) {
+    if (!ROLES.includes(role)) throw new ErreurEntreprise('Rôle invalide');
+    const u = await this.membre(entrepriseId, id);
+    if (u.role === 'proprietaire' && role !== 'proprietaire' && u.statut !== 'invite' && await this.proprietairesActifs(entrepriseId) <= 1) {
+      throw new ErreurEntreprise('L\'entreprise doit garder au moins un propriétaire', 409);
+    }
+    await this.utilisateurs.updateOne({ _id: u._id }, { $set: { role } });
+    return { ...u, role };
+  }
+
+  /** Retire un membre (ou annule une invitation). Pas soi-même, jamais le dernier propriétaire. */
+  async retirerMembre(entrepriseId, id, parUid) {
+    const u = await this.membre(entrepriseId, id);
+    if (u._id === parUid) throw new ErreurEntreprise('Vous ne pouvez pas retirer votre propre compte', 409);
+    if (u.role === 'proprietaire' && u.statut !== 'invite' && await this.proprietairesActifs(entrepriseId) <= 1) {
+      throw new ErreurEntreprise('L\'entreprise doit garder au moins un propriétaire', 409);
+    }
+    await this.utilisateurs.deleteOne({ _id: u._id });
+    return u;
   }
 
   // ---------- Administration de la plateforme ----------
@@ -283,7 +403,7 @@ class EntrepriseService {
       this.entreprises.find({}).sort({ creeLe: -1 }).toArray(),
       db.collection('residences').aggregate([{ $group: { _id: '$entrepriseId', total: { $sum: 1 } } }]).toArray(),
       db.collection('reservations').aggregate([{ $group: { _id: '$entrepriseId', total: { $sum: 1 } } }]).toArray(),
-      this.utilisateurs.find({}, { projection: { motDePasse: 0, reinitialisation: 0, verificationEmail: 0 } }).toArray(),
+      this.utilisateurs.find({}, { projection: { motDePasse: 0, reinitialisation: 0, verificationEmail: 0, invitation: 0 } }).toArray(),
     ]);
     const compte = (liste, id) => liste.find(x => x._id === id)?.total || 0;
     return entreprises.map(e => ({
@@ -404,14 +524,16 @@ class EntrepriseService {
     return { supprimee: source.nom, vers: cible.nom, residences: residences.modifiedCount, reservations: reservations.modifiedCount };
   }
 
+  /** Comptes actifs de l'entreprise (destinataires des emails ; pas les invitations en attente). */
   async gestionnaires(entrepriseId) {
-    return this.utilisateurs.find({ entrepriseId: { $eq: String(entrepriseId) } }, { projection: { motDePasse: 0, reinitialisation: 0, verificationEmail: 0 } }).toArray();
+    return this.utilisateurs.find({ entrepriseId: { $eq: String(entrepriseId) }, statut: { $ne: 'invite' } }, { projection: { motDePasse: 0, reinitialisation: 0, verificationEmail: 0, invitation: 0 } }).toArray();
   }
 }
 
 const service = new EntrepriseService();
 service.ErreurEntreprise = ErreurEntreprise;
 service.STATUTS = STATUTS;
+service.ROLES = ROLES;
 service.hacher = hacher;
 service.verifierHash = verifierHash;
 module.exports = service;

@@ -32,6 +32,7 @@ const gererErreur = (res, error, contexte) => {
   if (error instanceof ResidenceService.ErreurValidation) {
     return res.status(400).json({ success: false, message: error.message });
   }
+  if (error instanceof EntrepriseService.ErreurEntreprise) return res.status(error.status).json({ success: false, message: error.message });
   console.error(`Erreur ${contexte}:`, error);
   return res.status(500).json({ success: false, message: `Erreur ${contexte}` });
 };
@@ -318,6 +319,58 @@ router.put('/plateforme/boosters/:id', superAdmin, async (req, res) => {
     const action = typeof b.action === 'string' ? b.action : '';
     res.json({ success: true, data: await require('../services/BoosterService').agir(req.params.id, { action, moyen: b.moyen, reference: typeof b.reference === 'string' ? b.reference : '', motif: typeof b.motif === 'string' ? b.motif : '' }, auteur(req)) });
   } catch (error) { erreurBooster(res, error, 'lors du traitement du booster'); }
+});
+
+/**
+ * Équipe de l'entreprise (plusieurs comptes par partenaire)
+ * @route   GET    /api/admin/equipe
+ * @route   POST   /api/admin/equipe/invitations          { prenom, nom, email, role }   propriétaire
+ * @route   POST   /api/admin/equipe/:id/invitation       renvoyer le lien                 propriétaire
+ * @route   PUT    /api/admin/equipe/:id/role             { role }                         propriétaire
+ * @route   DELETE /api/admin/equipe/:id                  retirer / annuler l'invitation   propriétaire
+ */
+const { proprietaire } = requireAdmin;
+const pasPlateforme = (req, res, next) => (req.admin.sa ? res.status(403).json({ success: false, message: 'Réservé aux partenaires' }) : next());
+const envoyerInvitation = async (req, { utilisateur, jeton }) => {
+  const entreprise = await EntrepriseService.trouver(utilisateur.entrepriseId);
+  const inviteur = await EntrepriseService.utilisateur(req.admin.uid);
+  ReservationService.emailService.sendInvitationEquipe(utilisateur, entreprise, inviteur, jeton)
+    .catch(e => console.error('⚠️ Invitation non envoyée :', String(e?.message).replace(/\n|\r/g, '')));
+};
+
+router.get('/equipe', pasPlateforme, async (req, res) => {
+  try {
+    res.json({ success: true, data: { membres: await EntrepriseService.equipe(Tenant.courante()), moi: req.admin.uid, role: req.admin.role } });
+  } catch (error) { gererErreur(res, error, 'lors de la lecture de l\'équipe'); }
+});
+
+router.post('/equipe/invitations', pasPlateforme, proprietaire, async (req, res) => {
+  try {
+    const invitation = await EntrepriseService.inviter(Tenant.courante(), req.body || {}, req.admin.uid);
+    await envoyerInvitation(req, invitation);
+    res.status(201).json({ success: true, message: `Invitation envoyée à ${invitation.utilisateur.email}.`, data: { membres: await EntrepriseService.equipe(Tenant.courante()) } });
+  } catch (error) { gererErreur(res, error, 'lors de l\'invitation'); }
+});
+
+router.post('/equipe/:id/invitation', pasPlateforme, proprietaire, async (req, res) => {
+  try {
+    await envoyerInvitation(req, await EntrepriseService.renouvelerInvitation(Tenant.courante(), req.params.id));
+    res.json({ success: true, message: 'Nouvelle invitation envoyée.', data: { membres: await EntrepriseService.equipe(Tenant.courante()) } });
+  } catch (error) { gererErreur(res, error, 'lors du renvoi de l\'invitation'); }
+});
+
+router.put('/equipe/:id/role', pasPlateforme, proprietaire, async (req, res) => {
+  try {
+    await EntrepriseService.changerRole(Tenant.courante(), req.params.id, req.body?.role);
+    res.json({ success: true, data: { membres: await EntrepriseService.equipe(Tenant.courante()) } });
+  } catch (error) { gererErreur(res, error, 'lors du changement de rôle'); }
+});
+
+router.delete('/equipe/:id', pasPlateforme, proprietaire, async (req, res) => {
+  try {
+    const u = await EntrepriseService.retirerMembre(Tenant.courante(), req.params.id, req.admin.uid);
+    res.json({ success: true, message: u.statut === 'invite' ? 'Invitation annulée.' : `${u.prenom} ${u.nom} n'a plus accès à l'espace.`, data: { membres: await EntrepriseService.equipe(Tenant.courante()) } });
+  } catch (error) { gererErreur(res, error, 'lors du retrait du membre'); }
 });
 
 /**

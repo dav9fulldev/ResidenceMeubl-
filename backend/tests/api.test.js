@@ -2632,3 +2632,108 @@ test('Booster : prolongation d\'un ancien booster (formule 15 jours) payée en l
   assert.equal(new Date(actif.debut).getTime(), finAncien.getTime(), 'commence à la fin du booster en cours');
   assert.equal(Math.round((new Date(actif.fin) - new Date(actif.debut)) / 86400000), 14);
 });
+
+test('équipe d\'un partenaire : invitation par email, rôles, compte de reversement réservé au propriétaire', async (t) => {
+  const emails = ReservationService.emailService;
+  const invitations = [];
+  for (const nom of ['sendBienvenueEntreprise', 'sendNouvelleEntrepriseAdmin']) {
+    const original = emails[nom];
+    emails[nom] = async () => {};
+    t.after(() => { emails[nom] = original; });
+  }
+  const originalInvitation = emails.sendInvitationEquipe;
+  emails.sendInvitationEquipe = async (u, entreprise, inviteur, jeton) => { invitations.push({ email: u.email, entreprise: entreprise.nom, inviteur: inviteur?.prenom, jeton }); };
+  t.after(() => { emails.sendInvitationEquipe = originalInvitation; });
+
+  const mdp = randomBytes(9).toString('hex');
+  const ins = await api('/api/entreprises/inscription', { method: 'POST', body: {
+    entreprise: 'Résidences Équipe', prenom: 'Koffi', nom: 'Yao', email: 'koffi@equipe-test.ci', telephone: '+225 07 00 00 00 21', motDePasse: mdp,
+  } });
+  assert.equal(ins.status, 201, JSON.stringify(ins.body));
+  const proprio = await verifierEmailPartenaire('koffi@equipe-test.ci');
+  t.after(async () => {
+    const u = await db.collection('utilisateurs').findOne({ email: 'koffi@equipe-test.ci' });
+    if (u) {
+      await db.collection('utilisateurs').deleteMany({ entrepriseId: u.entrepriseId });
+      await db.collection('entreprises').deleteOne({ _id: u.entrepriseId });
+    }
+  });
+
+  const moi = await api('/api/admin/moi', { headers: proprio });
+  assert.equal(moi.body.data.utilisateur.role, 'proprietaire');
+  let equipe = await api('/api/admin/equipe', { headers: proprio });
+  assert.equal(equipe.status, 200);
+  assert.equal(equipe.body.data.membres.length, 1);
+
+  // Invitation : contrôles, puis lien envoyé (seule l'empreinte est en base)
+  const inviter = (body, headers = proprio) => api('/api/admin/equipe/invitations', { method: 'POST', headers, body });
+  assert.equal((await inviter({ prenom: 'A', nom: 'Bé', email: 'x@equipe-test.ci' })).status, 400, 'nom trop court');
+  assert.equal((await inviter({ prenom: 'Awa', nom: 'Diallo', email: 'pas-un-email' })).status, 400);
+  assert.equal((await inviter({ prenom: 'Awa', nom: 'Diallo', email: 'koffi@equipe-test.ci' })).status, 409, 'adresse déjà utilisée');
+  const inv = await inviter({ prenom: 'Awa', nom: 'Diallo', email: 'AWA@equipe-test.ci', role: 'gestionnaire' });
+  assert.equal(inv.status, 201, JSON.stringify(inv.body));
+  await new Promise(r => setImmediate(r));
+  assert.equal(invitations.length, 1);
+  assert.deepEqual({ ...invitations[0], jeton: undefined }, { email: 'awa@equipe-test.ci', entreprise: 'Résidences Équipe', inviteur: 'Koffi', jeton: undefined });
+  const enBase = await db.collection('utilisateurs').findOne({ email: 'awa@equipe-test.ci' });
+  assert.equal(enBase.statut, 'invite');
+  assert.ok(!JSON.stringify(enBase).includes(invitations[0].jeton), 'jeton jamais stocké en clair');
+  const invite = inv.body.data.membres.find(m => m.email === 'awa@equipe-test.ci');
+  assert.equal(invite.statut, 'invitation');
+  assert.ok(!JSON.stringify(inv.body).includes('empreinte'));
+
+  // Pas encore accepté : pas de connexion, pas de lien « mot de passe oublié »
+  assert.equal((await api('/api/admin/login', { method: 'POST', body: { email: 'awa@equipe-test.ci', password: mdp } })).status, 401);
+
+  // Renvoi : l'ancien lien ne vaut plus rien
+  assert.equal((await api(`/api/admin/equipe/${invite.id}/invitation`, { method: 'POST', headers: proprio })).status, 200);
+  await new Promise(r => setImmediate(r));
+  const [ancien, jeton] = [invitations[0].jeton, invitations[1].jeton];
+  assert.equal((await api('/api/entreprises/invitation', { method: 'POST', body: { jeton: ancien } })).status, 400);
+  assert.equal((await api('/api/entreprises/invitation', { method: 'POST', body: { jeton: { $ne: null } } })).status, 400, 'injection');
+  const lecture = await api('/api/entreprises/invitation', { method: 'POST', body: { jeton } });
+  assert.equal(lecture.status, 200);
+  assert.deepEqual(lecture.body.data, { email: 'awa@equipe-test.ci', prenom: 'Awa', nom: 'Diallo', role: 'gestionnaire', entreprise: 'Résidences Équipe' });
+
+  // Acceptation : mot de passe choisi, session ouverte, usage unique
+  const accepter = (body) => api('/api/entreprises/invitation/acceptation', { method: 'POST', body });
+  assert.equal((await accepter({ jeton, motDePasse: randomBytes(2).toString('hex') })).status, 400, 'trop court');
+  const mdpAwa = randomBytes(9).toString('hex');
+  const ok = await accepter({ jeton, motDePasse: mdpAwa, prenom: 'Awa Marie' });
+  assert.equal(ok.status, 200, JSON.stringify(ok.body));
+  assert.equal((await accepter({ jeton, motDePasse: randomBytes(9).toString('hex') })).status, 400, 'usage unique');
+  const gestion = { Authorization: `Bearer ${ok.body.data.token}` };
+  const moiAwa = (await api('/api/admin/moi', { headers: gestion })).body.data;
+  assert.equal(moiAwa.utilisateur.role, 'gestionnaire');
+  assert.equal(moiAwa.utilisateur.prenom, 'Awa Marie');
+  assert.equal(moiAwa.entreprise.nom, 'Résidences Équipe');
+  assert.equal((await api('/api/admin/login', { method: 'POST', body: { email: 'awa@equipe-test.ci', password: mdpAwa } })).status, 200);
+
+  // Le gestionnaire voit l'équipe, mais ne la gère pas et ne touche pas au compte de reversement
+  equipe = await api('/api/admin/equipe', { headers: gestion });
+  assert.equal(equipe.status, 200);
+  assert.deepEqual(equipe.body.data.membres.map(m => m.statut), ['actif', 'actif']);
+  assert.equal((await inviter({ prenom: 'Jean', nom: 'Kouadio', email: 'jean@equipe-test.ci' }, gestion)).status, 403);
+  assert.equal((await api(`/api/admin/equipe/${invite.id}/role`, { method: 'PUT', headers: gestion, body: { role: 'proprietaire' } })).status, 403, 'pas d\'auto-promotion');
+  const benef = { type: 'mobile_money', operateur: 'Wave', beneficiaire: 'Résidences Équipe', destination: '+2250700000021' };
+  assert.equal((await api('/api/admin/revenus/beneficiaire', { method: 'PUT', headers: gestion, body: benef })).status, 403);
+  assert.equal((await api('/api/admin/residences', { headers: gestion })).status, 200, 'travail courant permis');
+
+  // Le dernier propriétaire ne peut ni être rétrogradé ni retiré, ni se retirer lui-même
+  const koffi = equipe.body.data.membres.find(m => m.email === 'koffi@equipe-test.ci');
+  assert.equal((await api(`/api/admin/equipe/${koffi.id}/role`, { method: 'PUT', headers: proprio, body: { role: 'gestionnaire' } })).status, 409);
+  assert.equal((await api(`/api/admin/equipe/${koffi.id}`, { method: 'DELETE', headers: proprio })).status, 409);
+  assert.equal((await api(`/api/admin/equipe/${invite.id}/role`, { method: 'PUT', headers: proprio, body: { role: 'chef' } })).status, 400);
+
+  // Promotion : le nouveau propriétaire gère l'équipe dès sa requête suivante
+  assert.equal((await api(`/api/admin/equipe/${invite.id}/role`, { method: 'PUT', headers: proprio, body: { role: 'proprietaire' } })).status, 200);
+  assert.notEqual((await api('/api/admin/revenus/beneficiaire', { method: 'PUT', headers: gestion, body: {} })).status, 403, 'propriétaire : accès au compte de reversement');
+  assert.equal((await api(`/api/admin/equipe/${invite.id}/role`, { method: 'PUT', headers: proprio, body: { role: 'gestionnaire' } })).status, 200);
+
+  // Retrait : la session du membre retiré ne vaut plus rien
+  assert.equal((await api(`/api/admin/equipe/${invite.id}`, { method: 'DELETE', headers: proprio })).status, 200);
+  assert.equal((await api('/api/admin/moi', { headers: gestion })).status, 401);
+
+  // Une autre entreprise ne voit ni ne touche cette équipe
+  assert.equal((await api(`/api/admin/equipe/${koffi.id}`, { method: 'DELETE', headers: await connexionAdmin() })).status, 403, 'plateforme : pas d\'équipe');
+});
