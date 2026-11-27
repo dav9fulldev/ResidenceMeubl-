@@ -83,6 +83,36 @@ router.post('/mot-de-passe/reinitialisation', motDePasseLimiter, async (req, res
   }
 });
 
+// ---------- Invitation dans l'équipe d'une entreprise ----------
+
+/**
+ * @route   POST /api/entreprises/invitation          { jeton }   ce qu'affiche la page d'invitation
+ * @route   POST /api/entreprises/invitation/acceptation   { jeton, motDePasse, telephone?, prenom?, nom? }
+ * @access  Public (lien reçu par email, 7 jours, usage unique)
+ */
+router.post('/invitation', motDePasseLimiter, async (req, res) => {
+  try {
+    res.json({ success: true, data: await EntrepriseService.lireInvitation(req.body?.jeton) });
+  } catch (error) {
+    if (error instanceof EntrepriseService.ErreurEntreprise) return res.status(error.status).json({ success: false, message: error.message });
+    console.error('Erreur lors de la lecture de l\'invitation :', error);
+    res.status(500).json({ success: false, message: 'Erreur lors de la lecture de l\'invitation' });
+  }
+});
+
+router.post('/invitation/acceptation', motDePasseLimiter, async (req, res) => {
+  try {
+    const u = await EntrepriseService.accepterInvitation(req.body?.jeton, req.body || {});
+    const entreprise = await EntrepriseService.trouver(u.entrepriseId);
+    const token = AuthService.creerJeton(u.email, { entrepriseId: u.entrepriseId, utilisateurId: u._id, superAdmin: false });
+    res.json({ success: true, data: { token, entreprise: { id: entreprise._id, nom: entreprise.nom }, utilisateur: EntrepriseService.publicUtilisateur(u) } });
+  } catch (error) {
+    if (error instanceof EntrepriseService.ErreurEntreprise) return res.status(error.status).json({ success: false, message: error.message });
+    console.error('Erreur lors de l\'acceptation de l\'invitation :', error);
+    res.status(500).json({ success: false, message: 'Erreur lors de l\'acceptation de l\'invitation' });
+  }
+});
+
 // ---------- Vérification de l'email (code à 6 chiffres) ----------
 
 /** Prépare et envoie un nouveau code au compte non vérifié de cet email (sans erreur si rien à faire). */

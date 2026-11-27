@@ -26,6 +26,8 @@ module.exports = async function requireAdmin(req, res, next) {
       const u = await EntrepriseService.utilisateur(admin.uid);
       if (!u || u.entrepriseId !== admin.ent) return refus(res, 401, 'Session expirée, reconnectez-vous');
       if (EntrepriseService.emailAVerifier(u)) return refus(res, 403, 'Confirmez d\'abord votre adresse email');
+      if (u.statut === 'invite') return refus(res, 401, 'Session expirée, reconnectez-vous');
+      admin.role = u.role || 'proprietaire';
       // Mot de passe réinitialisé : les sessions ouvertes avant ne valent plus rien
       if (u.sessionsInvalideesLe && (Number(admin.iat) || 0) < new Date(u.sessionsInvalideesLe).getTime()) {
         return refus(res, 401, 'Session expirée, reconnectez-vous');
@@ -42,6 +44,12 @@ module.exports = async function requireAdmin(req, res, next) {
 
   req.admin = admin;
   Tenant.run(admin.ent, () => next(), true);
+};
+
+/** Réservé au propriétaire du compte de l'entreprise (équipe, compte de reversement). */
+module.exports.proprietaire = function requireProprietaire(req, res, next) {
+  if (req.admin?.sa || req.admin?.role !== 'proprietaire') return refus(res, 403, 'Réservé au propriétaire du compte de l\'entreprise');
+  next();
 };
 
 /** Réservé à l'administrateur de la plateforme (validation des entreprises). */

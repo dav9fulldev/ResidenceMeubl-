@@ -320,6 +320,24 @@ class EmailService {
     }));
   }
 
+  // Équipe d'un partenaire : invitation d'un collègue (lien valable 7 jours)
+  async sendInvitationEquipe(invite, entreprise, inviteur, jeton) {
+    const qui = inviteur ? `${esc(inviteur.prenom)} ${esc(inviteur.nom)}` : 'Le responsable';
+    await require('./Tenant').run(require('./Tenant').PRINCIPALE, () => this.envoyer({
+      to: invite.email,
+      subject: `Invitation à rejoindre ${entreprise?.nom || 'une entreprise'} sur BABI RESIDENCE`,
+      html: this.gabarit({
+        titre: `Rejoignez ${esc(entreprise?.nom || 'votre équipe')}`,
+        prevue: 'Votre invitation à l’espace partenaire, valable 7 jours.',
+        contenu: `<p style="margin:0 0 12px;">Bonjour ${esc(invite.prenom)},</p>
+          <p style="margin:0 0 12px;">${qui} vous invite à rejoindre l'espace partenaire de <strong>${esc(entreprise?.nom || '')}</strong> sur BABI RESIDENCE, en tant que <strong>${invite.role === 'proprietaire' ? 'propriétaire' : 'gestionnaire'}</strong>.</p>
+          <p style="margin:0;">Choisissez votre mot de passe pour accéder aux résidences, réservations et clients de l'entreprise.</p>`,
+        bouton: { texte: 'Accepter l’invitation', url: `${urlSite()}/admin/invitation?jeton=${encodeURIComponent(jeton)}` },
+        note: 'Ce lien est valable 7 jours et ne sert qu’une fois. Si vous ne connaissez pas cette entreprise, ignorez cet email.',
+      }),
+    }));
+  }
+
   // Vérification de l'email d'un nouveau partenaire : code à 6 chiffres
   async sendCodeVerification(utilisateur, code) {
     await require('./Tenant').run(require('./Tenant').PRINCIPALE, () => this.envoyer({
