@@ -2737,3 +2737,70 @@ test('équipe d\'un partenaire : invitation par email, rôles, compte de reverse
   // Une autre entreprise ne voit ni ne touche cette équipe
   assert.equal((await api(`/api/admin/equipe/${koffi.id}`, { method: 'DELETE', headers: await connexionAdmin() })).status, 403, 'plateforme : pas d\'équipe');
 });
+
+test('Booster : reçu à l\'activation, rappel avant la fin (sauf prolongation programmée), bilan unique', async (t) => {
+  const Booster = require('../services/BoosterService');
+  const es = ReservationService.emailService;
+  const envois = [];
+  const original = es.sendBoosterActive;
+  es.sendBoosterActive = async (b, membres) => { envois.push({ type: 'recu', ref: b.reference, statut: b.statut, membres: membres.length }); };
+  t.after(async () => {
+    es.sendBoosterActive = original;
+    await db.collection('boosters').deleteMany({});
+    await db.collection('financial_audit_logs').deleteMany({ action: 'BOOSTER_ACTIVE' });
+  });
+  const residence = await db.collection('residences').findOne({ id: 1 });
+  const J = 86400000;
+  const maintenant = new Date();
+  const base = { entrepriseId: residence.entrepriseId, residenceNom: residence.nom, objectif: 'visites', audience: 'tout', budgetJour: 1000, demandeLe: maintenant, paiement: { moyen: 'mobile_money', reference: 'W-1', montant: 7000 } };
+
+  // Activation manuelle : le reçu part aux comptes de l'entreprise
+  const { insertedId } = await db.collection('boosters').insertOne({ ...base, reference: 'BST-RECU', residenceId: 1, duree: 7, montant: 7000, statut: 'en_attente', paiement: undefined });
+  const act = await api(`/api/admin/plateforme/boosters/${insertedId}`, { method: 'PUT', headers: await connexionAdmin(), body: { action: 'activer', moyen: 'mobile_money', reference: 'WAVE-123' } });
+  assert.equal(act.status, 200, JSON.stringify(act.body));
+  await new Promise(r => setTimeout(r, 50));
+  assert.deepEqual(envois.map(e => [e.type, e.ref, e.statut]), [['recu', 'BST-RECU', 'actif']]);
+  await db.collection('boosters').deleteMany({});
+
+  await db.collection('boosters').insertMany([
+    // se termine dans 30 h : rappel
+    { ...base, reference: 'BST-PROCHE', residenceId: 1, duree: 7, montant: 7000, statut: 'actif', debut: new Date(maintenant - 6 * J), fin: new Date(+maintenant + 30 * 3600000) },
+    // booster de 3 jours qui se termine dans 30 h : trop tôt (rappel à 24 h)
+    { ...base, reference: 'BST-COURT', residenceId: 2, duree: 3, montant: 3000, statut: 'actif', debut: new Date(maintenant - 1.75 * J), fin: new Date(+maintenant + 30 * 3600000) },
+    // se termine dans 20 h mais une prolongation est déjà programmée : pas de rappel
+    { ...base, reference: 'BST-PROLONGE', residenceId: 3, duree: 7, montant: 7000, statut: 'actif', debut: new Date(maintenant - 6 * J), fin: new Date(+maintenant + 20 * 3600000) },
+    { ...base, reference: 'BST-SUITE', residenceId: 3, duree: 7, montant: 7000, statut: 'actif', debut: new Date(+maintenant + 20 * 3600000), fin: new Date(+maintenant + 20 * 3600000 + 7 * J), prolongationDe: 'BST-PROLONGE' },
+    // fini hier : bilan ; fini il y a 10 jours : pas rattrapé ; arrêté : rien
+    { ...base, reference: 'BST-FINI', residenceId: 1, duree: 7, montant: 7000, statut: 'actif', debut: new Date(maintenant - 8 * J), fin: new Date(maintenant - J) },
+    { ...base, reference: 'BST-VIEUX', residenceId: 1, duree: 7, montant: 7000, statut: 'actif', debut: new Date(maintenant - 17 * J), fin: new Date(maintenant - 10 * J) },
+    { ...base, reference: 'BST-ARRETE', residenceId: 2, duree: 7, montant: 7000, statut: 'arrete', debut: new Date(maintenant - 8 * J), fin: new Date(maintenant - J) },
+  ]);
+  const faux = {
+    sendBoosterFinProche: async (b, resultats) => { envois.push({ type: 'rappel', ref: b.reference, resultats }); },
+    sendBoosterBilan: async (b, resultats, membres, suite) => { envois.push({ type: 'bilan', ref: b.reference, resultats, suite }); },
+  };
+  envois.length = 0;
+  assert.deepEqual(await Booster.envoyerRappels(faux, maintenant), { rappels: 1, bilans: 1 });
+  assert.deepEqual(envois.map(e => [e.type, e.ref]), [['rappel', 'BST-PROCHE'], ['bilan', 'BST-FINI']]);
+  assert.ok(envois[0].resultats && typeof envois[0].resultats.visites === 'number', 'résultats joints');
+
+  // Une seule fois, même relancé
+  assert.deepEqual(await Booster.envoyerRappels(faux, maintenant), { rappels: 0, bilans: 0 });
+
+  // Le booster de 3 jours reçoit son rappel à 24 h de la fin
+  assert.deepEqual(await Booster.envoyerRappels(faux, new Date(+maintenant + 7 * 3600000)), { rappels: 1, bilans: 0 });
+  assert.equal(envois.at(-1).ref, 'BST-COURT');
+
+  // Échec d'envoi : réessayé à l'heure suivante
+  await db.collection('boosters').updateOne({ reference: 'BST-FINI' }, { $unset: { bilanLe: '' } });
+  const enPanne = { ...faux, sendBoosterBilan: async () => { throw new Error('SMTP indisponible'); } };
+  assert.deepEqual(await Booster.envoyerRappels(enPanne, maintenant), { rappels: 0, bilans: 0 });
+  assert.equal((await db.collection('boosters').findOne({ reference: 'BST-FINI' })).bilanLe, undefined);
+  assert.deepEqual(await Booster.envoyerRappels(faux, maintenant), { rappels: 0, bilans: 1 });
+
+  // Bilan d'un booster suivi d'une prolongation : la suite est signalée
+  const fin = new Date(+maintenant + 21 * 3600000);
+  await Booster.envoyerRappels(faux, fin);
+  const bilan = envois.find(e => e.type === 'bilan' && e.ref === 'BST-PROLONGE');
+  assert.equal(bilan?.suite?.reference, 'BST-SUITE');
+});
