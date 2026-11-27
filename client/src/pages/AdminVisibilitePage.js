@@ -12,7 +12,7 @@ import './AdminFinances.css';
 import './AdminBoosters.css';
 
 export const STATUTS_BOOSTER = {
-  en_attente: ['En attente du paiement', 'attente'], actif: ['Actif', 'confirmee'], termine: ['Terminé', 'neutre'],
+  en_attente: ['En attente du paiement', 'attente'], actif: ['Actif', 'confirmee'], programme: ['Programmé', 'attente'], termine: ['Terminé', 'neutre'],
   refuse: ['Refusé', 'annulee'], annule: ['Annulé', 'neutre'], arrete: ['Arrêté', 'annulee'],
 };
 const ICONES_OBJECTIF = { visites: <FaEye />, reservations: <FaCalendarCheck /> };
@@ -82,7 +82,13 @@ const AdminVisibilitePage = () => {
       for (let i = 0; i < 12 && actif; i += 1) {
         try {
           const b = (await adminRequest(API_ENDPOINTS.admin.boosters(`/${id}/paiement`))).data;
-          if (b.statut === 'actif') { if (actif) setRetour({ etat: 'ok', message: `Paiement reçu : « ${b.residenceNom} » est boostée du ${dateCourte(b.debut)} au ${dateCourte(b.fin)}.` }); charger(); return; }
+          if (['actif', 'programme'].includes(b.statut)) {
+            if (actif) setRetour({ etat: 'ok', message: b.statut === 'programme'
+              ? `Paiement reçu : la prolongation de « ${b.residenceNom} » est programmée du ${dateCourte(b.debut)} au ${dateCourte(b.fin)}.`
+              : `Paiement reçu : « ${b.residenceNom} » est boostée du ${dateCourte(b.debut)} au ${dateCourte(b.fin)}.` });
+            charger();
+            return;
+          }
           if (b.paiementEnLigne?.statut === 'echec') { if (actif) setRetour({ etat: 'echec', message: `${b.paiementEnLigne.raison}. Vous pouvez réessayer depuis « Mes boosters ».` }); charger(); return; }
         } catch { /* réseau : nouvel essai */ }
         await new Promise(r => setTimeout(r, 3000));
@@ -302,6 +308,9 @@ const AdminVisibilitePage = () => {
                 {d.boosters.length === 0 && <tr><td colSpan={7} className="ent-vide">Aucun booster pour l’instant.</td></tr>}
                 {d.boosters.map(b => {
                   const r = b.resultats;
+                  // Prolongations : lien entre les boosters d'une même résidence ; « Prolonger » sur le dernier seulement
+                  const suite = d.boosters.find(x => x.prolongationDe === b.reference && ['actif', 'programme'].includes(x.statut));
+                  const dernier = !d.boosters.some(x => x.residenceId === b.residenceId && x.id !== b.id && ['actif', 'programme'].includes(x.statut) && new Date(x.fin) > new Date(b.fin));
                   const resultat = b.objectif === 'reservations' ? r?.reservations : r?.visites;
                   return (
                     <React.Fragment key={b.id}>
@@ -315,6 +324,8 @@ const AdminVisibilitePage = () => {
                           <Badge table={STATUTS_BOOSTER} valeur={b.statut} />
                           {b.motif && <small>{b.motif}</small>}
                           {b.statut === 'en_attente' && b.paiementEnLigne?.statut === 'echec' && <small>{b.paiementEnLigne.raison}</small>}
+                          {b.prolongationDe && <small>Prolongation de {b.prolongationDe}</small>}
+                          {suite && <small>Prolongé par {suite.reference} jusqu’au {dateCourte(suite.fin)}</small>}
                         </td>
                         <td className="booster-actions">
                           {b.statut === 'en_attente' && <>
@@ -324,7 +335,7 @@ const AdminVisibilitePage = () => {
                           {r && <button type="button" className="adm-btn" aria-expanded={ouvert === b.id} onClick={() => setOuvert(o => (o === b.id ? null : b.id))}>
                             {ouvert === b.id ? <FaChevronUp aria-hidden="true" /> : <FaChevronDown aria-hidden="true" />} Résultats
                           </button>}
-                          {['actif', 'termine'].includes(b.statut) && <button type="button" className="adm-btn" onClick={() => prolonger(b)}><FaRedo aria-hidden="true" /> Prolonger</button>}
+                          {['actif', 'programme', 'termine'].includes(b.statut) && dernier && !suite && <button type="button" className="adm-btn" onClick={() => prolonger(b)}><FaRedo aria-hidden="true" /> Prolonger</button>}
                         </td>
                       </tr>
                       {ouvert === b.id && r && (
