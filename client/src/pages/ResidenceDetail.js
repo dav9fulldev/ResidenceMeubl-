@@ -12,6 +12,7 @@ import AvailabilityStatus from '../components/AvailabilityStatus';
 import SimilarResidences from '../components/SimilarResidences';
 import SignalerAnnonce from '../components/SignalerAnnonce';
 import { AvisResidence } from '../components/Avis';
+import { compterVisite } from '../utils/statistiques';
 import NotFound from './NotFound';
 import './ResidenceDetail.css';
 
@@ -36,6 +37,8 @@ const ResidenceDetail = () => {
   const { addToFavorites, removeFromFavorites, isFavorite } = useFavorites();
 
   const residence = loading ? null : getResidenceById(id);
+  // Visite de la fiche (résultats des boosters)
+  useEffect(() => { if (residence?.id) compterVisite(residence.id); }, [residence?.id]);
 
   useEffect(() => {
     setActiveImage(0);

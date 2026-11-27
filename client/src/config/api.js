@@ -15,6 +15,7 @@ export const API_ENDPOINTS = {
     similar: (id) => `${API_BASE_URL}/residences/${id}/similaires`,
     report: (id) => `${API_BASE_URL}/residences/${id}/signalement`,
     reviews: (id) => `${API_BASE_URL}/residences/${id}/avis`,
+    stats: `${API_BASE_URL}/residences/statistiques`,
   },
   reservations: {
     create: `${API_BASE_URL}/reservations`,

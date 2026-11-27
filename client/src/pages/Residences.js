@@ -5,6 +5,7 @@ import { API_ENDPOINTS } from '../config/api';
 import { useResidences } from '../context/ResidencesContext';
 import SmartSearch, { CriteresCompris } from '../components/SmartSearch';
 import ResidenceCard from '../components/ResidenceCard';
+import { scoreIci } from '../utils/booster';
 import './Residences.css';
 
 const Residences = () => {
@@ -65,7 +66,10 @@ const Residences = () => {
   const displayed = aiResult
     ? (aiResult.resultats.length > 0 ? aiResult.resultats : aiResult.suggestions).filter(r => idsFiltres.has(r.id))
     : filteredResidences;
-  const affichees = displayed.filter(criteres);
+  // Recherche en cours : un booster ciblé (quartier / ville) ne s'applique qu'ici ; l'ordre de l'IA est conservé
+  const contexte = { ville: filters.city, quartier, texte: rechercheDirecte };
+  const filtrees = displayed.filter(criteres);
+  const affichees = aiResult ? filtrees : [...filtrees].sort((a, b) => scoreIci(b, contexte) - scoreIci(a, contexte));
   const activeFilters = Object.values(filters).filter(v => v !== '' && v !== null && v !== undefined).length;
 
   const handleFilterChange = (e) => {
@@ -228,6 +232,7 @@ const Residences = () => {
               <ResidenceCard
                 key={residence.id}
                 residence={residence}
+                contexte={contexte}
                 eager={index < 3}
                 requete={requete}
                 libreAuxDates={Boolean(libres)}
