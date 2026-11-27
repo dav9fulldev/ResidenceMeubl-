@@ -32,6 +32,7 @@ const gererErreur = (res, error, contexte) => {
   if (error instanceof ResidenceService.ErreurValidation) {
     return res.status(400).json({ success: false, message: error.message });
   }
+  if (error instanceof EntrepriseService.ErreurEntreprise) return res.status(error.status).json({ success: false, message: error.message });
   console.error(`Erreur ${contexte}:`, error);
   return res.status(500).json({ success: false, message: `Erreur ${contexte}` });
 };

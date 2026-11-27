@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import {
   FaChartPie, FaChartLine, FaCalendarAlt, FaHome, FaSignOutAlt, FaExternalLinkAlt,
-  FaMoon, FaSun, FaDownload, FaTimes, FaCog, FaRegCalendarCheck, FaBuilding, FaHourglassHalf, FaShieldAlt, FaCoins, FaUsers, FaStar, FaRocket,
+  FaMoon, FaSun, FaDownload, FaTimes, FaCog, FaRegCalendarCheck, FaBuilding, FaHourglassHalf, FaShieldAlt, FaCoins, FaUsers, FaStar, FaRocket, FaUserFriends,
 } from 'react-icons/fa';
 import { API_ENDPOINTS } from '../../config/api';
 import { CompteContext } from '../../context/CompteContext';
@@ -31,6 +31,7 @@ const TITRES = {
   '/admin/avis': 'Avis',
   '/admin/visibilite': 'Visibilité',
   '/admin/boosters': 'Boosters',
+  '/admin/equipe': 'Équipe',
 };
 
 /**
@@ -72,7 +73,7 @@ const AdminLayout = () => {
 
   // L'administrateur de la plateforme n'a pas de pages de gestion : il arrive sur la vue d'ensemble de la plateforme
   useEffect(() => {
-    const GESTION = ['/admin/dashboard', '/admin/reservations', '/admin/calendrier', '/admin/residences', '/admin/statistiques', '/admin/revenus'];
+    const GESTION = ['/admin/dashboard', '/admin/reservations', '/admin/calendrier', '/admin/residences', '/admin/statistiques', '/admin/revenus', '/admin/equipe'];
     if (compte?.superAdmin && GESTION.includes(location.pathname)) navigate('/admin/plateforme', { replace: true });
     if (compte && !compte.superAdmin && ['/admin/plateforme', '/admin/entreprises', '/admin/utilisateurs', '/admin/boosters', '/admin/verifications', '/admin/finances'].includes(location.pathname)) navigate('/admin/dashboard', { replace: true });
   }, [compte, location.pathname, navigate]);
@@ -123,6 +124,7 @@ const AdminLayout = () => {
     { to: '/admin/avis', icone: <FaStar />, texte: 'Avis', section: 'Pilotage', mobile: false },
     { to: '/admin/visibilite', icone: <FaRocket />, texte: 'Visibilité', section: 'Pilotage', mobile: false },
     ...(compte && !compte.entreprise?.interne ? [{ to: '/admin/revenus', icone: <FaCoins />, texte: 'Revenus', section: 'Pilotage', mobile: false }] : []),
+    { to: '/admin/equipe', icone: <FaUserFriends />, texte: 'Équipe', section: 'Pilotage', mobile: false },
     { to: '/admin/parametres', icone: <FaCog />, texte: 'Paramètres', section: 'Pilotage' },
   ];
   const nomEntreprise = compte?.entreprise?.nom || 'BABI RESIDENCE';

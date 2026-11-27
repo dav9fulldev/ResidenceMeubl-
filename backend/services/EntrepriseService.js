@@ -275,7 +275,7 @@ class EntrepriseService {
   }
 
   publicUtilisateur(u) {
-    return u ? { id: u._id, prenom: u.prenom, nom: u.nom, email: u.email, telephone: u.telephone, role: u.role, emailVerifie: u.emailVerifie !== false, invite: u.statut === 'invite' } : null;
+    return u ? { id: u._id, prenom: u.prenom, nom: u.nom, email: u.email, telephone: u.telephone, role: u.role || 'proprietaire', emailVerifie: u.emailVerifie !== false, invite: u.statut === 'invite' } : null;
   }
 
   // ---------- Équipe d'une entreprise (plusieurs comptes) ----------
@@ -524,8 +524,9 @@ class EntrepriseService {
     return { supprimee: source.nom, vers: cible.nom, residences: residences.modifiedCount, reservations: reservations.modifiedCount };
   }
 
+  /** Comptes actifs de l'entreprise (destinataires des emails ; pas les invitations en attente). */
   async gestionnaires(entrepriseId) {
-    return this.utilisateurs.find({ entrepriseId: { $eq: String(entrepriseId) } }, { projection: { motDePasse: 0, reinitialisation: 0, verificationEmail: 0, invitation: 0 } }).toArray();
+    return this.utilisateurs.find({ entrepriseId: { $eq: String(entrepriseId) }, statut: { $ne: 'invite' } }, { projection: { motDePasse: 0, reinitialisation: 0, verificationEmail: 0, invitation: 0 } }).toArray();
   }
 }
 

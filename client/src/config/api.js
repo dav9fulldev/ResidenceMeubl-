@@ -46,6 +46,9 @@ export const API_ENDPOINTS = {
     resendCode: `${API_BASE_URL}/entreprises/verification-email/renvoi`,
     forgotPassword: `${API_BASE_URL}/entreprises/mot-de-passe/oubli`,
     resetPassword: `${API_BASE_URL}/entreprises/mot-de-passe/reinitialisation`,
+    // Invitation dans l'équipe d'un partenaire (lien reçu par email)
+    invitation: `${API_BASE_URL}/entreprises/invitation`,
+    acceptInvitation: `${API_BASE_URL}/entreprises/invitation/acceptation`,
   },
   admin: {
     login: `${API_BASE_URL}/admin/login`,
@@ -57,6 +60,8 @@ export const API_ENDPOINTS = {
     // Booster de visibilité : partenaire (demandes) et plateforme (activation, tarifs)
     boosters: (chemin = '') => `${API_BASE_URL}/admin/boosters${chemin}`,
     platformBoosters: (chemin = '') => `${API_BASE_URL}/admin/plateforme/boosters${chemin}`,
+    // Partenaire : son équipe (plusieurs comptes par entreprise)
+    team: (chemin = '') => `${API_BASE_URL}/admin/equipe${chemin}`,
     // Partenaire : ses clients (voyageurs qui ont réservé ses résidences)
     partnerClients: `${API_BASE_URL}/admin/clients`,
     users: (q = '') => `${API_BASE_URL}/admin/plateforme/utilisateurs${q ? `?q=${encodeURIComponent(q)}` : ''}`,

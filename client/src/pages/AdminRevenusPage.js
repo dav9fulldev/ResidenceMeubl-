@@ -64,6 +64,10 @@ const AdminRevenusPage = () => {
         <h2>Où recevoir vos reversements</h2>
         {d.beneficiaire && <p><Badge table={STATUTS_BENEFICIAIRE} valeur={d.beneficiaire.statut} />{d.beneficiaire.motif && <small className="fin-motif"> {d.beneficiaire.motif}</small>}</p>}
         <p className="verif-aide">Le compte doit être au nom de votre entreprise ou de son gérant. Toute modification est revérifiée par BABI RESIDENCE avant le reversement suivant.</p>
+        {/* Le compte de reversement est réservé au propriétaire du compte de l'entreprise */}
+        {compte?.utilisateur?.role !== 'proprietaire' ? (
+          <p className="verif-aide">{d.beneficiaire ? <>Reversements sur : <b>{d.types[d.beneficiaire.type]?.libelle || d.beneficiaire.type}</b> · {d.beneficiaire.beneficiaire}. </> : null}Seul un propriétaire du compte de l’entreprise peut modifier ce compte.</p>
+        ) : (
         <form className="fin-benef" onSubmit={enregistrer}>
           <label>Moyen
             <select value={f.type} onChange={(e) => setF(v => ({ ...v, type: e.target.value }))}>
@@ -75,6 +79,7 @@ const AdminRevenusPage = () => {
           <label>{d.types[f.type]?.aide ? d.types[f.type].aide.charAt(0).toUpperCase() + d.types[f.type].aide.slice(1) : 'Coordonnées'}<input required maxLength={60} value={f.destination} onChange={(e) => setF(v => ({ ...v, destination: e.target.value }))} /></label>
           <button type="submit" className="adm-btn principal" disabled={enCours}><FaSave /> Enregistrer</button>
         </form>
+        )}
       </section>
 
       <div className="adm-carte fin-tableau">
