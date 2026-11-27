@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import {
   FaChartPie, FaChartLine, FaCalendarAlt, FaHome, FaSignOutAlt, FaExternalLinkAlt,
-  FaMoon, FaSun, FaDownload, FaTimes, FaCog, FaRegCalendarCheck, FaBuilding, FaHourglassHalf, FaShieldAlt, FaCoins, FaUsers, FaStar,
+  FaMoon, FaSun, FaDownload, FaTimes, FaCog, FaRegCalendarCheck, FaBuilding, FaHourglassHalf, FaShieldAlt, FaCoins, FaUsers, FaStar, FaRocket,
 } from 'react-icons/fa';
 import { API_ENDPOINTS } from '../../config/api';
 import { CompteContext } from '../../context/CompteContext';
@@ -29,6 +29,8 @@ const TITRES = {
   '/admin/utilisateurs': 'Utilisateurs',
   '/admin/clients': 'Clients',
   '/admin/avis': 'Avis',
+  '/admin/visibilite': 'Visibilité',
+  '/admin/boosters': 'Boosters',
 };
 
 /**
@@ -72,7 +74,7 @@ const AdminLayout = () => {
   useEffect(() => {
     const GESTION = ['/admin/dashboard', '/admin/reservations', '/admin/calendrier', '/admin/residences', '/admin/statistiques', '/admin/revenus'];
     if (compte?.superAdmin && GESTION.includes(location.pathname)) navigate('/admin/plateforme', { replace: true });
-    if (compte && !compte.superAdmin && ['/admin/plateforme', '/admin/entreprises', '/admin/utilisateurs', '/admin/verifications', '/admin/finances'].includes(location.pathname)) navigate('/admin/dashboard', { replace: true });
+    if (compte && !compte.superAdmin && ['/admin/plateforme', '/admin/entreprises', '/admin/utilisateurs', '/admin/boosters', '/admin/verifications', '/admin/finances'].includes(location.pathname)) navigate('/admin/dashboard', { replace: true });
   }, [compte, location.pathname, navigate]);
   const { theme, toggleTheme } = useTheme();
   const { installee, peutInstaller, ios, installer } = useInstallPrompt();
@@ -107,6 +109,7 @@ const AdminLayout = () => {
     { to: '/admin/entreprises', icone: <FaBuilding />, texte: 'Entreprises', court: 'Entreprises', badge: enAttente, section: 'Plateforme' },
     { to: '/admin/utilisateurs', icone: <FaUsers />, texte: 'Utilisateurs', section: 'Plateforme', mobile: false },
     { to: '/admin/avis', icone: <FaStar />, texte: 'Avis', section: 'Plateforme', mobile: false },
+    { to: '/admin/boosters', icone: <FaRocket />, texte: 'Boosters', section: 'Plateforme', mobile: false },
     { to: '/admin/verifications', icone: <FaShieldAlt />, texte: 'Vérifications', court: 'Vérif.', badge: aVerifier, section: 'Plateforme' },
     { to: '/admin/finances', icone: <FaCoins />, texte: 'Finances', section: 'Plateforme' },
     { to: '/admin/parametres', icone: <FaCog />, texte: 'Paramètres', section: 'Réglages' },
@@ -118,6 +121,7 @@ const AdminLayout = () => {
     { to: '/admin/clients', icone: <FaUsers />, texte: 'Clients', section: 'Gestion', mobile: false },
     { to: '/admin/statistiques', icone: <FaChartLine />, texte: 'Statistiques', section: 'Pilotage', mobile: false },
     { to: '/admin/avis', icone: <FaStar />, texte: 'Avis', section: 'Pilotage', mobile: false },
+    { to: '/admin/visibilite', icone: <FaRocket />, texte: 'Visibilité', section: 'Pilotage', mobile: false },
     ...(compte && !compte.entreprise?.interne ? [{ to: '/admin/revenus', icone: <FaCoins />, texte: 'Revenus', section: 'Pilotage', mobile: false }] : []),
     { to: '/admin/parametres', icone: <FaCog />, texte: 'Paramètres', section: 'Pilotage' },
   ];

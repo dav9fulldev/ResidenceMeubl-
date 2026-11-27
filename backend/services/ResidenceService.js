@@ -49,15 +49,20 @@ const POIDS_NEUTRE = 3;
 const bayes = (r) => (r ? (POIDS_NEUTRE * NOTE_NEUTRE + r.nombre * r.moyenne) / (POIDS_NEUTRE + r.nombre) : NOTE_NEUTRE);
 async function avecNotes(residences) {
   const Avis = require('./AvisService');
-  const [resumes, partenaires] = await Promise.all([Avis.resumes(residences.map(r => r.id)), Avis.parEntreprise()]);
+  const Booster = require('./BoosterService');
+  const [resumes, partenaires, boostees] = await Promise.all([Avis.resumes(residences.map(r => r.id)), Avis.parEntreprise(), Booster.actifs()]);
   return residences.map((r) => {
     const n = resumes.get(r.id);
     const p = partenaires.get(r.entrepriseId);
+    // Booster de visibilité : bonus limité, refusé à une résidence mal notée ; mention « Sponsorisé »
+    const sponsorise = boostees.has(r.id);
+    const bonus = sponsorise && bayes(n) >= Booster.NOTE_MINIMALE ? Booster.BONUS : 0;
     return {
       ...r,
       note: n?.moyenne ?? null,
       nombreAvis: n?.nombre || 0,
-      recommandation: Math.round((0.6 * bayes(n) + 0.4 * bayes(p)) * 1000) / 1000,
+      sponsorise,
+      recommandation: Math.round((0.6 * bayes(n) + 0.4 * bayes(p) + bonus) * 1000) / 1000,
       entreprise: { ...r.entreprise, note: p?.moyenne ?? null, nombreAvis: p?.nombre || 0, recommande: Boolean(p && p.nombre >= 5 && p.moyenne >= 4.5) },
     };
   });

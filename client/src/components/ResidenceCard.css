@@ -242,3 +242,7 @@
 .rc-note small { font-weight: 400; color: var(--text-muted); }
 /* Comparateur : partenaire recommandé (au moins 5 avis, 4,5 de moyenne) */
 .rc-recommande { display: inline-flex; align-self: flex-start; margin: 2px 0 6px; padding: 3px 10px; border-radius: 999px; background: var(--gold-soft); color: var(--text); font-size: 0.75rem; font-weight: 700; letter-spacing: 0.02em; }
+.rc-mentions { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 6px; }
+.rc-mentions .rc-recommande { margin: 0; }
+/* Booster de visibilité : mention discrète mais toujours visible (transparence) */
+.rc-sponsorise { display: inline-flex; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--border); color: var(--text-muted); font-size: 0.75rem; font-weight: 600; }

@@ -2389,3 +2389,96 @@ test('vérification de l\'email des partenaires : code à 6 chiffres, essais lim
   await db.collection('utilisateurs').updateOne({ email }, { $unset: { emailVerifie: '' } });
   assert.equal((await api('/api/admin/login', { method: 'POST', body: { email, password: mdp } })).status, 200);
 });
+
+test('Booster de visibilité : demande du partenaire, activation manuelle, bonus limité, mention Sponsorisé', async (t) => {
+  const AuthService = require('../services/AuthService');
+  const es = ReservationService.emailService;
+  const original = es.sendAlerteFinance;
+  const alertes = [];
+  es.sendAlerteFinance = async (sujet) => { alertes.push(sujet); };
+  t.after(async () => {
+    es.sendAlerteFinance = original;
+    await db.collection('boosters').deleteMany({});
+    await db.collection('parametres').deleteOne({ _id: 'booster' });
+    await db.collection('avis').deleteMany({ reservationId: /^BOOSTER_/ });
+  });
+
+  const residence = await db.collection('residences').findOne({ id: 1 });
+  const hPartenaire = { Authorization: `Bearer ${AuthService.creerJeton('gestion@test', { entrepriseId: residence.entrepriseId, superAdmin: false })}` };
+  const hAdmin = await connexionAdmin();
+  const score = async () => (await api('/api/residences')).body.data.find(r => r.id === 1);
+
+  // Le partenaire voit les tarifs et ses résidences publiées
+  const accueil = await api('/api/admin/boosters', { headers: hPartenaire });
+  assert.equal(accueil.status, 200);
+  assert.deepEqual(accueil.body.data.tarifs, { 7: 5000, 15: 9000, 30: 15000 });
+  assert.ok(accueil.body.data.residences.some(r => r.id === 1));
+  assert.equal((await api('/api/admin/boosters', { headers: hAdmin })).status, 403, 'la plateforme ne demande pas de booster');
+
+  // Demande : durée et résidence contrôlées, une seule à la fois
+  const demander = (body) => api('/api/admin/boosters', { method: 'POST', headers: hPartenaire, body });
+  assert.equal((await demander({ residenceId: 1, duree: 10 })).status, 400);
+  assert.equal((await demander({ residenceId: 999999, duree: 7 })).status, 404);
+  const d = await demander({ residenceId: 1, duree: 7 });
+  assert.equal(d.status, 201, JSON.stringify(d.body));
+  assert.equal(d.body.data.statut, 'en_attente');
+  assert.equal(d.body.data.montant, 5000);
+  assert.match(d.body.data.reference, /^BST-\d{4}-\d{6}$/);
+  assert.equal(alertes.length, 1, 'plateforme prévenue');
+  assert.equal((await demander({ residenceId: 1, duree: 15 })).status, 409, 'une demande à la fois');
+  const avant = await score();
+  assert.equal(avant.sponsorise, false, 'pas d\'effet avant activation');
+
+  // Activation par la plateforme seulement, avec moyen et référence du paiement
+  const agir = (id, body, headers = hAdmin) => api(`/api/admin/plateforme/boosters/${id}`, { method: 'PUT', headers, body });
+  assert.equal((await agir(d.body.data.id, { action: 'activer', moyen: 'mobile_money', reference: 'WAVE-123' }, hPartenaire)).status, 403);
+  assert.equal((await agir(d.body.data.id, { action: 'activer', moyen: 'mobile_money' })).status, 400, 'référence obligatoire');
+  assert.equal((await agir(d.body.data.id, { action: 'activer', moyen: 'cheque-en-bois', reference: 'X-1' })).status, 400);
+  const actif = await agir(d.body.data.id, { action: 'activer', moyen: 'mobile_money', reference: 'WAVE-123' });
+  assert.equal(actif.status, 200, JSON.stringify(actif.body));
+  assert.equal(actif.body.data.statut, 'actif');
+  assert.equal(Math.round((new Date(actif.body.data.fin) - new Date(actif.body.data.debut)) / 86400000), 7);
+  assert.equal((await agir(d.body.data.id, { action: 'activer', moyen: 'mobile_money', reference: 'WAVE-123' })).status, 409, 'pas deux fois');
+  assert.ok(await db.collection('financial_audit_logs').findOne({ action: 'BOOSTER_ACTIVE', 'details.reference': 'WAVE-123' }), 'inscrit au journal financier');
+
+  // Effet : mention Sponsorisé et bonus de 0,5 sur le score
+  const pendant = await score();
+  assert.equal(pendant.sponsorise, true);
+  assert.equal(Math.round((pendant.recommandation - avant.recommandation) * 1000) / 1000, 0.5);
+
+  // Une résidence mal notée reste « Sponsorisé » mais sans bonus
+  const ids = [];
+  for (let i = 0; i < 8; i += 1) {
+    ids.push(`BOOSTER_${i}`);
+    await db.collection('avis').insertOne({ reservationId: `BOOSTER_${i}`, residenceId: 1, entrepriseId: residence.entrepriseId, clientEmail: `b${i}@example.com`, auteur: 'Test T.', note: 1, criteres: { proprete: 1, conformite: 1, accueil: 1, qualitePrix: 1 }, commentaire: '', creeLe: new Date(), reponse: null, masque: null });
+  }
+  const malNotee = await score();
+  assert.equal(malNotee.sponsorise, true);
+  await db.collection('boosters').updateOne({ reference: d.body.data.reference }, { $set: { statut: 'arrete' } });
+  const sansBooster = await score();
+  assert.equal(malNotee.recommandation, sansBooster.recommandation, 'aucun bonus sous la note minimale');
+  await db.collection('avis').deleteMany({ reservationId: { $in: ids } });
+  await db.collection('boosters').updateOne({ reference: d.body.data.reference }, { $set: { statut: 'actif' } });
+
+  // Arrêt par la plateforme (motif obligatoire) : plus d'effet
+  assert.equal((await agir(d.body.data.id, { action: 'arreter' })).status, 400);
+  assert.equal((await agir(d.body.data.id, { action: 'arreter', motif: 'Demande du partenaire' })).status, 200);
+  assert.equal((await score()).sponsorise, false);
+
+  // Annulation d'une demande en attente par le partenaire ; refus par la plateforme
+  const d2 = await demander({ residenceId: 1, duree: 30 });
+  assert.equal(d2.body.data.montant, 15000);
+  assert.equal((await api(`/api/admin/boosters/${d2.body.data.id}`, { method: 'DELETE', headers: hPartenaire })).status, 200);
+  assert.equal((await api(`/api/admin/boosters/${d2.body.data.id}`, { method: 'DELETE', headers: hPartenaire })).status, 409);
+  const d3 = await demander({ residenceId: 1, duree: 15 });
+  assert.equal((await agir(d3.body.data.id, { action: 'refuser', motif: 'Paiement non reçu' })).body.data.statut, 'refuse');
+
+  // Tarifs réglés par la plateforme
+  const put = (tarifs, headers = hAdmin) => api('/api/admin/plateforme/boosters/tarifs', { method: 'PUT', headers, body: { tarifs } });
+  assert.equal((await put({ 7: -1, 15: 9000, 30: 15000 })).status, 400);
+  assert.equal((await put({ 7: 4000, 15: 7000, 30: 12000 }, hPartenaire)).status, 403);
+  assert.equal((await put({ 7: 4000, 15: 7000, 30: 12000 })).status, 200);
+  assert.equal((await api('/api/admin/boosters', { headers: hPartenaire })).body.data.tarifs[7], 4000);
+  const liste = (await api('/api/admin/plateforme/boosters', { headers: hAdmin })).body.data.boosters;
+  assert.deepEqual(liste.map(b => b.statut).sort(), ['annule', 'arrete', 'refuse']);
+});

@@ -64,7 +64,12 @@ const ResidenceCard = ({ residence, badge, eager = false, requete = '', libreAux
             <span className="rc-note" aria-label={`Note ${residence.rating} sur 5, ${residence.reviews} avis`}><FaStar aria-hidden="true" /> {Number(residence.rating).toLocaleString('fr-FR')}{residence.reviews ? <small> ({residence.reviews})</small> : null}</span>
           ) : null}
         </div>
-        {residence.company?.recommande && <p className="rc-recommande">Partenaire recommandé</p>}
+        {(residence.sponsored || residence.company?.recommande) && (
+          <p className="rc-mentions">
+            {residence.sponsored && <span className="rc-sponsorise">Sponsorisé</span>}
+            {residence.company?.recommande && <span className="rc-recommande">Partenaire recommandé</span>}
+          </p>
+        )}
         <p className="rc-lieu"><FaMapMarkerAlt aria-hidden="true" /> {residence.location}</p>
         <ul className="rc-specs">
           <li><FaBed aria-hidden="true" /> {residence.bedrooms} ch.</li>

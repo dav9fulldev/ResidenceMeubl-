@@ -23,6 +23,8 @@ export const fromApiResidence = (r) => ({
   reviews: r.nombreAvis || 0,
   // Comparateur : note de la résidence et de son partenaire, pondérées par le nombre d'avis
   recommendation: r.recommandation ?? 0,
+  // Booster de visibilité actif (mention « Sponsorisé »)
+  sponsored: Boolean(r.sponsorise),
   images: r.photos || [],
   amenities: r.equipements || [],
   active: r.actif !== false,

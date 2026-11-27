@@ -155,7 +155,7 @@ Fichiers : `backend/services/AvisService.js`, `client/src/components/Avis.js`, `
 - Le **catalogue** (`GET /api/residences`) est trié par ce score ; l'accueil met en avant les résidences disponibles dans cet ordre.
 - **« Partenaire recommandé »** (badge sur les cartes et la fiche) : au moins 5 avis et 4,5 de moyenne.
 - **Plateforme** : la page *Avis* classe les partenaires en cartes (rang, moyenne, nombre d'avis et de résidences notées, critères) ; *Entreprises* affiche la note de chacun.
-- Prévu plus tard : un **booster** payant (visibilité achetée par le partenaire), qui s'ajoutera à ce score.
+- **Booster de visibilité** : un partenaire paie pour qu'une résidence soit mieux placée (7, 15 ou 30 jours, tarifs réglés par la plateforme). Paiement hors plateforme, **activation manuelle** par le super admin (moyen et référence du paiement inscrits au journal financier) ; refus et arrêt avec motif. Effet : **+0,5** sur le score de recommandation, refusé à une résidence dont la note pondérée est sous 3 ; mention **« Sponsorisé »** sur la carte et la fiche. Pages *Visibilité* (partenaire) et *Boosters* (plateforme) ; `backend/services/BoosterService.js`.
 
 ### Mot de passe oublié (partenaires)
 
