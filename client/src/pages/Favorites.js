@@ -71,9 +71,11 @@ const Favorites = () => {
               <Link to="/residences" className="btn btn-secondary">
                 Voir toutes les résidences
               </Link>
-              <a href={`mailto:${EMAIL}`} className="btn btn-outline">
-                Nous contacter
-              </a>
+              {EMAIL && (
+                <a href={`mailto:${EMAIL}`} className="btn btn-outline">
+                  Nous contacter
+                </a>
+              )}
             </div>
           </div>
         </div>

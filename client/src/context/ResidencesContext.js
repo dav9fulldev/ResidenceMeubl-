@@ -2,7 +2,6 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 import { API_ENDPOINTS, apiRequest, getAdminToken, setAdminToken, getClientToken } from '../config/api';
 import { compresserImage } from '../utils/fichiers';
 import { fromApiResidence, toApiResidence } from '../config/mappers';
-import { residences as fallbackResidences } from '../data/residences';
 
 const ResidencesContext = createContext();
 
@@ -46,8 +45,9 @@ export const ResidencesProvider = ({ children }) => {
       setResidences(response.data.map(fromApiResidence));
       setOffline(false);
     } catch (error) {
-      console.error('Chargement des résidences impossible, catalogue local utilisé :', error.message);
-      setResidences(fallbackResidences);
+      // Aucune donnée inventée : le bandeau de connexion invite à réessayer
+      console.error('Chargement des résidences impossible :', error.message);
+      setResidences([]);
       setOffline(true);
     } finally {
       setLoading(false);

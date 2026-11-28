@@ -1930,6 +1930,9 @@ test('super admin : vue d\'ensemble de la plateforme, transfert des résidences 
   assert.ok(avant.residencesPlateforme >= 10);
   assert.equal(avant.transfertFait, false);
   const publiquesAvant = (await api('/api/residences')).body.total;
+  // Coordonnées de la plateforme enregistrées en base (aucune valeur inventée par défaut)
+  const coordonnees = { telephone: '+225 07 00 00 00 66', email: 'contact@plateforme.test' };
+  assert.equal((await api('/api/admin/etablissement', { method: 'PUT', headers: headersAdmin, body: coordonnees })).status, 200);
 
   const responsable = { prenom: 'Awa', nom: 'Gestion', email: 'gestion@babi-residence.test', telephone: '+225 07 00 00 00 55', motDePasse: randomBytes(9).toString('hex') };
   assert.equal((await api('/api/admin/plateforme/transfert', { method: 'POST', headers: headersAdmin, body: { ...responsable, motDePasse: 'court' } })).status, 400);
@@ -1946,7 +1949,7 @@ test('super admin : vue d\'ensemble de la plateforme, transfert des résidences 
   assert.ok((await api('/api/admin/residences', { headers: g })).body.data.length >= 10);
   const etabTransfere = (await api('/api/admin/etablissement', { headers: g })).body.data;
   assert.equal(etabTransfere.nom, 'BABI RESIDENCE', 'les clients voient toujours BABI RESIDENCE');
-  assert.ok(etabTransfere.telephone && etabTransfere.email, 'coordonnées en vigueur recopiées (y compris celles par défaut)');
+  assert.deepEqual({ telephone: etabTransfere.telephone, email: etabTransfere.email }, coordonnees, 'coordonnées en vigueur recopiées');
 
   // Entreprise interne : pas de commission, revenu de la plateforme
   const c = await api('/api/reservations', { method: 'POST', body: nouvelleReservation({ residenceId: 1, email: 'apres-transfert@example.com', dateArrivee: jourDansNJours(400), dateDepart: jourDansNJours(403) }) });

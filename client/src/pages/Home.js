@@ -135,7 +135,7 @@ const Home = () => {
           <div className="hero-text">
             <span className="surtitre hero-surtitre">Réservez. Séjournez. Profitez.</span>
             <h1>Le confort d'un hôtel, la liberté d'un chez-soi</h1>
-            <p>{String(etab.slogan || '').replace(/[.!\s]+$/, '')}. Appartements et villas entièrement équipés, réservés en quelques minutes, sans paiement avant notre confirmation.</p>
+            <p>{etab.slogan ? `${String(etab.slogan).replace(/[.!\s]+$/, '')}. ` : ''}Appartements et villas entièrement équipés, réservés en quelques minutes, sans paiement avant notre confirmation.</p>
           </div>
         </div>
       </section>

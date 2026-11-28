@@ -222,6 +222,10 @@ RESIDENCE/
 
 ---
 
+### Données : tout vient de la base
+
+Aucune résidence, photo, note ou coordonnée n'est écrite dans le code : les résidences et leurs photos (GridFS, servies par `/api/photos/:id`) sont ajoutées par les partenaires, les notes viennent des avis vérifiés, et le nom, le slogan, le téléphone, l'email et l'adresse se règlent dans **Paramètres** (un champ vide n'est pas affiché). Le catalogue d'exemple (`backend/tests/fixtures/residences.js`) ne sert qu'aux tests. Les anciennes photos servies comme fichiers du site se migrent en base avec `node scripts/migrer-photos-statiques.js --api https://<api> [--appliquer]` (à blanc sans `--appliquer`).
+
 ## Lancer le projet en local
 
 Prérequis : **Node.js 20.19 ou plus récent**, un cluster MongoDB Atlas (gratuit) et votre IP autorisée dans *Atlas → Network Access*.

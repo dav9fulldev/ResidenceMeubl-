@@ -1,5 +1,4 @@
 const { MongoClient, GridFSBucket } = require('mongodb');
-const catalogueInitial = require('./data/residences');
 
 /**
  * Connexion MongoDB (Atlas en production).
@@ -51,7 +50,11 @@ async function connect(uri = process.env.MONGODB_URI, dbName = process.env.MONGO
 }
 
 // Au premier démarrage, insérer le catalogue initial si la collection est vide
+// Catalogue d'exemple : uniquement pour les tests automatisés. En vrai, les résidences
+// (et leurs photos) viennent toutes de la base, ajoutées par les partenaires.
 async function seedResidences() {
+  if (process.env.NODE_ENV !== 'test') return;
+  const catalogueInitial = require('./tests/fixtures/residences');
   const residences = db.collection('residences');
   if (await residences.estimatedDocumentCount() > 0) return;
 
@@ -62,7 +65,7 @@ async function seedResidences() {
     { $max: { seq: maxId } },
     { upsert: true }
   );
-  console.log(`🌱 Catalogue initial inséré (${catalogueInitial.length} résidences)`);
+  console.log(`🌱 Catalogue de test inséré (${catalogueInitial.length} résidences)`);
 }
 
 // Prochain identifiant numérique (atomique)
