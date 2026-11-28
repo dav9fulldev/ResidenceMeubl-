@@ -14,6 +14,7 @@ import SignalerAnnonce from '../components/SignalerAnnonce';
 import { AvisResidence } from '../components/Avis';
 import { compterVisite } from '../utils/statistiques';
 import NotFound from './NotFound';
+import AlerteDisponibilite from '../components/AlerteDisponibilite';
 import './ResidenceDetail.css';
 
 // Icône d'un équipement d'après son nom
@@ -224,6 +225,7 @@ const ResidenceDetail = () => {
             {nuits > 0 && (
               <p className="rd-total"><span>{prix} × {nuits} nuit{nuits > 1 ? 's' : ''}</span><b>{(nuits * Number(residence.price)).toLocaleString('fr-FR')} FCFA</b></p>
             )}
+            {!enMaintenance && <AlerteDisponibilite residenceId={residence.id} arrivee={dates.arrivee} depart={dates.depart} />}
             <AvailabilityStatus availability={residence.availability} onReserve={reserver} />
             {!enMaintenance && <p className="rd-rassurance">Aucun paiement avant notre confirmation</p>}
             <p className="rd-hors-plateforme">Payez uniquement sur BABI RESIDENCE. Si l'on vous demande un dépôt par WhatsApp, Wave ou virement direct, ne payez pas et signalez l'annonce.</p>

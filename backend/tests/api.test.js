@@ -2804,3 +2804,172 @@ test('Booster : reçu à l\'activation, rappel avant la fin (sauf prolongation p
   const bilan = envois.find(e => e.type === 'bilan' && e.ref === 'BST-PROLONGE');
   assert.equal(bilan?.suite?.reference, 'BST-SUITE');
 });
+
+test('voyageurs : favoris du compte, alertes de disponibilité, rappel la veille de l\'arrivée', async (t) => {
+  const AuthService = require('../services/AuthService');
+  const AlerteService = require('../services/AlerteService');
+  const es = ReservationService.emailService;
+  const alertes = [];
+  const veilles = [];
+  const originaux = { a: es.sendAlerteDisponibilite, v: es.sendRappelVeille };
+  es.sendAlerteDisponibilite = async (a) => { alertes.push(a); };
+  es.sendRappelVeille = async (r) => { veilles.push(r.id); };
+  t.after(async () => {
+    es.sendAlerteDisponibilite = originaux.a;
+    es.sendRappelVeille = originaux.v;
+    await db.collection('clients').deleteOne({ _id: 'cli-favoris' });
+    await db.collection('alertes_disponibilite').deleteMany({});
+    await db.collection('reservations').deleteMany({ id: { $in: ['VEILLE-1', 'VEILLE-2'] } });
+  });
+
+  // 1. Favoris : session d'un compte seulement, liste nettoyée
+  await db.collection('clients').insertOne({ _id: 'cli-favoris', email: 'fav@voyageur.ci', prenom: 'Fanta', nom: 'Koné', statut: 'actif', creeLe: new Date() });
+  const hCompte = { Authorization: `Bearer ${AuthService.creerSessionClient({ _id: 'cli-favoris', email: 'fav@voyageur.ci' })}` };
+  const hLimite = { Authorization: `Bearer ${AuthService.creerJetonClient('fav@voyageur.ci', { reference: 'RES-X' })}` };
+  assert.deepEqual((await api('/api/client/favoris', { headers: hCompte })).body.data, []);
+  const maj = await api('/api/client/favoris', { method: 'PUT', headers: hCompte, body: { ids: [1, '2', 2, 'pas valide !', { $gt: '' }] } });
+  assert.equal(maj.status, 200, JSON.stringify(maj.body));
+  assert.deepEqual(maj.body.data, ['1', '2']);
+  assert.deepEqual((await api('/api/client/favoris', { headers: hCompte })).body.data, ['1', '2']);
+  assert.equal((await api('/api/client/favoris', { method: 'PUT', headers: hCompte, body: { ids: 'nope' } })).status, 400);
+  assert.equal((await api('/api/client/favoris', { headers: hLimite })).status, 403, 'accès limité à une réservation');
+  assert.equal((await api('/api/client/favoris')).status, 401);
+
+  // 2. Alertes : dates prises → alerte ; dates libres, passées, invalides → refus
+  const resa = await api('/api/reservations', { method: 'POST', body: nouvelleReservation({ dateArrivee: jourDansNJours(600), dateDepart: jourDansNJours(603) }) });
+  assert.equal(resa.status, 201, JSON.stringify(resa.body));
+  const alerter = (body, id = 1) => api(`/api/residences/${id}/alertes`, { method: 'POST', body: { email: 'Attente@Voyageur.ci', ...body } });
+  const periode = (a, d) => ({ arrivee: jourDansNJours(a), depart: jourDansNJours(d) });
+  assert.equal((await alerter(periode(600, 603))).status, 201);
+  assert.equal((await alerter(periode(600, 603))).status, 200, 'même demande : pas de doublon');
+  assert.equal(await db.collection('alertes_disponibilite').countDocuments({}), 1);
+  assert.equal((await alerter(periode(700, 703))).status, 409, 'déjà libre');
+  assert.equal((await alerter(periode(-3, 2))).status, 400, 'arrivée passée');
+  assert.equal((await alerter(periode(603, 600))).status, 400);
+  assert.equal((await alerter({ ...periode(600, 603), email: 'pas-un-email' })).status, 400);
+  assert.equal((await alerter({ ...periode(600, 603), email: { $ne: null } })).status, 400, 'injection');
+  assert.equal((await alerter(periode(600, 603), 999999)).status, 404);
+  for (const [a, d] of [[600, 601], [600, 602], [601, 602], [601, 603]]) assert.equal((await alerter(periode(a, d))).status, 201);
+  assert.equal((await alerter(periode(602, 603))).status, 429, `au plus ${AlerteService.MAX_PAR_EMAIL} alertes en cours`);
+  const autre = await api('/api/residences/1/alertes', { method: 'POST', body: { email: 'autre@voyageur.ci', ...periode(601, 602) } });
+  assert.equal(autre.status, 201);
+
+  // Rien ne part tant que les dates sont prises
+  assert.equal(await AlerteService.verifier({ emails: es }), 0);
+
+  // Annulation : tout le monde est prévenu, une seule fois, puis les alertes disparaissent
+  await ReservationService.updateReservationStatus(resa.body.data.id, 'annulee');
+  for (let i = 0; i < 40 && alertes.length < 6; i += 1) await new Promise(r => setTimeout(r, 25));
+  assert.equal(alertes.length, 6);
+  assert.deepEqual([...new Set(alertes.map(a => a.email))].sort(), ['attente@voyageur.ci', 'autre@voyageur.ci']);
+  assert.ok(alertes.every(a => a.residenceNom && a.residenceId === 1));
+  assert.equal(await db.collection('alertes_disponibilite').countDocuments({}), 0);
+  assert.equal(await AlerteService.verifier({ emails: es }), 0);
+
+  // 3. Veille de l'arrivée : séjours confirmés qui commencent demain, à partir de 8 h, une seule fois
+  const maintenant = new Date();
+  maintenant.setUTCHours(10, 0, 0, 0);
+  const demain = new Date(maintenant.getTime() + 86400000).toISOString().slice(0, 10);
+  const apresDemain = new Date(maintenant.getTime() + 2 * 86400000).toISOString().slice(0, 10);
+  const base = { residenceId: 1, client: { email: 'veille@voyageur.ci', prenom: 'Awa', nom: 'Kouassi' }, prixTotal: 100000, dateCreation: new Date() };
+  await db.collection('reservations').insertMany([
+    { ...base, id: 'VEILLE-1', statut: 'confirmee', dates: { arrivee: demain, depart: apresDemain } },
+    { ...base, id: 'VEILLE-2', statut: 'en_attente', dates: { arrivee: demain, depart: apresDemain } },
+  ]);
+  const tot = new Date(maintenant); tot.setUTCHours(6);
+  assert.equal(await ReservationService.envoyerRappelsVeille(tot), 0, 'pas avant 8 h');
+  assert.equal(await ReservationService.envoyerRappelsVeille(maintenant), 1);
+  assert.deepEqual(veilles, ['VEILLE-1'], 'seulement le séjour confirmé');
+  assert.equal(await ReservationService.envoyerRappelsVeille(maintenant), 0, 'une seule fois');
+});
+
+test('partenaires : résumé de la semaine le lundi, une fois, désactivable par compte', async (t) => {
+  const ResumeService = require('../services/ResumeService');
+  const es = ReservationService.emailService;
+  for (const nom of ['sendBienvenueEntreprise', 'sendNouvelleEntrepriseAdmin']) {
+    const original = es[nom];
+    es[nom] = async () => {};
+    t.after(() => { es[nom] = original; });
+  }
+  const ins = await api('/api/entreprises/inscription', { method: 'POST', body: {
+    entreprise: 'Résidences Résumé', prenom: 'Yao', nom: 'Kouamé', email: 'yao@resume-test.ci', telephone: '+225 07 00 00 00 31', motDePasse: randomBytes(9).toString('hex'),
+  } });
+  assert.equal(ins.status, 201, JSON.stringify(ins.body));
+  const h = await verifierEmailPartenaire('yao@resume-test.ci');
+  const u = await db.collection('utilisateurs').findOne({ email: 'yao@resume-test.ci' });
+  const ent = u.entrepriseId;
+  await db.collection('entreprises').updateOne({ _id: ent }, { $set: { statut: 'validee' } });
+  t.after(async () => {
+    await Promise.all([
+      db.collection('utilisateurs').deleteMany({ entrepriseId: ent }), db.collection('entreprises').deleteOne({ _id: ent }),
+      db.collection('residences').deleteMany({ entrepriseId: ent }), db.collection('reservations').deleteMany({ entrepriseId: ent }),
+      db.collection('avis').deleteMany({ entrepriseId: ent }), db.collection('statistiques_residences').deleteMany({ residenceId: { $in: [99001, 99002] } }),
+      db.collection('resumes_hebdo').deleteMany({ entrepriseId: ent }),
+    ]);
+  });
+
+  // Lundi prochain 9 h : la semaine résumée est celle qui précède
+  const lundiProchain = new Date(ResumeService.lundi(new Date()).getTime() + 7 * 86400000 + 9 * 3600000);
+  const fin = ResumeService.lundi(lundiProchain);
+  const j = (n) => new Date(fin.getTime() + n * 86400000).toISOString().slice(0, 10);
+  const envois = [];
+  const faux = { sendResumeHebdo: async (e, c, membres) => { if (e.id === ent) envois.push({ c, emails: membres.map(m => m.email) }); } };
+
+  // Sans résidence publiée : rien
+  assert.equal((await ResumeService.envoyer({ emails: faux, maintenant: lundiProchain }), envois.length), 0);
+
+  await db.collection('residences').insertMany([
+    { id: 99001, reference: 'RS-V', entrepriseId: ent, nom: 'Villa Résumé', actif: true, statutVerification: 'verifiee' },
+    { id: 99002, reference: 'RS-S', entrepriseId: ent, nom: 'Studio Résumé', actif: true, statutVerification: 'verifiee' },
+  ]);
+  const resa = (id, statut, arrivee, depart, creeIlYa, prix = 50000) => ({
+    id, entrepriseId: ent, residenceId: 99001, statut, dates: { arrivee, depart }, prixTotal: prix,
+    dateCreation: new Date(fin.getTime() - creeIlYa * 86400000), residenceInfo: { nom: 'Villa Résumé' }, client: { prenom: 'Awa', nom: 'Koné', email: 'awa@x.ci' },
+  });
+  await db.collection('reservations').insertMany([
+    resa('RS-1', 'confirmee', j(-5), j(-1), 3, 120000), // 4 nuits dans la semaine, reçue cette semaine
+    resa('RS-2', 'en_attente', j(10), j(12), 2), // reçue cette semaine, à traiter
+    resa('RS-3', 'annulee', j(-4), j(-2), 1), // annulée : ne compte pas
+    resa('RS-4', 'confirmee', j(2), j(5), 20), // arrivée dans les 7 jours (reçue avant)
+  ]);
+  await db.collection('avis').insertMany([
+    { reservationId: 'RS-AV1', entrepriseId: ent, residenceId: 99001, note: 5, creeLe: new Date(fin.getTime() - 2 * 86400000) },
+    { reservationId: 'RS-AV2', entrepriseId: ent, residenceId: 99001, note: 4, creeLe: new Date(fin.getTime() - 3 * 86400000), reponse: { texte: 'Merci' } },
+  ]);
+  await db.collection('statistiques_residences').insertMany([
+    { residenceId: 99001, jour: j(-3), affichages: 40, affichagesSponsorises: 0, visites: 6 },
+    { residenceId: 99002, jour: j(-1), affichages: 10, affichagesSponsorises: 0, visites: 2 },
+    { residenceId: 99002, jour: j(0), affichages: 99, affichagesSponsorises: 0, visites: 99 }, // semaine suivante
+  ]);
+
+  // Pas un lundi, ou avant 8 h : rien
+  assert.equal((await ResumeService.envoyer({ emails: faux, maintenant: new Date(lundiProchain.getTime() + 86400000) }), envois.length), 0);
+  assert.equal((await ResumeService.envoyer({ emails: faux, maintenant: new Date(lundiProchain.getTime() - 2 * 3600000) }), envois.length), 0);
+
+  await ResumeService.envoyer({ emails: faux, maintenant: lundiProchain });
+  assert.equal(envois.length, 1);
+  const { c, emails } = envois[0];
+  assert.deepEqual(emails, ['yao@resume-test.ci']);
+  assert.equal(c.reservations, 2);
+  assert.equal(c.montant, 170000);
+  assert.equal(c.aTraiter, 1);
+  assert.equal(c.occupation, Math.round((4 / 14) * 100), '4 nuits sur 2 résidences × 7 jours');
+  assert.deepEqual(c.arrivees.map(a => a.id), ['RS-4']);
+  assert.equal(c.avis, 2);
+  assert.equal(c.noteMoyenne, 4.5);
+  assert.equal(c.avisSansReponse, 1);
+  assert.deepEqual([c.affichages, c.visites], [50, 8]);
+
+  // Une seule fois par semaine
+  await ResumeService.envoyer({ emails: faux, maintenant: new Date(lundiProchain.getTime() + 3600000) });
+  assert.equal(envois.length, 1);
+
+  // Désactivé par le compte : plus d'envoi
+  const pref = await api('/api/admin/moi/preferences', { method: 'PUT', headers: h, body: { resumeHebdo: false } });
+  assert.equal(pref.status, 200);
+  assert.equal((await api('/api/admin/moi', { headers: h })).body.data.utilisateur.preferences.resumeHebdo, false);
+  assert.equal((await api('/api/admin/moi/preferences', { method: 'PUT', headers: h, body: { resumeHebdo: 'non' } })).status, 400);
+  await db.collection('resumes_hebdo').deleteMany({ entrepriseId: ent });
+  await ResumeService.envoyer({ emails: faux, maintenant: lundiProchain });
+  assert.equal(envois.length, 1);
+});

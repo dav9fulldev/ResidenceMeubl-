@@ -410,6 +410,93 @@ class EmailService {
     }))));
   }
 
+  // ---------- Voyageurs : veille de l'arrivée, alerte de disponibilité ----------
+
+  // La veille de l'arrivée : adresse, contacts du partenaire, lien vers la réservation
+  async sendRappelVeille(r) {
+    const e = this.etablissement;
+    const res = r.residenceInfo || {};
+    const lieu = [res.localisation, res.quartier, res.ville].filter(Boolean).join(', ');
+    const carte = lieu ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${res.nom || ''} ${lieu}`.trim())}` : null;
+    const contact = [
+      e.telephone ? ['Téléphone', `<a href="tel:${esc(e.telephone.replace(/\s/g, ''))}" style="color:#0F1A2E;">${esc(e.telephone)}</a>`] : null,
+      e.whatsapp ? ['WhatsApp', `<a href="https://wa.me/${esc(e.whatsapp.replace(/\D/g, ''))}" style="color:#0F1A2E;">${esc(e.whatsapp)}</a>`] : null,
+      e.email ? ['Email', `<a href="mailto:${esc(e.email)}" style="color:#0F1A2E;">${esc(e.email)}</a>`] : null,
+    ];
+    const pourAutrui = r.voyageur && `${r.voyageur.prenom} ${r.voyageur.nom}`.trim() !== `${r.client.prenom} ${r.client.nom}`.trim();
+    await this.envoyer({
+      to: r.client.email,
+      replyTo: this.adresseReponse,
+      subject: `C'est demain ! Votre séjour à ${res.nom || 'votre résidence'}`,
+      html: this.gabarit({
+        titre: 'Votre séjour commence demain',
+        prevue: `Arrivée le ${date(r.dates.arrivee)} à ${res.nom || 'votre résidence'}.`,
+        contenu: `<p style="margin:0 0 12px;">Bonjour ${esc(r.client.prenom)},</p>
+          <p style="margin:0 0 12px;">${pourAutrui ? `${esc(r.voyageur.prenom)} est attendu(e)` : 'Nous vous attendons'} demain, le <strong>${date(r.dates.arrivee)}</strong>, à <strong>${esc(res.nom)}</strong>. Voici tout ce qu'il faut pour arriver sereinement.</p>
+          ${this.details(this.lignesSejour(r, { montant: false }))}
+          ${lieu ? `<p style="margin:0 0 12px;"><strong>Adresse :</strong> ${esc(lieu)}${carte ? ` · <a href="${esc(carte)}" style="color:#0F1A2E;">Ouvrir dans Google Maps</a>` : ''}</p>` : ''}
+          <p style="margin:0 0 4px;"><strong>Contact de ${esc(e.nom)}</strong> (pour l'heure d'arrivée et la remise des clés) :</p>
+          ${this.details(contact)}
+          <p style="margin:0;">Pensez à prévenir de votre heure d'arrivée. Bon séjour !</p>`,
+        bouton: { texte: 'Voir ma réservation', url: await this.lienGestion(r.client) },
+      }),
+    });
+  }
+
+  // Les dates attendues par un voyageur se sont libérées
+  async sendAlerteDisponibilite(alerte) {
+    const q = new URLSearchParams({ residence: String(alerte.residenceId), arrivee: alerte.arrivee, depart: alerte.depart });
+    await this.envoyer({
+      to: alerte.email,
+      replyTo: this.adresseReponse,
+      subject: `Bonne nouvelle : ${alerte.residenceNom} est libre à vos dates`,
+      html: this.gabarit({
+        titre: 'Vos dates se sont libérées',
+        prevue: `${alerte.residenceNom} est libre du ${date(alerte.arrivee)} au ${date(alerte.depart)}.`,
+        contenu: `<p style="margin:0 0 12px;">Bonjour,</p>
+          <p style="margin:0 0 12px;"><strong>${esc(alerte.residenceNom)}</strong> est de nouveau libre du <strong>${date(alerte.arrivee)}</strong> au <strong>${date(alerte.depart)}</strong>, les dates pour lesquelles vous avez demandé une alerte.</p>
+          <p style="margin:0;">Les dates ne sont pas bloquées pour vous : le premier qui réserve les obtient.</p>`,
+        bouton: { texte: 'Réserver ces dates', url: `${urlSite()}/reservation?${q.toString()}` },
+        note: 'Vous recevez cet email une seule fois, parce que vous avez demandé une alerte sur BABI RESIDENCE. Aucune autre alerte ne vous sera envoyée pour ces dates.',
+      }),
+    });
+  }
+
+  // ---------- Partenaires : résumé de la semaine ----------
+
+  async sendResumeHebdo(entreprise, c, membres) {
+    const court = (d) => new Date(d).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+    const periode = `du ${court(c.debut)} au ${court(new Date(new Date(c.fin).getTime() - 86400000))}`;
+    const arrivees = c.arrivees.length
+      ? `<ul style="margin:0 0 12px;padding-left:20px;">${c.arrivees.slice(0, 8).map(a => `<li><strong>${court(a.arrivee)}</strong> · ${esc(a.residence)}${a.voyageur ? ` · ${esc(a.voyageur)}` : ''}</li>`).join('')}</ul>${c.arrivees.length > 8 ? `<p style="margin:0 0 12px;">et ${c.arrivees.length - 8} autres.</p>` : ''}`
+      : '<p style="margin:0 0 12px;">Aucune arrivée prévue.</p>';
+    const actions = [
+      c.aTraiter ? `<li><strong>${c.aTraiter} demande${c.aTraiter > 1 ? 's' : ''} de réservation</strong> en attente de votre réponse</li>` : '',
+      c.avisSansReponse ? `<li><strong>${c.avisSansReponse} avis</strong> sans réponse : répondre rassure les prochains voyageurs</li>` : '',
+    ].filter(Boolean).join('');
+    await this.envoyerAuxMembres(membres, (u) => ({
+      subject: `Votre semaine sur BABI RESIDENCE - ${c.reservations} réservation${c.reservations > 1 ? 's' : ''}, ${c.occupation} % d'occupation`,
+      html: this.gabarit({
+        titre: 'Votre semaine en bref',
+        prevue: `${entreprise.nom} ${periode} : ${c.reservations} réservations, ${c.occupation} % d'occupation, ${c.visites} visites.`,
+        contenu: `<p style="margin:0 0 12px;">Bonjour ${esc(u.prenom)},</p>
+          <p style="margin:0 0 12px;">Voici l'activité de <strong>${esc(entreprise.nom)}</strong> ${periode}.</p>
+          ${this.details([
+            ['Réservations reçues', `<strong>${c.reservations}</strong>${c.montant ? ` · ${fcfa(c.montant)}` : ''}`],
+            ['Taux d\'occupation', `<strong>${c.occupation} %</strong> sur ${c.residences} résidence${c.residences > 1 ? 's' : ''}`],
+            ['Avis reçus', c.avis ? `<strong>${c.avis}</strong> · note moyenne ${esc(String(c.noteMoyenne).replace('.', ','))}/5` : 'Aucun'],
+            ['Vos annonces', `${c.affichages.toLocaleString('fr-FR')} affichages · ${c.visites.toLocaleString('fr-FR')} visites des fiches`],
+            ['Boosters en cours', c.boosters.length ? c.boosters.map(b => `${esc(b.residence)} (jusqu'au ${court(b.fin)})`).join('<br>') : 'Aucun'],
+          ])}
+          ${actions ? `<p style="margin:0 0 4px;"><strong>À faire</strong></p><ul style="margin:0 0 12px;padding-left:20px;">${actions}</ul>` : ''}
+          <p style="margin:0 0 4px;"><strong>Arrivées des 7 prochains jours</strong></p>
+          ${arrivees}`,
+        bouton: { texte: 'Ouvrir mon espace', url: `${urlSite()}/admin/dashboard` },
+        note: 'Pour ne plus recevoir ce résumé, décochez « Résumé de la semaine » dans Paramètres de votre espace.',
+      }),
+    }));
+  }
+
   // ---------- Booster de visibilité ----------
 
   /** Lignes communes : campagne, période ; et résultats (affichages, visites, réservations, coût par résultat). */

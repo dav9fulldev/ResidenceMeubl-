@@ -36,7 +36,7 @@ const fcfa = (n) => `${Math.round(n).toLocaleString('fr-FR')} FCFA`;
 /** Paramètres du back-office, par catégories. */
 const AdminSettingsPage = () => {
   const { getSettings, updateSettings, getEstablishment, updateEstablishment, adminRequest } = useResidences();
-  const { compte } = useCompte();
+  const { compte, recharger } = useCompte();
   const [mdp, setMdp] = useState({ actuel: '', nouveau: '', confirmation: '' });
   // « Mon compte » : gestionnaires seulement (l'administrateur de la plateforme se règle sur le serveur)
   const role = compte?.superAdmin ? 'plateforme' : 'entreprise';
@@ -231,10 +231,29 @@ const AdminSettingsPage = () => {
                   <li>Décision sur une demande d'annulation</li>
                   <li>Remboursement effectué</li>
                   <li>Lien d'accès à « Mes réservations »</li>
+                  <li>Rappel la veille de l'arrivée (adresse et vos coordonnées)</li>
                 </ul>
               </div>
               {bouton(modifie(etab, etabInitial, ['emailNotifications']))}
             </form>
+          )}
+          {categorie === 'emails' && role === 'entreprise' && compte?.utilisateur?.preferences && (
+            <div className="params-form">
+              <div className="params-champ">
+                <label className="params-case">
+                  <input type="checkbox" checked={compte.utilisateur.preferences.resumeHebdo} disabled={etat.enCours}
+                    onChange={(e) => {
+                      const resumeHebdo = e.target.checked;
+                      enregistrer(async () => {
+                        await adminRequest(API_ENDPOINTS.admin.preferences, { method: 'PUT', body: { resumeHebdo } });
+                        await recharger();
+                      }, resumeHebdo ? 'Vous recevrez le résumé chaque lundi matin.' : 'Vous ne recevrez plus le résumé de la semaine.');
+                    }} />
+                  <span><b>Résumé de la semaine</b> : chaque lundi matin, vos réservations, votre taux d'occupation, les avis reçus et les arrivées à venir.</span>
+                </label>
+                <p>Ce réglage ne concerne que votre compte ({compte.utilisateur.email}).</p>
+              </div>
+            </div>
           )}
 
           {categorie === 'paiement' && <MoyensPaiement />}

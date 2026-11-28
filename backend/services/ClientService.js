@@ -17,7 +17,7 @@ const { hacher, verifierHash } = require('./EntrepriseService');
  *  - changer de mot de passe ferme toutes les sessions ouvertes avant.
  *
  * Collection clients { _id, email, prenom, nom, telephone, statut, motDePasse?, creeLe,
- *                      activeLe?, motDePasseLe?, sessionsInvalideesLe?, derniereConnexionLe? }
+ *                      activeLe?, motDePasseLe?, sessionsInvalideesLe?, derniereConnexionLe?, favoris? }
  * Les réservations restent rattachées par email (reservation.client.email) ; les nouvelles
  * portent aussi clientId.
  */
@@ -151,6 +151,19 @@ const ClientService = {
     if (!client) return null;
     if (client.sessionsInvalideesLe && (Number(donnees.iat) || 0) < new Date(client.sessionsInvalideesLe).getTime()) return null;
     return client;
+  },
+
+  /** Favoris du compte : identifiants de résidences (au plus 200). */
+  async favoris(id) {
+    const c = await this.trouver(id);
+    return (c?.favoris || []).map(String);
+  },
+
+  async definirFavoris(id, ids) {
+    if (!Array.isArray(ids)) throw new ErreurClient('Liste de favoris invalide');
+    const propres = [...new Set(ids.map(v => String(v)).filter(v => /^[\w-]{1,40}$/.test(v)))].slice(0, 200);
+    await this.collection.updateOne({ _id: { $eq: String(id) } }, { $set: { favoris: propres, favorisLe: new Date() } });
+    return propres;
   },
 
   public(c) {

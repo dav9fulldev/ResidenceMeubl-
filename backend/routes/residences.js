@@ -148,6 +148,33 @@ router.get('/disponibles', async (req, res) => {
 });
 
 /**
+ * @route   POST /api/residences/:id/alertes   { email, arrivee, depart }
+ * @desc    Être prévenu par email si la résidence se libère à ces dates
+ * @access  Public (limité)
+ */
+const alerteLimiter = rateLimit({
+  keyGenerator: cleLimite,
+  skip: () => process.env.NODE_ENV === 'test',
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Trop de demandes d\'alerte. Réessayez dans quelques minutes.' },
+});
+router.post('/:id/alertes', alerteLimiter, async (req, res) => {
+  const AlerteService = require('../services/AlerteService');
+  if (!/^\d{1,9}$/.test(String(req.params.id))) return res.status(404).json({ success: false, message: 'Résidence introuvable' });
+  try {
+    const r = await AlerteService.creer(req.params.id, req.body || {});
+    res.status(r.creee ? 201 : 200).json({ success: true, message: 'C’est noté : nous vous écrivons dès que ces dates se libèrent.' });
+  } catch (error) {
+    if (error instanceof AlerteService.ErreurAlerte) return res.status(error.status).json({ success: false, message: error.message });
+    console.error('Erreur alerte de disponibilité :', error);
+    res.status(500).json({ success: false, message: 'Erreur lors de l\'enregistrement de l\'alerte' });
+  }
+});
+
+/**
  * @route   POST /api/residences/check-disponibilite
  * @desc    Vérifier la disponibilité d'une résidence
  * @access  Public
