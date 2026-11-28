@@ -1,14 +1,15 @@
 import { useEffect, useState } from 'react';
 import { API_ENDPOINTS } from '../config/api';
 
-// Valeurs affichées tant que l'API n'a pas répondu (ou si elle est injoignable)
+// Tant que l'API n'a pas répondu : le nom de la marque seulement. Coordonnées, réseaux et
+// slogan viennent de la base (Paramètres) ; un champ vide n'est pas affiché.
 export const ETABLISSEMENT_DEFAUT = {
   nom: 'BABI RESIDENCE',
-  slogan: 'Résidences meublées d\'exception à Abidjan',
-  telephone: '+225 27 22 49 28 90',
+  slogan: '',
+  telephone: '',
   whatsapp: '',
-  email: 'contact@babi-residence.com',
-  adresse: 'Abidjan, Côte d\'Ivoire',
+  email: '',
+  adresse: '',
   facebook: '', instagram: '', tiktok: '', x: '',
   acompte: { pourcentage: 30, remboursementPourcentage: 50, integralJours: 5, avantArriveeJours: 3 },
 };

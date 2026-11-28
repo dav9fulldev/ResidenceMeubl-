@@ -10,6 +10,8 @@ export const API_ENDPOINTS = {
     getAll: `${API_BASE_URL}/residences`,
     getById: (id) => `${API_BASE_URL}/residences/${id}`,
     checkAvailability: `${API_BASE_URL}/residences/check-disponibilite`,
+    // Être prévenu par email si la résidence se libère à ces dates
+    alert: (id) => `${API_BASE_URL}/residences/${encodeURIComponent(id)}/alertes`,
     available: `${API_BASE_URL}/residences/disponibles`,
     smartSearch: `${API_BASE_URL}/residences/recherche-ia`,
     similar: (id) => `${API_BASE_URL}/residences/${id}/similaires`,
@@ -35,6 +37,7 @@ export const API_ENDPOINTS = {
     setPassword: `${API_BASE_URL}/client/mot-de-passe`,
     passwordLink: `${API_BASE_URL}/client/mot-de-passe/lien`,
     me: `${API_BASE_URL}/client/moi`,
+    favorites: `${API_BASE_URL}/client/favoris`,
     reservations: `${API_BASE_URL}/client/reservations`,
     hide: `${API_BASE_URL}/client/reservations/masquer`,
     requestCancellation: (id) => `${API_BASE_URL}/client/reservations/${id}/annulation`,
@@ -54,6 +57,7 @@ export const API_ENDPOINTS = {
     login: `${API_BASE_URL}/admin/login`,
     me: `${API_BASE_URL}/admin/moi`,
     password: `${API_BASE_URL}/admin/moi/mot-de-passe`,
+    preferences: `${API_BASE_URL}/admin/moi/preferences`,
     companies: `${API_BASE_URL}/admin/plateforme/entreprises`,
     reviews: (chemin = '') => `${API_BASE_URL}/admin/avis${chemin}`,
     // Utilisateurs de la plateforme (comptes du Service client), clients des partenaires

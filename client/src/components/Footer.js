@@ -26,7 +26,7 @@ const Footer = () => {
         <div className="footer-content">
           <div className="footer-section footer-marque">
             <p className="footer-nom">{etab.nom}</p>
-            <p className="footer-slogan">{etab.slogan}</p>
+            {etab.slogan && <p className="footer-slogan">{etab.slogan}</p>}
             {reseaux.length > 0 && (
               <div className="social-links">
                 {reseaux.map(([nom, url, icone]) => (

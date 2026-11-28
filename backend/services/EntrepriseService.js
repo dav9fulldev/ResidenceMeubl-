@@ -274,8 +274,15 @@ class EntrepriseService {
     return r;
   }
 
+  /** Préférences d'un compte (emails reçus). */
+  async changerPreferences(uid, { resumeHebdo } = {}) {
+    if (typeof resumeHebdo !== 'boolean') throw new ErreurEntreprise('Préférence invalide');
+    await this.utilisateurs.updateOne({ _id: { $eq: String(uid) } }, { $set: { 'preferences.resumeHebdo': resumeHebdo } });
+    return { resumeHebdo };
+  }
+
   publicUtilisateur(u) {
-    return u ? { id: u._id, prenom: u.prenom, nom: u.nom, email: u.email, telephone: u.telephone, role: u.role || 'proprietaire', emailVerifie: u.emailVerifie !== false, invite: u.statut === 'invite' } : null;
+    return u ? { id: u._id, prenom: u.prenom, nom: u.nom, email: u.email, telephone: u.telephone, role: u.role || 'proprietaire', emailVerifie: u.emailVerifie !== false, invite: u.statut === 'invite', preferences: { resumeHebdo: u.preferences?.resumeHebdo !== false } } : null;
   }
 
   // ---------- Équipe d'une entreprise (plusieurs comptes) ----------

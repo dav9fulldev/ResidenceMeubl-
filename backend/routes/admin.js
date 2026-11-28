@@ -99,6 +99,16 @@ router.get('/moi', async (req, res) => {
 });
 
 /**
+ * @route   PUT /api/admin/moi/preferences   { resumeHebdo }   emails reçus par ce compte
+ */
+router.put('/moi/preferences', async (req, res) => {
+  if (!req.admin.uid) return res.status(409).json({ success: false, message: 'Réservé aux comptes des partenaires' });
+  try {
+    res.json({ success: true, data: await EntrepriseService.changerPreferences(req.admin.uid, req.body || {}) });
+  } catch (error) { gererErreur(res, error, 'lors de l\'enregistrement des préférences'); }
+});
+
+/**
  * @route   PUT /api/admin/moi/mot-de-passe   { actuel, nouveau }
  */
 router.put('/moi/mot-de-passe', async (req, res) => {

@@ -4,6 +4,7 @@ import { FaSignOutAlt, FaEye, FaEyeSlash } from 'react-icons/fa';
 import { API_ENDPOINTS, apiRequest, getClientToken, setClientToken } from '../config/api';
 import PaiementAcompte, { preparerPaiementDirect } from '../components/PaiementAcompte';
 import { Etoiles, FormulaireAvis } from '../components/Avis';
+import { useFavorites } from '../context/FavoritesContext';
 import './MesReservations.css';
 
 const fcfa = (n) => `${Number(n).toLocaleString('fr-FR')} FCFA`;
@@ -54,6 +55,7 @@ const MesReservations = () => {
   const [searchParams] = useSearchParams();
 
   const [token, setToken] = useState(() => getClientToken());
+  const { synchroniser } = useFavorites(); // favoris retrouvés sur le compte dès la connexion
   const [reservations, setReservations] = useState(null);
   const [email, setEmail] = useState(() => location.state?.email || emailMemorise());
   const [motDePasse, setMotDePasse] = useState('');
@@ -199,6 +201,7 @@ const MesReservations = () => {
     setClientToken(data.token);
     setToken(data.token);
     setCompte(data.client);
+    synchroniser();
     memoriserEmail(data.client?.email);
     setMotDePasse('');
     setConfirmationMdp('');

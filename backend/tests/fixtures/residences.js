@@ -1,6 +1,6 @@
 /**
- * Catalogue initial des résidences (repris du frontend).
- * Chargé au démarrage tant qu'il n'y a pas de base de données.
+ * Catalogue d'exemple pour les tests automatisés (inséré dans la base de test vide).
+ * Jamais chargé en production : les résidences et leurs photos viennent de la base.
  */
 module.exports = [
   {

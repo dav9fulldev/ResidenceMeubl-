@@ -130,6 +130,21 @@ router.get('/moi', requireClient, async (req, res) => {
 });
 
 /**
+ * @route   GET /api/client/favoris        identifiants des résidences favorites du compte
+ * @route   PUT /api/client/favoris        { ids: [...] }   remplace la liste
+ * @desc    Favoris retrouvés sur tous les appareils (session d'un compte, pas un accès limité)
+ */
+router.get('/favoris', requireClient, async (req, res) => {
+  if (!req.client.id) return res.status(403).json({ success: false, message: 'Connectez-vous à votre compte pour retrouver vos favoris' });
+  try { res.json({ success: true, data: await ClientService.favoris(req.client.id) }); } catch (error) { gererErreur(res, error, 'lors de la lecture des favoris'); }
+});
+
+router.put('/favoris', requireClient, async (req, res) => {
+  if (!req.client.id) return res.status(403).json({ success: false, message: 'Connectez-vous à votre compte pour retrouver vos favoris' });
+  try { res.json({ success: true, data: await ClientService.definirFavoris(req.client.id, req.body?.ids) }); } catch (error) { gererErreur(res, error, 'lors de l\'enregistrement des favoris'); }
+});
+
+/**
  * @route   GET /api/client/reservations
  * @desc    Historique des réservations du client
  */

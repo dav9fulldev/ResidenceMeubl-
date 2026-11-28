@@ -381,6 +381,9 @@ class ReservationService {
 
     const reservation = await this.collection.findOne({ id: avant.id }, { projection: { _id: 0 } });
 
+    // Dates libérées : les voyageurs qui attendaient ces dates sont prévenus
+    if (nouveauStatut === 'annulee' && avant.statut !== 'annulee') require('./AlerteService').verifierEnFond(avant.residenceId);
+
     // Email au client seulement si le statut change vers « confirmée » ou « annulée »
     let emailEnvoye = false;
     if (avant.statut !== nouveauStatut && nouveauStatut !== 'en_attente') {
@@ -482,12 +485,40 @@ class ReservationService {
     return envoyes;
   }
 
+  /**
+   * Rappel la veille de l'arrivée (séjour confirmé), une fois, envoyé à partir de 8 h (heure d'Abidjan = UTC) :
+   * adresse, contacts du partenaire, lien vers la réservation.
+   */
+  async envoyerRappelsVeille(maintenant = new Date()) {
+    if (!this.emailService || maintenant.getUTCHours() < 8) return 0;
+    const demain = new Date(maintenant.getTime() + 86400000).toISOString().slice(0, 10);
+    const candidates = await this.collection.find({
+      statut: 'confirmee', 'dates.arrivee': demain, rappelVeilleLe: { $exists: false },
+    }, { projection: { _id: 0 } }).toArray();
+    let envoyes = 0;
+    for (const r of candidates) {
+      const pris = await this.collection.updateOne({ id: r.id, rappelVeilleLe: { $exists: false } }, { $set: { rappelVeilleLe: maintenant } });
+      if (pris.modifiedCount !== 1) continue;
+      try {
+        await Tenant.pour(r, () => this.emailService.sendRappelVeille(r));
+        envoyes += 1;
+      } catch (error) {
+        console.error('⚠️ Rappel de la veille non envoyé (%s) :', String(r.id), error.message);
+        await this.collection.updateOne({ id: r.id }, { $unset: { rappelVeilleLe: '' } });
+      }
+    }
+    return envoyes;
+  }
+
   demarrerRappelsSolde(intervalleMs = 60 * 60 * 1000) {
     if (this.minuterieRappels) return;
     const lancer = () => {
       this.envoyerRappelsSolde().catch(e => console.error('⚠️ Rappels de solde :', e.message));
       require('./AvisService').envoyerInvitations(this.emailService).catch(e => console.error('⚠️ Invitations à noter :', e.message));
       require('./BoosterService').envoyerRappels(this.emailService).catch(e => console.error('⚠️ Rappels des boosters :', e.message));
+      this.envoyerRappelsVeille().catch(e => console.error('⚠️ Rappels de la veille :', e.message));
+      require('./AlerteService').verifier({ emails: this.emailService }).catch(e => console.error('⚠️ Alertes de disponibilité :', e.message));
+      require('./ResumeService').envoyer({ emails: this.emailService }).catch(e => console.error('⚠️ Résumés de la semaine :', e.message));
     };
     lancer();
     this.minuterieRappels = setInterval(lancer, intervalleMs);

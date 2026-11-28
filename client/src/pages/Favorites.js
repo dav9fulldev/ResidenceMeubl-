@@ -2,13 +2,20 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 
 import { useFavorites } from '../context/FavoritesContext';
+import { useResidences } from '../context/ResidencesContext';
 import ResidenceCard from '../components/ResidenceCard';
 import useEtablissement from '../hooks/useEtablissement';
 import './Favorites.css';
 
 const Favorites = () => {
-  const { favorites } = useFavorites();
+  const { favorites, favoriteIds, surCompte } = useFavorites();
+  const { loading } = useResidences();
   const { email: EMAIL } = useEtablissement();
+
+  // Favoris enregistrés, catalogue pas encore chargé
+  if (loading && favoriteIds.length > 0) {
+    return <div className="favorites-page"><div className="container"><p className="page-chargement" role="status">Chargement de vos favoris…</p></div></div>;
+  }
 
   if (favorites.length === 0) {
     return (
@@ -39,6 +46,11 @@ const Favorites = () => {
           <p>
             {favorites.length} résidence{favorites.length > 1 ? 's' : ''} dans vos favoris
           </p>
+          <p className="favoris-sync">
+            {surCompte
+              ? 'Connecté à votre compte : vos favoris vous suivent sur tous vos appareils.'
+              : 'Vos favoris sont gardés sur cet appareil. Connectez-vous à votre compte (lien reçu lors d’une réservation) pour les retrouver partout.'}
+          </p>
         </div>
 
         {/* Grille des favoris */}
@@ -59,9 +71,11 @@ const Favorites = () => {
               <Link to="/residences" className="btn btn-secondary">
                 Voir toutes les résidences
               </Link>
-              <a href={`mailto:${EMAIL}`} className="btn btn-outline">
-                Nous contacter
-              </a>
+              {EMAIL && (
+                <a href={`mailto:${EMAIL}`} className="btn btn-outline">
+                  Nous contacter
+                </a>
+              )}
             </div>
           </div>
         </div>

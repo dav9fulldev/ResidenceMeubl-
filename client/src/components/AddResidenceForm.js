@@ -163,7 +163,6 @@ const AddResidenceForm = ({ onAddResidence, onClose }) => {
         bedrooms: parseInt(formData.bedrooms),
         bathrooms: parseInt(formData.bathrooms),
         maxGuests: parseInt(formData.maxGuests),
-        rating: 4.5,
         available: true,
         images: [],
         fichiers: selectedImages.map(x => x.file), // envoyés un par un après la création

@@ -21,6 +21,7 @@ Mise en ligne : voir [DEPLOIEMENT.md](DEPLOIEMENT.md).
 ## Fonctionnalités
 
 ### Pour les voyageurs (utilisateurs de la plateforme, clients des partenaires)
+- **Favoris** retrouvés sur tous les appareils une fois connecté à son compte (fusion avec ceux de l'appareil), toujours affichés avec les prix et disponibilités à jour. **Alerte de disponibilité** : sur la fiche, si les dates choisies sont prises, « Me prévenir » envoie un seul email dès qu'elles se libèrent (annulation, refus ; au plus 5 alertes par adresse). **Rappel la veille de l'arrivée** (à partir de 8 h) : adresse avec lien Google Maps, téléphone, WhatsApp et email du partenaire.
 - **Accueil** : recherche par dates, nombre de personnes et quartier ; résidences disponibles mises en avant.
 - **Catalogue** filtré par la disponibilité réelle sur les dates choisies.
 - **Recherche intelligente** : « une villa avec jardin pour une famille de 6, moins de 90 000 FCFA ». Les critères chiffrés sont compris, les résidences classées par pertinence (français et anglais). **Recherche vocale** par le bouton micro.
@@ -41,6 +42,7 @@ Mise en ligne : voir [DEPLOIEMENT.md](DEPLOIEMENT.md).
 - **Inscription** sur `/admin/inscription` (lien « Vous gérez des résidences ? Publiez-les » en pied de page) : nom de l'entreprise, gestionnaire, email, mot de passe.
 - **Vérification de l'email** : après l'inscription, un **code à 6 chiffres** est envoyé par email (valable 15 minutes, 5 essais, un renvoi par minute et 5 par heure, seule son empreinte est stockée). Sans ce code, pas d'accès à l'espace partenaire ni de validation possible par la plateforme ; une connexion avant vérification renvoie un nouveau code. Les comptes créés avant cette étape restent utilisables.
 - **Équipe (plusieurs comptes par entreprise)** : page « Équipe ». Le **propriétaire** invite ses collaborateurs par email (lien valable 7 jours, à usage unique, seule son empreinte est stockée) ; l'invité choisit son mot de passe sur `/admin/invitation` et arrive directement dans l'espace de l'entreprise. Deux rôles : **propriétaire** (tout, y compris l'équipe et le compte de reversement) et **gestionnaire** (résidences, réservations, calendrier, clients, avis, visibilité). Une entreprise garde toujours au moins un propriétaire ; un membre retiré perd l'accès immédiatement. Les invitations en attente ne reçoivent pas les emails de l'entreprise.
+- **Résumé de la semaine** par email chaque lundi matin : réservations reçues, demandes à traiter, taux d'occupation, avis (et avis sans réponse), affichages et visites des annonces, boosters en cours, arrivées des 7 prochains jours. Une fois par semaine, désactivable par compte (Paramètres → Emails).
 - L'entreprise est **vérifiée par la plateforme** : en attendant, le gestionnaire prépare ses résidences, ses règles d'acompte et ses moyens de paiement ; rien n'est visible sur le site.
 - Chaque entreprise ne voit **que ses données** : résidences, réservations, calendrier, statistiques, paramètres.
 - **Clients** : les voyageurs qui ont réservé ses résidences (séjours, montant, dernier et prochain séjour, coordonnées), construits à partir de ses seules réservations.
@@ -219,6 +221,10 @@ RESIDENCE/
 ```
 
 ---
+
+### Données : tout vient de la base
+
+Aucune résidence, photo, note ou coordonnée n'est écrite dans le code : les résidences et leurs photos (GridFS, servies par `/api/photos/:id`) sont ajoutées par les partenaires, les notes viennent des avis vérifiés, et le nom, le slogan, le téléphone, l'email et l'adresse se règlent dans **Paramètres** (un champ vide n'est pas affiché). Le catalogue d'exemple (`backend/tests/fixtures/residences.js`) ne sert qu'aux tests. Les anciennes photos servies comme fichiers du site se migrent en base avec `node scripts/migrer-photos-statiques.js --api https://<api> [--appliquer]` (à blanc sans `--appliquer`).
 
 ## Lancer le projet en local
 

@@ -16,11 +16,11 @@ const DEFINITIONS = {
 // Identité de l'établissement (textes) : affichée sur le site, dans les emails et le back-office
 const TEXTES = {
   nom: { defaut: 'BABI RESIDENCE', max: 80, requis: true },
-  slogan: { defaut: 'Résidences meublées d\'exception à Abidjan', max: 160 },
-  telephone: { defaut: '+225 27 22 49 28 90', max: 30, type: 'tel' },
+  slogan: { defaut: '', max: 160 },
+  telephone: { defaut: '', max: 30, type: 'tel' },
   whatsapp: { defaut: '', max: 30, type: 'tel' },
-  email: { defaut: 'contact@babi-residence.com', max: 120, type: 'email' },
-  adresse: { defaut: 'Abidjan, Côte d\'Ivoire', max: 160 },
+  email: { defaut: '', max: 120, type: 'email' },
+  adresse: { defaut: '', max: 160 },
   facebook: { defaut: '', max: 200, type: 'url' },
   instagram: { defaut: '', max: 200, type: 'url' },
   tiktok: { defaut: '', max: 200, type: 'url' },
